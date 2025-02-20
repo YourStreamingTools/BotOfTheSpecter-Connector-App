@@ -137,7 +137,11 @@ async def specter_websocket(specter_thread):
         try:
             await specterSocket.connect(specter_websocket_uri)
             specter_thread.connection_status.emit(True)
-            await specterSocket.wait()
+            while True:
+                await asyncio.sleep(10)
+                if not specterSocket.connected:
+                    specter_thread.connection_status.emit(False)
+                    break
         except socketio.exceptions.ConnectionError as ConnectionError:
             logging.error(f"SpecterWebSocket ConnectionError Error: {ConnectionError}")
             specter_thread.connection_status.emit(False)
@@ -146,6 +150,8 @@ async def specter_websocket(specter_thread):
             logging.error(f"SpecterWebSocket Error: {e}")
             specter_thread.connection_status.emit(False)
             await asyncio.sleep(10)
+        finally:
+            specter_thread.connection_status.emit(False)
 
 # Function to connect to OBS WebSocket server
 async def obs_websocket(obs_thread):
@@ -157,6 +163,11 @@ async def obs_websocket(obs_thread):
             obsSocket.connect()
             obs_thread.obs_connection_status.emit(True)
             obsSocket.register(on_event)
+            while True:
+                await asyncio.sleep(1)
+                if not obsSocket.ws or not obsSocket.ws.connected:
+                    obs_thread.obs_connection_status.emit(False)
+                    break
             await cancellation_event.wait()
             if cancellation_event.is_set():
                 break
@@ -168,8 +179,10 @@ async def obs_websocket(obs_thread):
             logging.error(f"obsWebSocket Error: {e}")
             obs_thread.obs_connection_status.emit(False)
             await asyncio.sleep(10)
-        if obsSocket.connected:
-            obsSocket.disconnect()
+        finally:
+            if obsSocket.ws and obsSocket.ws.connected:
+                obsSocket.disconnect()
+                obs_thread.obs_connection_status.emit(False)
 
 # Handle OBS events and send them to Specter server
 def on_event(event):

@@ -1,4 +1,4 @@
-PyQt5
+PyQt6
 aiohttp
 python-socketio
 obs-websocket-py

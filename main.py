@@ -6,13 +6,13 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from PyQt5.QtCore import Qt, pyqtSignal, QThread, QRunnable, QThreadPool
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, pyqtSignal, QThread, QRunnable, QThreadPool
+from PyQt6.QtWidgets import (
     QWidget, QApplication, QMainWindow, QPushButton, QVBoxLayout, QFormLayout,
-    QLineEdit, QLabel, QStackedWidget, QHBoxLayout, QAction, QMessageBox, QTextEdit,
+    QLineEdit, QLabel, QStackedWidget, QHBoxLayout, QMessageBox, QTextEdit,
     QCheckBox
 )
-from PyQt5.QtGui import QIcon, QColor, QTextCursor
+from PyQt6.QtGui import QIcon, QColor, QTextCursor, QAction
 import socketio
 from socketio import AsyncClient as SocketClient
 import obswebsocket
@@ -280,7 +280,7 @@ async def event_failure(data):
 # Handle disconnection
 @specterSocket.event
 async def disconnect():
-    logging.info(f"SpecterSocket Event: Disconncted")
+    logging.info(f"SpecterSocket Event: Disconnected")
     if hasattr(SpecterWebSocketThread, 'connection_status'):
         SpecterWebSocketThread.connection_status.emit(False)
 
@@ -292,7 +292,7 @@ class APISettingsPage(QWidget):
         super().__init__()
         self.main_window = main_window
         title_label = QLabel("Specter System API Key", self)
-        title_label.setAlignment(Qt.AlignHCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding-bottom: 20px; color: #FFFFFF;")
         self.api_key_input = QLineEdit(self)
         self.api_key_input.setPlaceholderText("Enter API Key")
@@ -366,7 +366,7 @@ class OBSSettingsPage(QWidget):
         super().__init__()
         self.main_window = main_window
         title_label = QLabel("OBS WebSocket Settings", self)
-        title_label.setAlignment(Qt.AlignHCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding-bottom: 20px; color: #FFFFFF;")
         settings = load_settings()
         self.server_ip_input = QLineEdit(self)
@@ -419,7 +419,7 @@ class EventSettingsPage(QWidget):
         super().__init__()
         self.main_window = main_window
         title_label = QLabel("Event Settings", self)
-        title_label.setAlignment(Qt.AlignHCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding-bottom: 20px; color: #FFFFFF;")
         
         info_label = QLabel(
@@ -511,7 +511,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(NAME)
-        self.setGeometry(100, 100, 500, 250)
+        self.setGeometry(100, 100, 600, 400)  # Adjusted window size
         self.setWindowIcon(QIcon(icon_path))
         self.stack = QStackedWidget(self)
         self.setCentralWidget(self.stack)
@@ -522,19 +522,19 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout()
         # Title label
         title_label = QLabel(NAME, self)
-        title_label.setAlignment(Qt.AlignHCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #FFFFFF;")
         # Connection status labels
         self.connection_status_label = QLabel("Specter WebSocket Connection: Connecting", self)
-        self.connection_status_label.setAlignment(Qt.AlignCenter)
+        self.connection_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.connection_status_label.setStyleSheet("font-size: 16px; color: #FF0000;")
         self.obs_connection_status_label = QLabel("OBS WebSocket Connection: Connecting", self)
-        self.obs_connection_status_label.setAlignment(Qt.AlignCenter)
+        self.obs_connection_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.obs_connection_status_label.setStyleSheet("font-size: 16px; color: #FF0000;")
         # Group the connection status labels
         status_layout = QVBoxLayout()
         status_layout.setSpacing(0)
-        status_layout.setAlignment(Qt.AlignCenter)
+        status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_layout.addWidget(self.connection_status_label)
         status_layout.addWidget(self.obs_connection_status_label)
         # Buttons layout
@@ -661,7 +661,7 @@ class MainWindow(QMainWindow):
             with open(log_path, "r") as log_file:
                 log_content = log_file.read()
                 log_text_edit.setPlainText(log_content)
-                log_text_edit.moveCursor(QTextCursor.End)
+                log_text_edit.moveCursor(QTextCursor.MoveOperation.End)
         except Exception as e:
             logging.info(f"Error in loading logs: {e}")
             QMessageBox.information(self, f"{NAME} - Logs", f"Error loading log file: {e}")
@@ -726,12 +726,12 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     palette = app.palette()
-    palette.setColor(palette.Window, QColor("#333333"))
-    palette.setColor(palette.WindowText, QColor("#FFFFFF"))
-    palette.setColor(palette.Base, QColor("#444444"))
-    palette.setColor(palette.AlternateBase, QColor("#555555"))
-    palette.setColor(palette.ToolTipBase, QColor("#FFFFFF"))
-    palette.setColor(palette.ToolTipText, QColor("#000000"))
+    palette.setColor(palette.ColorRole.Window, QColor("#333333"))
+    palette.setColor(palette.ColorRole.WindowText, QColor("#FFFFFF"))
+    palette.setColor(palette.ColorRole.Base, QColor("#444444"))
+    palette.setColor(palette.ColorRole.AlternateBase, QColor("#555555"))
+    palette.setColor(palette.ColorRole.ToolTipBase, QColor("#FFFFFF"))
+    palette.setColor(palette.ColorRole.ToolTipText, QColor("#000000"))
     app.setPalette(palette)
     MainWindow().show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

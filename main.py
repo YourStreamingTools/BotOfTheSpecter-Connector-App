@@ -423,8 +423,12 @@ class EventSettingsPage(QWidget):
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding-bottom: 20px; color: #FFFFFF;")
         
         info_label = QLabel(
-            "We recommend turning off the following events as they are unnecessary for the functions to run. "
-            "However, if you wish to have them enabled, tick the following boxes:", self)
+            "The following events are triggered frequently in OBS. "
+            "We recommend turning them off to reduce unnecessary event handling. "
+            "However, if you wish to have them enabled, tick the following boxes:\n\n"
+            "SceneTransitionStarted: Triggered when a scene transition starts.\n"
+            "SceneTransitionVideoEnded: Triggered when a scene transition video ends.\n"
+            "SceneTransitionEnded: Triggered when a scene transition ends.", self)
         info_label.setWordWrap(True)
         info_label.setStyleSheet("font-size: 14px; color: #FFFFFF; padding-bottom: 20px;")
         

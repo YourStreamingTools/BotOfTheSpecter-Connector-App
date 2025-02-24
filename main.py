@@ -222,10 +222,11 @@ async def send_obs_event_to_specter(event):
                 datain = event_data["datain"]
                 if "sceneItemEnabled" in datain:
                     return "SceneItemEnableStateChanged", None
-            return None, event_data
+            return event_data.get("name"), event_data
         event_name, event_data = extract_event_data(event)
-        if event_data is None:
+        if event_name is None or event_data is None:
             return  # Skip sending request
+        logging.info(f"Sending event to Specter WebSocket: {event_name}")
         API_TOKEN = load_settings()['API'].get('apiKey')
         payload = {'data': json.dumps(event_data, default=custom_serializer)}
         async with aiohttp.ClientSession() as session:

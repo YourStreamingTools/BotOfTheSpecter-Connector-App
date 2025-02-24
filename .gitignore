@@ -5,3 +5,4 @@
 *.exe
 *.rc
 *.res
+build_settings.json

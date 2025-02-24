@@ -422,6 +422,12 @@ class EventSettingsPage(QWidget):
         title_label.setAlignment(Qt.AlignHCenter)
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding-bottom: 20px; color: #FFFFFF;")
         
+        info_label = QLabel(
+            "We recommend turning off the following events as they are unnecessary for the functions to run. "
+            "However, if you wish to have them enabled, tick the following boxes:", self)
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("font-size: 14px; color: #FFFFFF; padding-bottom: 20px;")
+        
         self.checkboxes = {}
         settings = load_settings()
         skip_events = settings.get('EVENTS', 'skip_events', fallback='').split(',')
@@ -443,6 +449,7 @@ class EventSettingsPage(QWidget):
         
         main_layout = QVBoxLayout()
         main_layout.addWidget(title_label)
+        main_layout.addWidget(info_label)
         main_layout.addLayout(form_layout)
         main_layout.addWidget(save_button)
         main_layout.addWidget(back_button)

@@ -9,7 +9,8 @@ from datetime import datetime
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QRunnable, QThreadPool
 from PyQt5.QtWidgets import (
     QWidget, QApplication, QMainWindow, QPushButton, QVBoxLayout, QFormLayout,
-    QLineEdit, QLabel, QStackedWidget, QHBoxLayout, QAction, QMessageBox, QTextEdit
+    QLineEdit, QLabel, QStackedWidget, QHBoxLayout, QAction, QMessageBox, QTextEdit,
+    QCheckBox
 )
 from PyQt5.QtGui import QIcon, QColor, QTextCursor
 import socketio
@@ -413,6 +414,50 @@ class OBSSettingsPage(QWidget):
     def go_back(self):
         self.main_window.show_main_page()
 
+class EventSettingsPage(QWidget):
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+        title_label = QLabel("Event Settings", self)
+        title_label.setAlignment(Qt.AlignHCenter)
+        title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding-bottom: 20px; color: #FFFFFF;")
+        
+        self.checkboxes = {}
+        settings = load_settings()
+        skip_events = settings.get('EVENTS', 'skip_events', fallback='').split(',')
+        recommended_events = ['SceneTransitionStarted', 'SceneTransitionVideoEnded', 'SceneTransitionEnded']
+        
+        form_layout = QFormLayout()
+        for event in recommended_events:
+            checkbox = QCheckBox(event, self)
+            checkbox.setChecked(event not in skip_events)
+            self.checkboxes[event] = checkbox
+            form_layout.addRow(checkbox)
+        
+        save_button = QPushButton("Save Event Settings", self)
+        save_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+        save_button.clicked.connect(self.save_event_settings)
+        back_button = QPushButton("Back", self)
+        back_button.setStyleSheet("background-color: #007BFF; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+        back_button.clicked.connect(self.go_back)
+        
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(title_label)
+        main_layout.addLayout(form_layout)
+        main_layout.addWidget(save_button)
+        main_layout.addWidget(back_button)
+        self.setLayout(main_layout)
+
+    def save_event_settings(self):
+        settings = load_settings()
+        skip_events = [event for event, checkbox in self.checkboxes.items() if not checkbox.isChecked()]
+        settings.set('EVENTS', 'skip_events', ','.join(skip_events))
+        save_settings(settings)
+        self.main_window.show_main_page()
+
+    def go_back(self):
+        self.main_window.show_main_page()
+
 # Thread for running Specter websocket
 class SpecterWebSocketThread(QThread):
     connection_status = pyqtSignal(bool)
@@ -489,8 +534,12 @@ class MainWindow(QMainWindow):
         obs_settings_button = QPushButton("OBS Settings", self)
         obs_settings_button.setStyleSheet("background-color: #007BFF; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
         obs_settings_button.clicked.connect(self.show_obs_settings_page)
+        event_settings_button = QPushButton("Event Settings", self)
+        event_settings_button.setStyleSheet("background-color: #007BFF; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+        event_settings_button.clicked.connect(self.show_event_settings_page)
         button_layout.addWidget(api_key_button)
         button_layout.addWidget(obs_settings_button)
+        button_layout.addWidget(event_settings_button)
         # Add elements to the main layout
         main_layout.addWidget(title_label)
         main_layout.addLayout(status_layout)
@@ -503,6 +552,8 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.settings_page)
         self.obs_settings_page = OBSSettingsPage(self)
         self.stack.addWidget(self.obs_settings_page)
+        self.event_settings_page = EventSettingsPage(self)
+        self.stack.addWidget(self.event_settings_page)
         # Start separate threads for each WebSocket connection
         self.specter_thread = SpecterWebSocketThread()
         self.specter_thread.connection_status.connect(self.update_connection_status)
@@ -555,11 +606,14 @@ class MainWindow(QMainWindow):
         api_key_action.triggered.connect(self.show_api_key_page)
         obs_settings_action = QAction("OBS Settings", self)
         obs_settings_action.triggered.connect(self.show_obs_settings_page)
+        event_settings_action = QAction("Event Settings", self)
+        event_settings_action.triggered.connect(self.show_event_settings_page)
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(home_key_action)
         file_menu.addAction(api_key_action)
         file_menu.addAction(obs_settings_action)
+        file_menu.addAction(event_settings_action)
         file_menu.addSeparator() # Spacer
         file_menu.addAction(exit_action)
         # View menu
@@ -627,6 +681,9 @@ class MainWindow(QMainWindow):
 
     def show_obs_settings_page(self):
         self.stack.setCurrentWidget(self.obs_settings_page)
+
+    def show_event_settings_page(self):
+        self.stack.setCurrentWidget(self.event_settings_page)
 
     def show_main_page(self):
         self.stack.setCurrentWidget(self.main_page)

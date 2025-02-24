@@ -140,15 +140,15 @@ async def specter_websocket(specter_thread):
     specter_websocket_uri = "wss://websocket.botofthespecter.com"
     while True:
         try:
-            logging.info(f"Connecting to Specter WebSocket server")
+            logging.info(f"Connecting to Specter WebSocket server.")
             await specterSocket.connect(specter_websocket_uri)
             specter_thread.connection_status.emit(True)
-            logging.info("Connected to Specter WebSocket server")
+            logging.info("Connected to Specter WebSocket server.")
             while True:
                 await asyncio.sleep(10)
                 if not specterSocket.connected:
                     specter_thread.connection_status.emit(False)
-                    logging.info("Specter WebSocket connection lost")
+                    logging.info("Specter WebSocket connection lost.")
                     break
         except socketio.exceptions.ConnectionError as ConnectionError:
             logging.error(f"SpecterWebSocket Connection Error: {ConnectionError}")
@@ -160,7 +160,7 @@ async def specter_websocket(specter_thread):
             await asyncio.sleep(10)
         finally:
             specter_thread.connection_status.emit(False)
-            logging.info("Disconnected from Specter WebSocket server")
+            logging.info("Disconnected from Specter WebSocket server.")
 
 # Function to connect to OBS WebSocket server
 async def obs_websocket(obs_thread, cancellation_event):
@@ -171,16 +171,16 @@ async def obs_websocket(obs_thread, cancellation_event):
             obsSocket = obsws(server_ip, server_port, server_password)
             obsSocket.connect()
             obs_thread.obs_connection_status.emit(True)
-            logging.info("Connected to OBS WebSocket server")
+            logging.info("Connected to OBS WebSocket server.")
             obsSocket.register(on_event)
             while True:
                 await asyncio.sleep(1)
                 if not obsSocket.ws or not obsSocket.ws.connected:
                     obs_thread.obs_connection_status.emit(False)
-                    logging.info("OBS WebSocket connection lost")
+                    logging.info("OBS WebSocket connection lost.")
                     break
                 if cancellation_event.is_set():
-                    logging.info("OBS WebSocket connection cancellation requested")
+                    logging.info("OBS WebSocket connection cancellation requested.")
                     break
             if cancellation_event.is_set():
                 break
@@ -196,7 +196,7 @@ async def obs_websocket(obs_thread, cancellation_event):
             if obsSocket.ws and obsSocket.ws.connected:
                 obsSocket.disconnect()
                 obs_thread.obs_connection_status.emit(False)
-                logging.info("Disconnected from OBS WebSocket server")
+                logging.info("Disconnected from OBS WebSocket server.")
             if cancellation_event.is_set():
                 break
 

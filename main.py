@@ -140,15 +140,18 @@ async def specter_websocket(specter_thread):
     specter_websocket_uri = "wss://websocket.botofthespecter.com"
     while True:
         try:
+            logging.info(f"Connecting to Specter WebSocket server")
             await specterSocket.connect(specter_websocket_uri)
             specter_thread.connection_status.emit(True)
+            logging.info("Connected to Specter WebSocket server")
             while True:
                 await asyncio.sleep(10)
                 if not specterSocket.connected:
                     specter_thread.connection_status.emit(False)
+                    logging.info("Specter WebSocket connection lost")
                     break
         except socketio.exceptions.ConnectionError as ConnectionError:
-            logging.error(f"SpecterWebSocket ConnectionError Error: {ConnectionError}")
+            logging.error(f"SpecterWebSocket Connection Error: {ConnectionError}")
             specter_thread.connection_status.emit(False)
             await asyncio.sleep(10)
         except Exception as e:
@@ -157,6 +160,7 @@ async def specter_websocket(specter_thread):
             await asyncio.sleep(10)
         finally:
             specter_thread.connection_status.emit(False)
+            logging.info("Disconnected from Specter WebSocket server")
 
 # Function to connect to OBS WebSocket server
 async def obs_websocket(obs_thread, cancellation_event):

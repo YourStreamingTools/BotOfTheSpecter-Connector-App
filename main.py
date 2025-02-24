@@ -225,7 +225,6 @@ async def send_obs_event_to_specter(event):
             return None, event_data
         event_name, event_data = extract_event_data(event)
         if event_data is None:
-            logging.info(f"Event \"{event_name}\" filtered out and not sent.")
             return  # Skip sending request
         API_TOKEN = load_settings()['API'].get('apiKey')
         payload = {'data': json.dumps(event_data, default=custom_serializer)}

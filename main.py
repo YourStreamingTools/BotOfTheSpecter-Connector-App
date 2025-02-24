@@ -26,11 +26,16 @@ settings_path = os.path.join(settings_dir, 'OBSConnectorSettings.ini')
 log_path = os.path.join(settings_dir, 'OBSConnectorLog.txt')
 
 # Configure logging
-logging.basicConfig(
-    filename=log_path,
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+def configure_logging():
+    if os.path.exists(log_path) and os.path.getsize(log_path) > 1 * 1024 * 1024:  # 1MB
+        os.remove(log_path)
+    logging.basicConfig(
+        filename=log_path,
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+
+configure_logging()
 
 # Globals
 specterSocket = SocketClient()
@@ -547,10 +552,7 @@ class MainWindow(QMainWindow):
         help_menu = menu_bar.addMenu("Help")
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about_dialog)
-        user_guide_action = QAction("User Guide", self)
-        user_guide_action.triggered.connect(self.open_user_guide)
         help_menu.addAction(about_action)
-        help_menu.addAction(user_guide_action)
 
     def show_logs(self):
         if not hasattr(self, 'log_window') or self.log_window is None:

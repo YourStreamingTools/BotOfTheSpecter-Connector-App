@@ -68,6 +68,7 @@ def load_settings():
             if stored_version != VERSION:
                 api_settings = dict(config.items('API')) if 'API' in config else {}
                 obs_settings = dict(config.items('OBS')) if 'OBS' in config else {}
+                events_settings = dict(config.items('EVENTS')) if 'EVENTS' in config else {}
                 os.remove(settings_path)
                 config = configparser.ConfigParser()
                 config.add_section('VERSION')
@@ -78,11 +79,15 @@ def load_settings():
                 config.add_section('OBS')
                 for key, value in obs_settings.items():
                     config.set('OBS', key, value)
+                config.add_section('EVENTS')
+                for key, value in events_settings.items():
+                    config.set('EVENTS', key, value)
                 with open(settings_path, 'w') as f:
                     config.write(f)
         else:
             api_settings = dict(config.items('API')) if 'API' in config else {}
             obs_settings = dict(config.items('OBS')) if 'OBS' in config else {}
+            events_settings = dict(config.items('EVENTS')) if 'EVENTS' in config else {}
             os.remove(settings_path)
             config = configparser.ConfigParser()
             config.add_section('VERSION')
@@ -93,6 +98,9 @@ def load_settings():
             config.add_section('OBS')
             for key, value in obs_settings.items():
                 config.set('OBS', key, value)
+            config.add_section('EVENTS')
+            for key, value in events_settings.items():
+                config.set('EVENTS', key, value)
             with open(settings_path, 'w') as f:
                 config.write(f)
     else:
@@ -104,6 +112,8 @@ def load_settings():
         config.set('OBS', 'server_ip', 'localhost')
         config.set('OBS', 'server_port', '4455')
         config.set('OBS', 'server_password', '')
+        config.add_section('EVENTS')
+        config.set('EVENTS', 'skip_events', 'SceneTransitionStarted,SceneTransitionVideoEnded,SceneTransitionEnded')
         with open(settings_path, 'w') as f:
             config.write(f)
     return config
@@ -222,6 +232,11 @@ async def send_obs_event_to_specter(event):
                 datain = event_data["datain"]
                 if "sceneItemEnabled" in datain:
                     return "SceneItemEnableStateChanged", None
+            # Skip the events listed in settings
+            settings = load_settings()
+            skip_events = settings.get('EVENTS', 'skip_events', fallback='').split(',')
+            if event_data.get("name") in skip_events:
+                return None, None
             return event_data.get("name"), event_data
         event_name, event_data = extract_event_data(event)
         if event_name is None or event_data is None:

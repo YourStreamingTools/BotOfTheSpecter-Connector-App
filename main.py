@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from PyQt5.QtCore import Qt, pyqtSignal, QThread
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QRunnable, QThreadPool
 from PyQt5.QtWidgets import (
     QWidget, QApplication, QMainWindow, QPushButton, QVBoxLayout, QFormLayout,
     QLineEdit, QLabel, QStackedWidget, QHBoxLayout, QAction, QMessageBox, QTextEdit
@@ -154,21 +154,25 @@ async def specter_websocket(specter_thread):
             specter_thread.connection_status.emit(False)
 
 # Function to connect to OBS WebSocket server
-async def obs_websocket(obs_thread):
-    cancellation_event = asyncio.Event()
+async def obs_websocket(obs_thread, cancellation_event):
     while True:
         try:
             server_ip, server_port, server_password = await obs_websocket_settings()
+            logging.info(f"Connecting to OBS WebSocket server at {server_ip}:{server_port}")
             obsSocket = obsws(server_ip, server_port, server_password)
             obsSocket.connect()
             obs_thread.obs_connection_status.emit(True)
+            logging.info("Connected to OBS WebSocket server")
             obsSocket.register(on_event)
             while True:
                 await asyncio.sleep(1)
                 if not obsSocket.ws or not obsSocket.ws.connected:
                     obs_thread.obs_connection_status.emit(False)
+                    logging.info("OBS WebSocket connection lost")
                     break
-            await cancellation_event.wait()
+                if cancellation_event.is_set():
+                    logging.info("OBS WebSocket connection cancellation requested")
+                    break
             if cancellation_event.is_set():
                 break
         except obswebsocket.exceptions.ConnectionFailure as ConnectionFailure:
@@ -183,6 +187,9 @@ async def obs_websocket(obs_thread):
             if obsSocket.ws and obsSocket.ws.connected:
                 obsSocket.disconnect()
                 obs_thread.obs_connection_status.emit(False)
+                logging.info("Disconnected from OBS WebSocket server")
+            if cancellation_event.is_set():
+                break
 
 # Handle OBS events and send them to Specter server
 def on_event(event):
@@ -320,6 +327,14 @@ class APISettingsPage(QWidget):
     def go_back(self):
         self.main_window.show_main_page()
 
+class ReconnectOBSWebSocketTask(QRunnable):
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+
+    def run(self):
+        self.main_window.reconnect_obs_websocket()
+
 # OBS Settings Window
 class OBSSettingsPage(QWidget):
     def __init__(self, main_window):
@@ -367,6 +382,8 @@ class OBSSettingsPage(QWidget):
         settings.set('OBS', 'server_port', server_port)
         settings.set('OBS', 'server_password', server_password)
         save_settings(settings)
+        self.main_window.update_obs_connection_status(False, "OBS WebSocket Connection: Connecting")
+        QThreadPool.globalInstance().start(ReconnectOBSWebSocketTask(self.main_window))
         self.main_window.show_main_page()
 
     def go_back(self):
@@ -389,16 +406,25 @@ class SpecterWebSocketThread(QThread):
 # Thread for running OBS websocket
 class OBSWebSocketThread(QThread):
     obs_connection_status = pyqtSignal(bool)
+    def __init__(self):
+        super().__init__()
+        self._cancellation_event = asyncio.Event()
+
     def run(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        task = loop.create_task(obs_websocket(self))
+        task = loop.create_task(obs_websocket(self, self._cancellation_event))
         try:
             loop.run_until_complete(task)
         except asyncio.CancelledError:
             pass
         finally:
             loop.close()
+
+    def requestInterruption(self):
+        self._cancellation_event.set()
+        self.quit()
+        self.wait()
 
 # MainWindow
 class MainWindow(QMainWindow):
@@ -592,13 +618,20 @@ class MainWindow(QMainWindow):
             self.connection_status_label.setText("Specter WebSocket Connection: Not Connected")
             self.connection_status_label.setStyleSheet("font-size: 16px; color: #FF0000;")
 
-    def update_obs_connection_status(self, connected):
+    def update_obs_connection_status(self, connected, status_text=None):
         if connected:
             self.obs_connection_status_label.setText("OBS WebSocket Connection: Connected")
             self.obs_connection_status_label.setStyleSheet("font-size: 16px; color: #00FF00;")
         else:
-            self.obs_connection_status_label.setText("OBS WebSocket Connection: Not Connected")
+            self.obs_connection_status_label.setText(status_text or "OBS WebSocket Connection: Not Connected")
             self.obs_connection_status_label.setStyleSheet("font-size: 16px; color: #FF0000;")
+
+    def reconnect_obs_websocket(self):
+        self.obs_thread.requestInterruption()
+        self.obs_thread.wait()
+        self.obs_thread = OBSWebSocketThread()
+        self.obs_thread.obs_connection_status.connect(self.update_obs_connection_status)
+        self.obs_thread.start()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

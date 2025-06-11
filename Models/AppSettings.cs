@@ -45,7 +45,7 @@ namespace BotOfTheSpecterOBSConnector.Models
                 var lines = File.ReadAllLines(SettingsPath);
                 var currentSection = string.Empty;
                 var needsUpdate = false;
-                string? storedVersion = null;
+                string storedVersion = null;
 
                 foreach (var line in lines)
                 {

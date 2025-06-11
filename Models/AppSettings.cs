@@ -134,9 +134,7 @@ skip_events={SkipEvents}
             {
                 throw new InvalidOperationException($"Failed to save settings: {ex.Message}", ex);
             }
-        }
-
-        private void CreateDefaultSettings()
+        }        private void CreateDefaultSettings()
         {
             ApiKey = string.Empty;
             ServerIp = "localhost";
@@ -144,6 +142,24 @@ skip_events={SkipEvents}
             ServerPassword = string.Empty;
             SkipEvents = "SceneTransitionStarted,SceneTransitionVideoEnded,SceneTransitionEnded";
             SaveSettings();
+        }
+
+        public bool NeedsSetup()
+        {
+            // Check if we have the minimum required settings
+            return string.IsNullOrWhiteSpace(ApiKey) || 
+                   string.IsNullOrWhiteSpace(ServerIp) || 
+                   string.IsNullOrWhiteSpace(ServerPort) ||
+                   !File.Exists(SettingsPath);
+        }
+
+        public bool HasValidConfiguration()
+        {
+            return !string.IsNullOrWhiteSpace(ApiKey) &&
+                   !string.IsNullOrWhiteSpace(ServerIp) &&
+                   !string.IsNullOrWhiteSpace(ServerPort) &&
+                   int.TryParse(ServerPort, out int port) &&
+                   port > 0 && port <= 65535;
         }
     }
 }

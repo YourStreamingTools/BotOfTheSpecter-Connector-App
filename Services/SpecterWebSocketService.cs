@@ -12,11 +12,8 @@ namespace BotOfTheSpecterOBSConnector.Services
         private CancellationTokenSource _cancellationTokenSource;
         private bool _disposed;
         private bool _isRegistered; // Track if we've received WELCOME message
-
         public event EventHandler<bool> ConnectionStatusChanged;
-
         public bool IsConnected => _client != null && _client.Connected && _isRegistered;
-
         public SpecterWebSocketService(ILogger<SpecterWebSocketService> logger)
         {
             _logger = logger;
@@ -26,9 +23,7 @@ namespace BotOfTheSpecterOBSConnector.Services
         {
             if (_cancellationTokenSource != null)
                 return;
-
             _cancellationTokenSource = new CancellationTokenSource();
-            
             try
             {
                 await ConnectLoop(_cancellationTokenSource.Token);
@@ -47,7 +42,6 @@ namespace BotOfTheSpecterOBSConnector.Services
                 _client.Dispose();
                 _client = null;
             }
-
             _isRegistered = false;
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
@@ -56,7 +50,6 @@ namespace BotOfTheSpecterOBSConnector.Services
         private async Task ConnectLoop(CancellationToken cancellationToken)
         {
             const string websocketUri = "wss://websocket.botofthespecter.com";
-
             while (!cancellationToken.IsCancellationRequested)
             {                try
                 {
@@ -71,14 +64,12 @@ namespace BotOfTheSpecterOBSConnector.Services
                         // Send registration message
                         await _client.EmitAsync("register", new { type = "obs-connector" });
                     };
-
                     _client.OnDisconnected += (sender, e) =>
                     {
                         _logger.LogInformation("Disconnected from Specter WebSocket server.");
                         _isRegistered = false;
                         ConnectionStatusChanged?.Invoke(this, false);
                     };
-
                     // Listen for WELCOME message after registration
                     _client.On("welcome", response =>
                     {
@@ -86,20 +77,17 @@ namespace BotOfTheSpecterOBSConnector.Services
                         _isRegistered = true;
                         ConnectionStatusChanged?.Invoke(this, true);
                     });
-
                     _client.On("error", response =>
                     {
                         _logger.LogError("Specter WebSocket error: {Error}", response);
                         _isRegistered = false;
                         ConnectionStatusChanged?.Invoke(this, false);
                     });                    await _client.ConnectAsync();
-
                     // Keep connection alive
                     while (_client.Connected && !cancellationToken.IsCancellationRequested)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
                     }
-
                     _isRegistered = false;
                     ConnectionStatusChanged?.Invoke(this, false);
                 }                catch (Exception ex)
@@ -108,7 +96,6 @@ namespace BotOfTheSpecterOBSConnector.Services
                     _isRegistered = false;
                     ConnectionStatusChanged?.Invoke(this, false);
                 }
-
                 if (!cancellationToken.IsCancellationRequested)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
@@ -120,9 +107,7 @@ namespace BotOfTheSpecterOBSConnector.Services
         {
             if (_disposed)
                 return;
-
             _disposed = true;
-            
             _cancellationTokenSource?.Cancel();
             _client?.Dispose();
             _cancellationTokenSource?.Dispose();

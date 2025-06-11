@@ -5,18 +5,20 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using BotOfTheSpecterOBSConnector.Models;
 using BotOfTheSpecterOBSConnector.Services;
+using BotOfTheSpecterOBSConnector.Views;
 
 namespace BotOfTheSpecterOBSConnector.ViewModels
 {
     public class MainViewModel : BaseViewModel, IDisposable
-    {
-        private readonly ILogger<MainViewModel> _logger;
+    {        private readonly ILogger<MainViewModel> _logger;
         private readonly AppSettings _settings;
         private readonly SpecterWebSocketService _specterService;
         private readonly OBSWebSocketService _obsService;
         private readonly ApiValidationService _apiValidationService;
+        private readonly IServiceProvider _serviceProvider;
 
         private string _specterConnectionStatus = "Specter WebSocket Connection: Connecting";
         private string _obsConnectionStatus = "OBS WebSocket Connection: Connecting";
@@ -113,34 +115,96 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
 
         public bool SceneTransitionStartedEnabled { get; set; } = true;
         public bool SceneTransitionVideoEndedEnabled { get; set; } = true;
-        public bool SceneTransitionEndedEnabled { get; set; } = true;
-
-        public ICommand ValidateApiKeyCommand { get; }
+        public bool SceneTransitionEndedEnabled { get; set; } = true;        public ICommand ValidateApiKeyCommand { get; }
         public ICommand ReconnectOBSCommand { get; }
         public ICommand SaveEventSettingsCommand { get; }
         public ICommand RefreshLogsCommand { get; }
-
-        public MainViewModel(
+        public ICommand ShowSetupCommand { get; }        public MainViewModel(
             ILogger<MainViewModel> logger,
             AppSettings settings,
             SpecterWebSocketService specterService,
             OBSWebSocketService obsService,
-            ApiValidationService apiValidationService)
+            ApiValidationService apiValidationService,
+            IServiceProvider serviceProvider)
         {
             _logger = logger;
             _settings = settings;
             _specterService = specterService;
             _obsService = obsService;
             _apiValidationService = apiValidationService;
+            _serviceProvider = serviceProvider;
 
             ValidateApiKeyCommand = new RelayCommand(async () => await ValidateApiKeyAsync());
             ReconnectOBSCommand = new RelayCommand(async () => await ReconnectOBSAsync());
             SaveEventSettingsCommand = new RelayCommand(SaveEventSettings);
             RefreshLogsCommand = new RelayCommand(RefreshLogs);
-
-            LoadEventSettings();
+            ShowSetupCommand = new RelayCommand(async () => await ShowSetupDialogAsync());            LoadEventSettings();
             SetupEventHandlers();
-            _ = StartServicesAsync();
+            _ = InitializeApplicationAsync();
+        }
+
+        private async Task InitializeApplicationAsync()
+        {
+            try
+            {
+                // Check if we need to show setup dialog
+                if (_settings.NeedsSetup())
+                {
+                    await ShowSetupDialogAsync();
+                }
+
+                // Only start services if we have valid configuration
+                if (_settings.HasValidConfiguration())
+                {
+                    await StartServicesAsync();
+                }
+                else
+                {
+                    _logger.LogWarning("Application started without valid configuration. Services not started.");
+                    SpecterConnectionStatus = "Specter WebSocket Connection: Configuration Required";
+                    OBSConnectionStatus = "OBS WebSocket Connection: Configuration Required";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing application");
+            }
+        }
+
+        private async Task ShowSetupDialogAsync()
+        {
+            try
+            {
+                var setupDialog = _serviceProvider.GetRequiredService<SetupDialog>();
+                var result = setupDialog.ShowDialog();
+
+                if (result == true && setupDialog.SetupCompleted)
+                {
+                    _logger.LogInformation("Setup completed successfully");
+                    
+                    // Reload settings and start services
+                    _settings.LoadSettings();
+                    OnPropertyChanged(nameof(ApiKey));
+                    OnPropertyChanged(nameof(ServerIp));
+                    OnPropertyChanged(nameof(ServerPort));
+                    OnPropertyChanged(nameof(ServerPassword));
+                    
+                    if (_settings.HasValidConfiguration())
+                    {
+                        await StartServicesAsync();
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("Setup was skipped or cancelled");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error showing setup dialog");
+                MessageBox.Show("An error occurred while showing the setup dialog.", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void LoadEventSettings()

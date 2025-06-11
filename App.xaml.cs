@@ -22,23 +22,15 @@ namespace BotOfTheSpecterOBSConnector
 
             try
             {
-                _host = CreateHostBuilder().Build();
-                await _host.StartAsync();                // Download icon if needed
+                _host = CreateHostBuilder().Build();                await _host.StartAsync();
+
+                // Download icon if needed (for About dialog and other uses)
                 var iconService = _host.Services.GetRequiredService<IconDownloadService>();
                 var settings = _host.Services.GetRequiredService<AppSettings>();
                 await iconService.DownloadIconIfNotExists(settings.IconPath);
 
                 // Create and show main window
                 var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-                
-                // Set up icon after MainWindow is created
-                if (File.Exists(settings.IconPath))
-                {
-                    var iconUri = new Uri(settings.IconPath, UriKind.Absolute);
-                    var icon = new System.Windows.Media.Imaging.BitmapImage(iconUri);
-                    mainWindow.Icon = icon;
-                }
-
                 mainWindow.Show();
             }
             catch (Exception ex)

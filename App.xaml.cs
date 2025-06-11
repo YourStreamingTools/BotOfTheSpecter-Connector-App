@@ -19,16 +19,13 @@ namespace BotOfTheSpecterOBSConnector
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
-
             try
             {
                 _host = CreateHostBuilder().Build();                await _host.StartAsync();
-
                 // Download icon if needed (for About dialog and other uses)
                 var iconService = _host.Services.GetRequiredService<IconDownloadService>();
                 var settings = _host.Services.GetRequiredService<AppSettings>();
                 await iconService.DownloadIconIfNotExists(settings.IconPath);
-
                 // Create and show main window
                 var mainWindow = _host.Services.GetRequiredService<MainWindow>();
                 mainWindow.Show();
@@ -67,7 +64,6 @@ namespace BotOfTheSpecterOBSConnector
                         {
                             File.Delete(settings.LogPath);
                         }
-
                         builder.AddFile(settings.LogPath, options =>
                         {
                             options.MinLevel = LogLevel.Information;
@@ -75,7 +71,6 @@ namespace BotOfTheSpecterOBSConnector
                             options.MaxRollingFiles = 1;
                         });
                     });
-
                     // Register services
                     services.AddSingleton<AppSettings>(provider =>
                     {
@@ -83,13 +78,11 @@ namespace BotOfTheSpecterOBSConnector
                         settings.LoadSettings();
                         return settings;
                     });
-
                     services.AddHttpClient();
                     services.AddSingleton<IconDownloadService>();
                     services.AddSingleton<ApiValidationService>();
                     services.AddSingleton<SpecterWebSocketService>();
                     services.AddSingleton<OBSWebSocketService>();
-
                     // Register ViewModels and Views
                     services.AddSingleton<MainViewModel>();
                     services.AddSingleton<MainWindow>();
@@ -104,10 +97,8 @@ namespace BotOfTheSpecterOBSConnector
         {
             var options = new FileLoggerOptions { FilePath = filePath };
             configure?.Invoke(options);
-            
             builder.Services.AddSingleton<ILoggerProvider>(provider =>
                 new FileLoggerProvider(options));
-            
             return builder;
         }
     }
@@ -166,7 +157,6 @@ namespace BotOfTheSpecterOBSConnector
         {
             if (!IsEnabled(logLevel))
                 return;
-
             lock (_lock)
             {
                 try
@@ -200,7 +190,6 @@ namespace BotOfTheSpecterOBSConnector
         {
             if (_disposed)
                 return;
-
             _disposed = true;
             _writer?.Dispose();
         }

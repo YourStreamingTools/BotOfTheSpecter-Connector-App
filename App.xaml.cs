@@ -9,13 +9,13 @@ using Microsoft.Extensions.Logging;
 using BotOfTheSpecterOBSConnector.Models;
 using BotOfTheSpecterOBSConnector.Services;
 using BotOfTheSpecterOBSConnector.ViewModels;
+using BotOfTheSpecterOBSConnector.Views;
 
 namespace BotOfTheSpecterOBSConnector
 {
     public partial class App : Application
     {
         private IHost _host;
-
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -37,7 +37,6 @@ namespace BotOfTheSpecterOBSConnector
                 Shutdown();
             }
         }
-
         protected override async void OnExit(ExitEventArgs e)
         {
             if (_host != null)
@@ -47,7 +46,6 @@ namespace BotOfTheSpecterOBSConnector
             }
             base.OnExit(e);
         }
-
         private static IHostBuilder CreateHostBuilder()
         {
             return Host.CreateDefaultBuilder()
@@ -58,7 +56,6 @@ namespace BotOfTheSpecterOBSConnector
                     {
                         var settings = new AppSettings();
                         settings.LoadSettings();
-                        
                         // Clear existing log if it's too large
                         if (File.Exists(settings.LogPath) && new FileInfo(settings.LogPath).Length > 1024 * 1024) // 1MB
                         {
@@ -83,9 +80,9 @@ namespace BotOfTheSpecterOBSConnector
                     services.AddSingleton<ApiValidationService>();
                     services.AddSingleton<SpecterWebSocketService>();
                     services.AddSingleton<OBSWebSocketService>();
-                    // Register ViewModels and Views
                     services.AddSingleton<MainViewModel>();
                     services.AddSingleton<MainWindow>();
+                    services.AddTransient<SetupDialog>();
                 });
         }
     }
@@ -118,9 +115,7 @@ namespace BotOfTheSpecterOBSConnector
         private FileLogger _logger;
 
         public FileLoggerProvider(FileLoggerOptions options)
-        {
-            _options = options;
-        }
+        { _options = options; }
 
         public ILogger CreateLogger(string categoryName)
         {
@@ -132,9 +127,7 @@ namespace BotOfTheSpecterOBSConnector
         }
 
         public void Dispose()
-        {
-            _logger?.Dispose();
-        }
+        { _logger?.Dispose(); }
     }
 
     public class FileLogger : ILogger, IDisposable
@@ -143,16 +136,10 @@ namespace BotOfTheSpecterOBSConnector
         private readonly object _lock = new object();
         private StreamWriter _writer;
         private bool _disposed;
-
         public FileLogger(FileLoggerOptions options)
-        {
-            _options = options;
-        }
-
+        { _options = options; }
         public IDisposable BeginScope<TState>(TState state) => NullScope.Instance;
-
         public bool IsEnabled(LogLevel logLevel) => logLevel >= _options.MinLevel;
-
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
             if (!IsEnabled(logLevel))
@@ -167,25 +154,19 @@ namespace BotOfTheSpecterOBSConnector
                     _writer?.Flush();
                 }
                 catch
-                {
-                    // Ignore logging errors
-                }
+                {} // Ignore logging errors
             }
         }
-
         private void EnsureWriter()
         {
             if (_writer == null)
             {
                 var directory = Path.GetDirectoryName(_options.FilePath);
                 if (!string.IsNullOrEmpty(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
+                { Directory.CreateDirectory(directory); }
                 _writer = new StreamWriter(_options.FilePath, true);
             }
         }
-
         public void Dispose()
         {
             if (_disposed)
@@ -193,7 +174,6 @@ namespace BotOfTheSpecterOBSConnector
             _disposed = true;
             _writer?.Dispose();
         }
-
         private class NullScope : IDisposable
         {
             public static NullScope Instance { get; } = new NullScope();

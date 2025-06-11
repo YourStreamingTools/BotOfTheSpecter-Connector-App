@@ -12,7 +12,7 @@ namespace BotOfTheSpecterOBSConnector.Services
         private CancellationTokenSource _cancellationTokenSource;
         private bool _disposed;        public event EventHandler<bool> ConnectionStatusChanged;
 
-        public bool IsConnected => _client?.Connected ?? false;
+        public bool IsConnected => _client != null && _client.Connected;
 
         public SpecterWebSocketService(ILogger<SpecterWebSocketService> logger)
         {

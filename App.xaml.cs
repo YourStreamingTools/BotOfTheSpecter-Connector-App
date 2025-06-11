@@ -14,7 +14,7 @@ namespace BotOfTheSpecterOBSConnector
 {
     public partial class App : Application
     {
-        private IHost? _host;
+        private IHost _host;
 
         protected override async void OnStartup(StartupEventArgs e)
         {
@@ -108,7 +108,7 @@ namespace BotOfTheSpecterOBSConnector
     // File logging extension
     public static class FileLoggerExtensions
     {
-        public static ILoggingBuilder AddFile(this ILoggingBuilder builder, string filePath, Action<FileLoggerOptions>? configure = null)
+        public static ILoggingBuilder AddFile(this ILoggingBuilder builder, string filePath, Action<FileLoggerOptions> configure = null)
         {
             var options = new FileLoggerOptions { FilePath = filePath };
             configure?.Invoke(options);
@@ -132,7 +132,7 @@ namespace BotOfTheSpecterOBSConnector
     {
         private readonly FileLoggerOptions _options;
         private readonly object _lock = new object();
-        private FileLogger? _logger;
+        private FileLogger _logger;
 
         public FileLoggerProvider(FileLoggerOptions options)
         {
@@ -158,7 +158,7 @@ namespace BotOfTheSpecterOBSConnector
     {
         private readonly FileLoggerOptions _options;
         private readonly object _lock = new object();
-        private StreamWriter? _writer;
+        private StreamWriter _writer;
         private bool _disposed;
 
         public FileLogger(FileLoggerOptions options)
@@ -170,7 +170,7 @@ namespace BotOfTheSpecterOBSConnector
 
         public bool IsEnabled(LogLevel logLevel) => logLevel >= _options.MinLevel;
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
             if (!IsEnabled(logLevel))
                 return;

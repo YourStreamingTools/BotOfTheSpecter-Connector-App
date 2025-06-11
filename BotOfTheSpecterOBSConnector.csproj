@@ -1,8 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">  <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>assets\icons\app-icon.ico</ApplicationIcon>
     <AssemblyTitle>BotOfTheSpecter OBS Connector</AssemblyTitle>
     <AssemblyDescription>OBS WebSocket connector for BotOfTheSpecter</AssemblyDescription>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
@@ -18,8 +18,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />  </ItemGroup>
-
   <ItemGroup>
+    <Resource Include="assets\icons\app-icon.ico" />
     <Resource Include="assets\icons\app-icon.png" />
   </ItemGroup>
 

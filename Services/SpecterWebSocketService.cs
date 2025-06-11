@@ -35,7 +35,6 @@ namespace BotOfTheSpecterOBSConnector.Services
         }        public async Task StopAsync()
         {
             _cancellationTokenSource?.Cancel();
-            
             if (_client != null)
             {
                 await _client.DisconnectAsync();
@@ -55,9 +54,7 @@ namespace BotOfTheSpecterOBSConnector.Services
                 {
                     _logger.LogInformation("Connecting to Specter WebSocket server...");
                     _isRegistered = false; // Reset registration status
-                    
                     _client = new SocketIOClient.SocketIO(websocketUri);
-                    
                     _client.OnConnected += async (sender, e) =>
                     {
                         _logger.LogInformation("Socket connected to Specter server, registering...");

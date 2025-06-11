@@ -2,7 +2,6 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>assets\icons\app-icon.ico</ApplicationIcon>
     <AssemblyTitle>BotOfTheSpecter OBS Connector</AssemblyTitle>
     <AssemblyDescription>OBS WebSocket connector for BotOfTheSpecter</AssemblyDescription>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>

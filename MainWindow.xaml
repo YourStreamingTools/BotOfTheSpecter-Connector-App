@@ -8,6 +8,7 @@
         MinHeight="500"
         MinWidth="600"
         WindowStartupLocation="CenterScreen"
+        Icon="assets/icons/app-icon.ico"
         Background="#FF2D2D30"><Window.Resources>
         <!-- Converters -->
         <local:BoolToColorConverter x:Key="BoolToColorConverter" TrueColor="#FF00FF00" FalseColor="#FFFF0000"/>

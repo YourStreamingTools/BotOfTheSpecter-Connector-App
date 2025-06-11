@@ -18,10 +18,8 @@ namespace BotOfTheSpecterOBSConnector
             InitializeComponent();
             _viewModel = viewModel;
             DataContext = _viewModel;
-            
             // Set the password box value
             PasswordBox.Password = _viewModel.ServerPassword;
-            
             Closing += (s, e) => _viewModel.Dispose();
         }
 

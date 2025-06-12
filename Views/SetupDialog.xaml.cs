@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using BotOfTheSpecterOBSConnector.Models;
 using BotOfTheSpecterOBSConnector.Services;
-
 namespace BotOfTheSpecterOBSConnector.Views
 {
     public partial class SetupDialog : Window

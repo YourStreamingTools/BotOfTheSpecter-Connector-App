@@ -13,50 +13,44 @@ using BotOfTheSpecterOBSConnector.Views;
 namespace BotOfTheSpecterOBSConnector.ViewModels
 {
     public class MainViewModel : BaseViewModel, IDisposable
-    {        private readonly ILogger<MainViewModel> _logger;
+    {
+        private readonly ILogger<MainViewModel> _logger;
         private readonly AppSettings _settings;
         private readonly SpecterWebSocketService _specterService;
         private readonly OBSWebSocketService _obsService;
         private readonly ApiValidationService _apiValidationService;
         private readonly IServiceProvider _serviceProvider;
-
         private string _specterConnectionStatus = "Specter WebSocket Connection: Connecting";
         private string _obsConnectionStatus = "OBS WebSocket Connection: Connecting";
         private bool _specterConnected;
         private bool _obsConnected;
         private string _logContent = string.Empty;
         private bool _disposed;
-
         public string SpecterConnectionStatus
         {
             get => _specterConnectionStatus;
             set => SetProperty(ref _specterConnectionStatus, value);
         }
-
         public string OBSConnectionStatus
         {
             get => _obsConnectionStatus;
             set => SetProperty(ref _obsConnectionStatus, value);
         }
-
         public bool SpecterConnected
         {
             get => _specterConnected;
             set => SetProperty(ref _specterConnected, value);
         }
-
         public bool OBSConnected
         {
             get => _obsConnected;
             set => SetProperty(ref _obsConnected, value);
         }
-
         public string LogContent
         {
             get => _logContent;
             set => SetProperty(ref _logContent, value);
         }
-
         public string ApiKey
         {
             get => _settings.ApiKey;
@@ -70,7 +64,6 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                 }
             }
         }
-
         public string ServerIp
         {
             get => _settings.ServerIp;
@@ -84,7 +77,6 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                 }
             }
         }
-
         public string ServerPort
         {
             get => _settings.ServerPort;
@@ -98,7 +90,6 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                 }
             }
         }
-
         public string ServerPassword
         {
             get => _settings.ServerPassword;
@@ -112,7 +103,6 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                 }
             }
         }
-
         public bool SceneTransitionStartedEnabled { get; set; } = true;
         public bool SceneTransitionVideoEndedEnabled { get; set; } = true;
         public bool SceneTransitionEndedEnabled { get; set; } = true;        public ICommand ValidateApiKeyCommand { get; }
@@ -133,7 +123,6 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             _obsService = obsService;
             _apiValidationService = apiValidationService;
             _serviceProvider = serviceProvider;
-
             ValidateApiKeyCommand = new RelayCommand(async () => await ValidateApiKeyAsync());
             ReconnectOBSCommand = new RelayCommand(async () => await ReconnectOBSAsync());
             SaveEventSettingsCommand = new RelayCommand(SaveEventSettings);
@@ -142,22 +131,16 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             SetupEventHandlers();
             _ = InitializeApplicationAsync();
         }
-
         private async Task InitializeApplicationAsync()
         {
             try
             {
                 // Check if we need to show setup dialog
                 if (_settings.NeedsSetup())
-                {
-                    await ShowSetupDialogAsync();
-                }
-
+                { await ShowSetupDialogAsync(); }
                 // Only start services if we have valid configuration
                 if (_settings.HasValidConfiguration())
-                {
-                    await StartServicesAsync();
-                }
+                { await StartServicesAsync(); }
                 else
                 {
                     _logger.LogWarning("Application started without valid configuration. Services not started.");
@@ -166,47 +149,32 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                 }
             }
             catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error initializing application");
-            }
+            { _logger.LogError(ex, "Error initializing application"); }
         }
-
         private async Task ShowSetupDialogAsync()
         {
             try
             {
                 var setupDialog = _serviceProvider.GetRequiredService<SetupDialog>();
                 var result = setupDialog.ShowDialog();
-
                 if (result == true && setupDialog.SetupCompleted)
                 {
                     _logger.LogInformation("Setup completed successfully");
-                    
                     // Reload settings and start services
                     _settings.LoadSettings();
                     OnPropertyChanged(nameof(ApiKey));
                     OnPropertyChanged(nameof(ServerIp));
                     OnPropertyChanged(nameof(ServerPort));
                     OnPropertyChanged(nameof(ServerPassword));
-                    
                     if (_settings.HasValidConfiguration())
-                    {
-                        await StartServicesAsync();
-                    }
+                    { await StartServicesAsync(); }
                 }
                 else
-                {
-                    _logger.LogInformation("Setup was skipped or cancelled");
-                }
+                { _logger.LogInformation("Setup was skipped or cancelled"); }
             }
             catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error showing setup dialog");
-                MessageBox.Show("An error occurred while showing the setup dialog.", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            { _logger.LogError(ex, "Error showing setup dialog"); MessageBox.Show("An error occurred while showing the setup dialog.", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
         }
-
         private void LoadEventSettings()
         {
             var skipEvents = _settings.SkipEvents.Split(',');
@@ -214,124 +182,77 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             SceneTransitionVideoEndedEnabled = !Array.Exists(skipEvents, e => e.Trim() == "SceneTransitionVideoEnded");
             SceneTransitionEndedEnabled = !Array.Exists(skipEvents, e => e.Trim() == "SceneTransitionEnded");
         }
-
         private void SetupEventHandlers()
         {
             _specterService.ConnectionStatusChanged += (sender, connected) =>
             {
                 Application.Current.Dispatcher.Invoke(() =>
-                {
-                    SpecterConnected = connected;
-                    SpecterConnectionStatus = connected 
-                        ? "Specter WebSocket Connection: Connected"
-                        : "Specter WebSocket Connection: Not Connected";
-                });
+                { SpecterConnected = connected; SpecterConnectionStatus = connected ? "Specter WebSocket Connection: Connected" : "Specter WebSocket Connection: Not Connected"; });
             };
-
             _obsService.ConnectionStatusChanged += (sender, connected) =>
             {
                 Application.Current.Dispatcher.Invoke(() =>
-                {
-                    OBSConnected = connected;
-                    OBSConnectionStatus = connected
-                        ? "OBS WebSocket Connection: Connected"
-                        : "OBS WebSocket Connection: Not Connected";
-                });
+                { OBSConnected = connected; OBSConnectionStatus = connected ? "OBS WebSocket Connection: Connected" : "OBS WebSocket Connection: Not Connected"; });
             };
         }
-
         private async Task StartServicesAsync()
         {
             try
-            {
-                await _specterService.StartAsync();
-                await _obsService.StartAsync();
-            }
+            { await _specterService.StartAsync(); await _obsService.StartAsync(); }
             catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error starting services");
-            }
+            { _logger.LogError(ex, "Error starting services"); }
         }
-
         private async Task ValidateApiKeyAsync()
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(ApiKey))
-                {
-                    MessageBox.Show("Please enter an API key.", "Validation Error", 
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
+                { MessageBox.Show("Please enter an API key.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
                 var isValid = await _apiValidationService.ValidateApiKeyAsync(ApiKey);
-                
                 if (isValid)
-                {
-                    MessageBox.Show("API Key is valid!", "Validation Success", 
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
+                { MessageBox.Show("API Key is valid!", "Validation Success", MessageBoxButton.OK, MessageBoxImage.Information); }
                 else
-                {
-                    MessageBox.Show("Invalid API Key. Please check and try again.", "Validation Error", 
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                { MessageBox.Show("Invalid API Key. Please check and try again.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Error); }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error validating API key");
-                MessageBox.Show("An error occurred while validating the API key.", "Error", 
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("An error occurred while validating the API key.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
         private async Task ReconnectOBSAsync()
         {
             try
-            {
-                OBSConnectionStatus = "OBS WebSocket Connection: Connecting";
-                await _obsService.ReconnectAsync();
-            }
+            { OBSConnectionStatus = "OBS WebSocket Connection: Connecting"; await _obsService.ReconnectAsync(); }
             catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error reconnecting to OBS");
-            }
-        }        private void SaveEventSettings()
+            { _logger.LogError(ex, "Error reconnecting to OBS"); }
+        }
+        private void SaveEventSettings()
         {
             try
             {
                 var skipEvents = new List<string>();
-                
                 if (!SceneTransitionStartedEnabled) skipEvents.Add("SceneTransitionStarted");
                 if (!SceneTransitionVideoEndedEnabled) skipEvents.Add("SceneTransitionVideoEnded");
                 if (!SceneTransitionEndedEnabled) skipEvents.Add("SceneTransitionEnded");
-
                 _settings.SkipEvents = string.Join(",", skipEvents);
                 _settings.SaveSettings();
-
-                MessageBox.Show("Event settings saved successfully!", "Settings Saved", 
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Event settings saved successfully!", "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving event settings");
-                MessageBox.Show("An error occurred while saving event settings.", "Error", 
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("An error occurred while saving event settings.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
         private void RefreshLogs()
         {
             try
             {
                 if (File.Exists(_settings.LogPath))
-                {
-                    LogContent = File.ReadAllText(_settings.LogPath);
-                }
+                { LogContent = File.ReadAllText(_settings.LogPath); }
                 else
-                {
-                    LogContent = "No log file found.";
-                }
+                { LogContent = "No log file found."; }
             }
             catch (Exception ex)
             {
@@ -339,38 +260,24 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                 LogContent = $"Error reading log file: {ex.Message}";
             }
         }
-
         public void Dispose()
         {
             if (_disposed)
                 return;
-
             _disposed = true;
-            
             _specterService?.Dispose();
             _obsService?.Dispose();
         }
     }
-
     public class RelayCommand : ICommand
     {
         private readonly Action _execute;
         private readonly Func<bool> _canExecute;
-
         public RelayCommand(Action execute, Func<bool> canExecute = null)
-        {
-            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-            _canExecute = canExecute;
-        }
-
+        { _execute = execute ?? throw new ArgumentNullException(nameof(execute)); _canExecute = canExecute; }
         public event EventHandler CanExecuteChanged
-        {
-            add => CommandManager.RequerySuggested += value;
-            remove => CommandManager.RequerySuggested -= value;
-        }
-
+        { add => CommandManager.RequerySuggested += value; remove => CommandManager.RequerySuggested -= value; }
         public bool CanExecute(object parameter) => _canExecute != null ? _canExecute.Invoke() : true;
-
         public void Execute(object parameter) => _execute();
     }
 }

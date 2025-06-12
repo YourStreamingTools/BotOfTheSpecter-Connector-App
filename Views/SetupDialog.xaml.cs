@@ -28,7 +28,6 @@ namespace BotOfTheSpecterOBSConnector.Views
             _settings = settings;
             _apiValidationService = apiValidationService;
             _obsService = obsService;
-            
             LoadCurrentSettings();
         }
         private void LoadCurrentSettings()
@@ -36,18 +35,13 @@ namespace BotOfTheSpecterOBSConnector.Views
             ApiKeyTextBox.Text = _settings.ApiKey;
             ServerIpTextBox.Text = _settings.ServerIp;
             ServerPortTextBox.Text = _settings.ServerPort;
-            // Don't pre-fill password for security
             if (!string.IsNullOrEmpty(_settings.ServerPassword))
-            {
-                ServerPasswordBox.Password = "••••••••"; // Show placeholder
-            }
-            // Check if we already have minimum required settings
+            { ServerPasswordBox.Password = "••••••••"; }
             UpdateSaveButtonState();
         }
         private async void ValidateApiButton_Click(object sender, RoutedEventArgs e)
         {
             var apiKey = ApiKeyTextBox.Text.Trim();
-            
             if (string.IsNullOrWhiteSpace(apiKey))
             {
                 MessageBox.Show("Please enter an API key before validating.", "Validation Error",
@@ -91,7 +85,6 @@ namespace BotOfTheSpecterOBSConnector.Views
                 UpdateSaveButtonState();
             }
         }
-
         private async void TestOBSButton_Click(object sender, RoutedEventArgs e)
         {
             var serverIp = ServerIpTextBox.Text.Trim();
@@ -158,7 +151,6 @@ namespace BotOfTheSpecterOBSConnector.Views
                 UpdateSaveButtonState();
             }
         }
-
         private async Task<bool> TestOBSConnectionAsync()
         {
             try
@@ -176,7 +168,6 @@ namespace BotOfTheSpecterOBSConnector.Views
                 return false;
             }
         }
-
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -187,9 +178,7 @@ namespace BotOfTheSpecterOBSConnector.Views
                 _settings.ServerPort = ServerPortTextBox.Text.Trim();
                 // Only update password if it's not the placeholder
                 if (ServerPasswordBox.Password != "••••••••")
-                {
-                    _settings.ServerPassword = ServerPasswordBox.Password;
-                }
+                { _settings.ServerPassword = ServerPasswordBox.Password; }
                 _settings.SaveSettings();
                 SetupCompleted = true;
                 DialogResult = true;
@@ -202,7 +191,6 @@ namespace BotOfTheSpecterOBSConnector.Views
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
         private void SkipButton_Click(object sender, RoutedEventArgs e)
         {
             var result = MessageBox.Show(
@@ -215,7 +203,6 @@ namespace BotOfTheSpecterOBSConnector.Views
                 Close();
             }
         }
-
         private void UpdateSaveButtonState()
         {
             // Enable save button if we have minimum required settings

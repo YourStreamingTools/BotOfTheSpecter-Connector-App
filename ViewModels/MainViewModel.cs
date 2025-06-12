@@ -26,6 +26,7 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
         private bool _obsConnected;
         private string _logContent = string.Empty;
         private bool _disposed;
+        private bool _showConfigurationWarning = true;
         public string SpecterConnectionStatus
         {
             get => _specterConnectionStatus;
@@ -51,6 +52,11 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             get => _logContent;
             set => SetProperty(ref _logContent, value);
         }
+        public bool ShowConfigurationWarning
+        {
+            get => _showConfigurationWarning;
+            set => SetProperty(ref _showConfigurationWarning, value);
+        }
         public string ApiKey
         {
             get => _settings.ApiKey;
@@ -61,6 +67,7 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                     _settings.ApiKey = value;
                     _settings.SaveSettings();
                     OnPropertyChanged();
+                    UpdateConfigurationWarningVisibility();
                 }
             }
         }
@@ -105,11 +112,14 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
         }
         public bool SceneTransitionStartedEnabled { get; set; } = true;
         public bool SceneTransitionVideoEndedEnabled { get; set; } = true;
-        public bool SceneTransitionEndedEnabled { get; set; } = true;        public ICommand ValidateApiKeyCommand { get; }
+        public bool SceneTransitionEndedEnabled { get; set; } = true;
+        public ICommand ValidateApiKeyCommand { get; }
         public ICommand ReconnectOBSCommand { get; }
         public ICommand SaveEventSettingsCommand { get; }
         public ICommand RefreshLogsCommand { get; }
-        public ICommand ShowSetupCommand { get; }        public MainViewModel(
+        public ICommand ShowSetupCommand { get; }
+        public ICommand DismissConfigurationWarningCommand { get; }
+        public MainViewModel(
             ILogger<MainViewModel> logger,
             AppSettings settings,
             SpecterWebSocketService specterService,
@@ -122,12 +132,12 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             _specterService = specterService;
             _obsService = obsService;
             _apiValidationService = apiValidationService;
-            _serviceProvider = serviceProvider;
-            ValidateApiKeyCommand = new RelayCommand(async () => await ValidateApiKeyAsync());
+            _serviceProvider = serviceProvider; ValidateApiKeyCommand = new RelayCommand(async () => await ValidateApiKeyAsync());
             ReconnectOBSCommand = new RelayCommand(async () => await ReconnectOBSAsync());
             SaveEventSettingsCommand = new RelayCommand(SaveEventSettings);
             RefreshLogsCommand = new RelayCommand(RefreshLogs);
-            ShowSetupCommand = new RelayCommand(async () => await ShowSetupDialogAsync());            LoadEventSettings();
+            ShowSetupCommand = new RelayCommand(async () => await ShowSetupDialogAsync());
+            DismissConfigurationWarningCommand = new RelayCommand(DismissConfigurationWarning); LoadEventSettings();
             SetupEventHandlers();
             _ = InitializeApplicationAsync();
         }
@@ -135,9 +145,8 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
         {
             try
             {
-                // Check if we need to show setup dialog
-                if (_settings.NeedsSetup())
-                { await ShowSetupDialogAsync(); }
+                // Check if we need to show configuration warning
+                UpdateConfigurationWarningVisibility();
                 // Only start services if we have valid configuration
                 if (_settings.HasValidConfiguration())
                 { await StartServicesAsync(); }
@@ -260,6 +269,10 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                 LogContent = $"Error reading log file: {ex.Message}";
             }
         }
+        private void UpdateConfigurationWarningVisibility()
+        { ShowConfigurationWarning = _settings.NeedsSetup(); }
+        private void DismissConfigurationWarning()
+        { ShowConfigurationWarning = false; }
         public void Dispose()
         {
             if (_disposed)

@@ -82,7 +82,6 @@ namespace BotOfTheSpecterOBSConnector
                     services.AddSingleton<OBSWebSocketService>();
                     services.AddSingleton<MainViewModel>();
                     services.AddSingleton<MainWindow>();
-                    services.AddTransient<SetupDialog>();
                 });
         }
     }

@@ -1,17 +1,15 @@
 <Window x:Class="BotOfTheSpecterOBSConnector.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:BotOfTheSpecterOBSConnector"        Title="BotOfTheSpecter OBS Connector" 
-        Height="600" 
-        Width="800"
-        MinHeight="500"
-        MinWidth="600"
+        xmlns:local="clr-namespace:BotOfTheSpecterOBSConnector"
+        Title="BotOfTheSpecter OBS Connector" 
+        Height="600" Width="800" MinHeight="500" MinWidth="600" 
         WindowStartupLocation="CenterScreen"
         Icon="assets/icons/app-icon.png"
-        Background="#FF2D2D30"><Window.Resources>
+        Background="#FF2D2D30">
+    <Window.Resources>
         <!-- Converters -->
         <local:BoolToColorConverter x:Key="BoolToColorConverter" TrueColor="#FF00FF00" FalseColor="#FFFF0000"/>
-        
         <!-- Dark Theme Styles -->
         <Style x:Key="DarkButton" TargetType="Button">
             <Setter Property="Background" Value="#FF007ACC"/>
@@ -24,11 +22,8 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="5"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"/>
+                        <Border Background="{TemplateBinding Background}" CornerRadius="5" BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -42,7 +37,6 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
         <Style x:Key="SuccessButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
             <Setter Property="Background" Value="#FF4CAF50"/>
             <Style.Triggers>
@@ -54,7 +48,6 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-
         <Style x:Key="DarkTextBox" TargetType="TextBox">
             <Setter Property="Background" Value="#FF555555"/>
             <Setter Property="Foreground" Value="White"/>
@@ -66,17 +59,13 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3">
                             <ScrollViewer x:Name="PART_ContentHost"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-
         <Style x:Key="DarkPasswordBox" TargetType="PasswordBox">
             <Setter Property="Background" Value="#FF555555"/>
             <Setter Property="Foreground" Value="White"/>
@@ -88,42 +77,34 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="PasswordBox">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3">
                             <ScrollViewer x:Name="PART_ContentHost"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-
         <Style x:Key="DarkLabel" TargetType="Label">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="5,5,5,0"/>
         </Style>
-
         <Style x:Key="TitleLabel" TargetType="Label" BasedOn="{StaticResource DarkLabel}">
             <Setter Property="FontSize" Value="24"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="0,10,0,20"/>
         </Style>
-
         <Style x:Key="StatusLabel" TargetType="Label" BasedOn="{StaticResource DarkLabel}">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="0,5"/>
         </Style>
-
         <Style x:Key="DarkCheckBox" TargetType="CheckBox">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="5"/>
         </Style>
-
         <Style x:Key="DarkTextArea" TargetType="TextBox" BasedOn="{StaticResource DarkTextBox}">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="AcceptsReturn" Value="True"/>
@@ -133,7 +114,6 @@
             <Setter Property="FontSize" Value="10"/>
         </Style>
     </Window.Resources>
-
     <Grid>
         <TabControl Background="#FF2D2D30" BorderThickness="0">
             <TabControl.Resources>
@@ -146,13 +126,8 @@
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="TabItem">
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="5,5,0,0"
-                                        Margin="{TemplateBinding Margin}">
-                                    <ContentPresenter ContentSource="Header"
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    Margin="{TemplateBinding Padding}"/>
+                                <Border Background="{TemplateBinding Background}" CornerRadius="5,5,0,0" Margin="{TemplateBinding Margin}">
+                                    <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
@@ -167,7 +142,6 @@
                     </Setter>
                 </Style>
             </TabControl.Resources>
-
             <!-- Main Tab -->
             <TabItem Header="Main">
                 <Grid Margin="20">
@@ -177,23 +151,18 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-
                     <!-- Title -->
                     <Label Grid.Row="0" Content="BotOfTheSpecter OBS Connector" Style="{StaticResource TitleLabel}"/>                    <!-- Connection Status -->
                     <StackPanel Grid.Row="1" Orientation="Vertical" HorizontalAlignment="Center">
-                        <Label Content="{Binding SpecterConnectionStatus}" Style="{StaticResource StatusLabel}"
-                               Foreground="{Binding SpecterConnected, Converter={StaticResource BoolToColorConverter}}"/>
-                        <Label Content="{Binding OBSConnectionStatus}" Style="{StaticResource StatusLabel}"
-                               Foreground="{Binding OBSConnected, Converter={StaticResource BoolToColorConverter}}"/>
+                        <Label Content="{Binding SpecterConnectionStatus}" Style="{StaticResource StatusLabel}" Foreground="{Binding SpecterConnected, Converter={StaticResource BoolToColorConverter}}"/>
+                        <Label Content="{Binding OBSConnectionStatus}" Style="{StaticResource StatusLabel}" Foreground="{Binding OBSConnected, Converter={StaticResource BoolToColorConverter}}"/>
                     </StackPanel>
-
                     <!-- Buttons -->
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20">
                         <Button Content="Reconnect OBS" Style="{StaticResource DarkButton}" Command="{Binding ReconnectOBSCommand}"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
-
             <!-- API Settings Tab -->
             <TabItem Header="API Settings">
                 <Grid Margin="20">
@@ -203,23 +172,14 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-
                     <Label Grid.Row="0" Content="Specter System API Key" Style="{StaticResource TitleLabel}"/>
-
                     <StackPanel Grid.Row="1" Margin="50,20">
                         <Label Content="API Key:" Style="{StaticResource DarkLabel}"/>
-                        <TextBox Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" 
-                                 Style="{StaticResource DarkTextBox}"
-                                 FontSize="14"/>
+                        <TextBox Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}" FontSize="14"/>
                     </StackPanel>
-
-                    <Button Grid.Row="2" Content="Validate API Key" 
-                            Style="{StaticResource SuccessButton}" 
-                            Command="{Binding ValidateApiKeyCommand}"
-                            HorizontalAlignment="Center"/>
+                    <Button Grid.Row="2" Content="Validate API Key" Style="{StaticResource SuccessButton}" Command="{Binding ValidateApiKeyCommand}" HorizontalAlignment="Center"/>
                 </Grid>
             </TabItem>
-
             <!-- OBS Settings Tab -->
             <TabItem Header="OBS Settings">
                 <Grid Margin="20">
@@ -229,30 +189,18 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-
                     <Label Grid.Row="0" Content="OBS WebSocket Settings" Style="{StaticResource TitleLabel}"/>
-
                     <StackPanel Grid.Row="1" Margin="50,20">
                         <Label Content="Server IP:" Style="{StaticResource DarkLabel}"/>
-                        <TextBox Text="{Binding ServerIp, UpdateSourceTrigger=PropertyChanged}" 
-                                 Style="{StaticResource DarkTextBox}"/>
-
+                        <TextBox Text="{Binding ServerIp, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"/>
                         <Label Content="Server Port:" Style="{StaticResource DarkLabel}"/>
-                        <TextBox Text="{Binding ServerPort, UpdateSourceTrigger=PropertyChanged}" 
-                                 Style="{StaticResource DarkTextBox}"/>
-
+                        <TextBox Text="{Binding ServerPort, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"/>
                         <Label Content="Server Password:" Style="{StaticResource DarkLabel}"/>
-                        <PasswordBox x:Name="PasswordBox" Style="{StaticResource DarkPasswordBox}"
-                                     PasswordChanged="PasswordBox_PasswordChanged"/>
+                        <PasswordBox x:Name="PasswordBox" Style="{StaticResource DarkPasswordBox}" PasswordChanged="PasswordBox_PasswordChanged"/>
                     </StackPanel>
-
-                    <Button Grid.Row="2" Content="Reconnect OBS" 
-                            Style="{StaticResource SuccessButton}" 
-                            Command="{Binding ReconnectOBSCommand}"
-                            HorizontalAlignment="Center"/>
+                    <Button Grid.Row="2" Content="Reconnect OBS" Style="{StaticResource SuccessButton}" Command="{Binding ReconnectOBSCommand}" HorizontalAlignment="Center"/>
                 </Grid>
             </TabItem>
-
             <!-- Event Settings Tab -->
             <TabItem Header="Event Settings">
                 <Grid Margin="20">
@@ -262,37 +210,16 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-
                     <Label Grid.Row="0" Content="Event Settings" Style="{StaticResource TitleLabel}"/>
-
-                    <TextBlock Grid.Row="1" 
-                               Text="The following events are triggered frequently in OBS. We recommend turning them off to reduce unnecessary event handling. However, if you wish to have them enabled, tick the following boxes:"
-                               Foreground="White"
-                               TextWrapping="Wrap"
-                               Margin="20,0,20,20"
-                               FontSize="12"/>
-
+                    <TextBlock Grid.Row="1" Text="The following events are triggered frequently in OBS. We recommend turning them off to reduce unnecessary event handling. However, if you wish to have them enabled, tick the following boxes:" Foreground="White" TextWrapping="Wrap" Margin="20,0,20,20" FontSize="12"/>
                     <StackPanel Grid.Row="2" Margin="50,0">
-                        <CheckBox Content="SceneTransitionStarted: Triggered when a scene transition starts."
-                                  IsChecked="{Binding SceneTransitionStartedEnabled}"
-                                  Style="{StaticResource DarkCheckBox}"/>
-                        <CheckBox Content="SceneTransitionVideoEnded: Triggered when a scene transition video ends."
-                                  IsChecked="{Binding SceneTransitionVideoEndedEnabled}"
-                                  Style="{StaticResource DarkCheckBox}"/>
-                        <CheckBox Content="SceneTransitionEnded: Triggered when a scene transition ends."
-                                  IsChecked="{Binding SceneTransitionEndedEnabled}"
-                                  Style="{StaticResource DarkCheckBox}"/>
+                        <CheckBox Content="SceneTransitionStarted: Triggered when a scene transition starts." IsChecked="{Binding SceneTransitionStartedEnabled}" Style="{StaticResource DarkCheckBox}"/>
+                        <CheckBox Content="SceneTransitionVideoEnded: Triggered when a scene transition video ends." IsChecked="{Binding SceneTransitionVideoEndedEnabled}" Style="{StaticResource DarkCheckBox}"/>
+                        <CheckBox Content="SceneTransitionEnded: Triggered when a scene transition ends." IsChecked="{Binding SceneTransitionEndedEnabled}" Style="{StaticResource DarkCheckBox}"/>
                     </StackPanel>
-
-                    <Button Grid.Row="3" Content="Save Event Settings" 
-                            Style="{StaticResource SuccessButton}" 
-                            Command="{Binding SaveEventSettingsCommand}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Top"
-                            Margin="0,20"/>
+                    <Button Grid.Row="3" Content="Save Event Settings" Style="{StaticResource SuccessButton}" Command="{Binding SaveEventSettingsCommand}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,20"/>
                 </Grid>
             </TabItem>
-
             <!-- Logs Tab -->
             <TabItem Header="Logs">
                 <Grid Margin="20">
@@ -301,23 +228,13 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-
                     <Label Grid.Row="0" Content="Application Logs" Style="{StaticResource TitleLabel}"/>
-
-                    <Button Grid.Row="1" Content="Refresh Logs" 
-                            Style="{StaticResource DarkButton}" 
-                            Command="{Binding RefreshLogsCommand}"
-                            HorizontalAlignment="Center"
-                            Margin="0,0,0,10"/>
-
+                    <Button Grid.Row="1" Content="Refresh Logs" Style="{StaticResource DarkButton}" Command="{Binding RefreshLogsCommand}" HorizontalAlignment="Center" Margin="0,0,0,10"/>
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                        <TextBox Text="{Binding LogContent}" 
-                                 Style="{StaticResource DarkTextArea}"
-                                 MinHeight="300"/>
+                        <TextBox Text="{Binding LogContent}" Style="{StaticResource DarkTextArea}" MinHeight="300"/>
                     </ScrollViewer>
                 </Grid>
             </TabItem>
-
             <!-- About Tab -->
             <TabItem Header="About">
                 <Grid Margin="20">
@@ -325,10 +242,7 @@
                         <Label Content="BotOfTheSpecter OBS Connector" Style="{StaticResource TitleLabel}"/>
                         <Label Content="Version 1.0" Style="{StaticResource StatusLabel}"/>
                         <Label Content="Developed by: gfaUnDead" Style="{StaticResource StatusLabel}"/>
-                        <Label Content="A modern WPF application for connecting OBS to BotOfTheSpecter" 
-                               Style="{StaticResource DarkLabel}"
-                               HorizontalAlignment="Center"
-                               Margin="0,20"/>
+                        <Label Content="A modern WPF application for connecting OBS to BotOfTheSpecter" Style="{StaticResource DarkLabel}" HorizontalAlignment="Center" Margin="0,20"/>
                     </StackPanel>
                 </Grid>
             </TabItem>

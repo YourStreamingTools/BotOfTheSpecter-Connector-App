@@ -119,7 +119,6 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
         public ICommand ReconnectOBSCommand { get; }
         public ICommand SaveEventSettingsCommand { get; }
         public ICommand RefreshLogsCommand { get; }
-        public ICommand ShowSetupCommand { get; }
         public ICommand DismissConfigurationWarningCommand { get; }
         public MainViewModel(
             ILogger<MainViewModel> logger,
@@ -134,12 +133,13 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             _specterService = specterService;
             _obsService = obsService;
             _apiValidationService = apiValidationService;
-            _serviceProvider = serviceProvider; ValidateApiKeyCommand = new RelayCommand(async () => await ValidateApiKeyAsync());
+            _serviceProvider = serviceProvider;
+            ValidateApiKeyCommand = new RelayCommand(async () => await ValidateApiKeyAsync());
             ReconnectOBSCommand = new RelayCommand(async () => await ReconnectOBSAsync());
             SaveEventSettingsCommand = new RelayCommand(SaveEventSettings);
             RefreshLogsCommand = new RelayCommand(RefreshLogs);
-            ShowSetupCommand = new RelayCommand(async () => await ShowSetupDialogAsync());
-            DismissConfigurationWarningCommand = new RelayCommand(DismissConfigurationWarning); LoadEventSettings();
+            DismissConfigurationWarningCommand = new RelayCommand(DismissConfigurationWarning);
+            LoadEventSettings();
             SetupEventHandlers();
             _ = InitializeApplicationAsync();
         }
@@ -161,30 +161,6 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             }
             catch (Exception ex)
             { _logger.LogError(ex, "Error initializing application"); }
-        }
-        private async Task ShowSetupDialogAsync()
-        {
-            try
-            {
-                var setupDialog = _serviceProvider.GetRequiredService<SetupDialog>();
-                var result = setupDialog.ShowDialog();
-                if (result == true && setupDialog.SetupCompleted)
-                {
-                    _logger.LogInformation("Setup completed successfully");
-                    // Reload settings and start services
-                    _settings.LoadSettings();
-                    OnPropertyChanged(nameof(ApiKey));
-                    OnPropertyChanged(nameof(ServerIp));
-                    OnPropertyChanged(nameof(ServerPort));
-                    OnPropertyChanged(nameof(ServerPassword));
-                    if (_settings.HasValidConfiguration())
-                    { await StartServicesAsync(); }
-                }
-                else
-                { _logger.LogInformation("Setup was skipped or cancelled"); }
-            }
-            catch (Exception ex)
-            { _logger.LogError(ex, "Error showing setup dialog"); MessageBox.Show("An error occurred while showing the setup dialog.", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
         }
         private void LoadEventSettings()
         {

@@ -10,6 +10,7 @@
     <Window.Resources>
         <!-- Converters -->
         <local:BoolToColorConverter x:Key="BoolToColorConverter" TrueColor="#FF00FF00" FalseColor="#FFFF0000"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <!-- Dark Theme Styles -->
         <Style x:Key="DarkButton" TargetType="Button">
             <Setter Property="Background" Value="#FF007ACC"/>
@@ -115,7 +116,28 @@
         </Style>
     </Window.Resources>
     <Grid>
-        <TabControl Background="#FF2D2D30" BorderThickness="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <!-- Configuration Warning Banner -->
+        <Border Grid.Row="0" Background="#FFE67E22" Padding="10" 
+                Visibility="{Binding ShowConfigurationWarning, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="⚠️" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Configuration Required: Please set your API key and OBS settings to get started." Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="✕" Background="Transparent" Foreground="White" 
+                        BorderThickness="0" FontWeight="Bold" Padding="5" 
+                        Command="{Binding DismissConfigurationWarningCommand}"/>
+            </Grid>
+        </Border>
+        <TabControl Grid.Row="1" Background="#FF2D2D30" BorderThickness="0">
             <TabControl.Resources>
                 <Style TargetType="TabItem">
                     <Setter Property="Background" Value="#FF3E3E42"/>

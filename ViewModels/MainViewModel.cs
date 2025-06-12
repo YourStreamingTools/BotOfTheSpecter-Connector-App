@@ -81,6 +81,7 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                     _settings.ServerIp = value;
                     _settings.SaveSettings();
                     OnPropertyChanged();
+                    UpdateConfigurationWarningVisibility();
                 }
             }
         }
@@ -94,6 +95,7 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
                     _settings.ServerPort = value;
                     _settings.SaveSettings();
                     OnPropertyChanged();
+                    UpdateConfigurationWarningVisibility();
                 }
             }
         }
@@ -216,12 +218,20 @@ namespace BotOfTheSpecterOBSConnector.ViewModels
             try
             {
                 if (string.IsNullOrWhiteSpace(ApiKey))
-                { MessageBox.Show("Please enter an API key.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+                {
+                    MessageBox.Show("Please enter an API key.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
                 var isValid = await _apiValidationService.ValidateApiKeyAsync(ApiKey);
                 if (isValid)
-                { MessageBox.Show("API Key is valid!", "Validation Success", MessageBoxButton.OK, MessageBoxImage.Information); }
+                {
+                    MessageBox.Show("API Key is valid!", "Validation Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    UpdateConfigurationWarningVisibility();
+                }
                 else
-                { MessageBox.Show("Invalid API Key. Please check and try again.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+                {
+                    MessageBox.Show("Invalid API Key. Please check and try again.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
             catch (Exception ex)
             {

@@ -23,8 +23,7 @@ ICON_FILE = os.path.join(APPDATA_DIR, 'botofthespecter.png')
 
 # Constants
 API_TOKEN = None  # Will be set from config
-CHANNEL_NAME = "obs_connector"  # Default channel
-SYSTEM = "OBS"
+CHANNEL_NAME = "OBS"
 VERSION = "1.0"
 
 # Logging
@@ -104,8 +103,12 @@ class BotOfTheSpecterConnector(QThread):
             registration_data = {
                 'code': API_TOKEN,
                 'channel': CHANNEL_NAME,
-                'name': f'{SYSTEM} Connector V{VERSION}'
+                'name': f'Connector V{VERSION}'
             }
+            # Log registration data with redacted API key
+            safe_reg_data = registration_data.copy()
+            safe_reg_data['code'] = '***REDACTED***'
+            websocket_logger.info(f"Sending registration: {safe_reg_data}")
             try:
                 await specterSocket.emit('REGISTER', registration_data)
                 websocket_logger.info("Client registration sent successfully")
@@ -138,18 +141,33 @@ class BotOfTheSpecterConnector(QThread):
 
         @specterSocket.event
         async def message(data):
-            websocket_logger.info(f"Message received: {data}")
+            websocket_logger.info(f"Message event received: {data}")
             try:
                 # Handle different data types
                 if isinstance(data, dict):
                     message_text = f"Event: {data.get('type', 'unknown')} - {data}"
                 else:
                     message_text = f"Message: {data}"
+                websocket_logger.info(f"About to emit to GUI: {message_text}")
                 self.event_received.emit(message_text)
-                websocket_logger.info(f"Emitted to GUI: {message_text}")
+                websocket_logger.info(f"Successfully emitted to GUI")
             except Exception as e:
                 websocket_logger.error(f"Error processing message: {e}")
                 self.event_received.emit(f"Error processing message: {e}")
+
+        # Catch-all event handler
+        @specterSocket.on('*')
+        async def catch_all(event, data):
+            # Redact sensitive information
+            if isinstance(data, dict):
+                safe_data = data.copy()
+                if 'code' in safe_data:
+                    safe_data['code'] = '***REDACTED***'
+                log_data = safe_data
+            else:
+                log_data = data
+            websocket_logger.info(f"Received event '{event}': {log_data}")
+            self.event_received.emit(f"Event '{event}': {log_data}")
 
     def is_websocket_connected(self):
         global websocket_connected

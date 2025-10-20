@@ -139,7 +139,17 @@ class BotOfTheSpecterConnector(QThread):
         @specterSocket.event
         async def message(data):
             websocket_logger.info(f"Message received: {data}")
-            self.event_received.emit(f"Message: {data}")
+            try:
+                # Handle different data types
+                if isinstance(data, dict):
+                    message_text = f"Event: {data.get('type', 'unknown')} - {data}"
+                else:
+                    message_text = f"Message: {data}"
+                self.event_received.emit(message_text)
+                websocket_logger.info(f"Emitted to GUI: {message_text}")
+            except Exception as e:
+                websocket_logger.error(f"Error processing message: {e}")
+                self.event_received.emit(f"Error processing message: {e}")
 
     def is_websocket_connected(self):
         global websocket_connected
@@ -316,6 +326,10 @@ class MainWindow(QWidget):
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         log_layout.addWidget(self.log_area)
+        # Test button for event log
+        test_btn = QPushButton("Test Event Log")
+        test_btn.clicked.connect(self.test_event_log)
+        log_layout.addWidget(test_btn)
         log_group.setLayout(log_layout)
         layout.addWidget(log_group)
         self.setLayout(layout)
@@ -370,6 +384,9 @@ class MainWindow(QWidget):
 
     def log_event(self, event):
         self.log_area.append(event)
+
+    def test_event_log(self):
+        self.log_event("Test event - Event log is working!")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

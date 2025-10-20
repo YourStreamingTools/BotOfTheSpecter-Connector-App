@@ -110,7 +110,7 @@ class BotOfTheSpecterConnector(QThread):
                 await specterSocket.emit('REGISTER', registration_data)
                 websocket_logger.info("Client registration sent successfully")
                 websocket_connected = True  # Set flag to true only after successful registration
-                websocket_logger.info("Successfully registered with internal websocket server")
+                websocket_logger.info("Successfully registered with Specter websocket server")
                 self.status_update.emit("Connected to BotOfTheSpecter")
             except Exception as e:
                 websocket_logger.error(f"Failed to register client: {e}")
@@ -295,7 +295,7 @@ class MainWindow(QWidget):
         self.obs_host = QLineEdit(self.config.get('obs_host', 'localhost'))
         obs_config_layout.addWidget(self.obs_host)
         obs_config_layout.addWidget(QLabel("Port:"))
-        self.obs_port = QLineEdit(str(self.config.get('obs_port', 4444)))
+        self.obs_port = QLineEdit(str(self.config.get('obs_port', 4455)))
         obs_config_layout.addWidget(self.obs_port)
         obs_config_layout.addWidget(QLabel("Password:"))
         self.obs_password = QLineEdit()

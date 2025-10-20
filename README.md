@@ -38,7 +38,10 @@ If you prefer to build the application from source, you can follow these steps:
     -   PyQt5
     -   aiohttp
     -   python-socketio
-    -   obs-websocket
+    -   obs-websocket-py
+    -   requests
 2.  **Installation**:
     -   Clone the repository: `git clone https://github.com/YourStreamingTools/BotOfTheSpecter-OBS-Connector.git`
     -   Install dependencies: `pip install -r requirements.txt`
+3.  **Run the Application**:
+    -   Execute: `python main.py`

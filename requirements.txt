@@ -1,0 +1,5 @@
+PyQt6
+aiohttp
+python-socketio
+obs-websocket-py
+requests

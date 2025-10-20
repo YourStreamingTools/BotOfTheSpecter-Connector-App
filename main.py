@@ -333,6 +333,12 @@ class MainWindow(QWidget):
         if api_key:
             self.bot_connect_btn.setEnabled(True)
             self.connect_bot()
+        # Auto-connect to OBS if settings exist
+        obs_host = self.config.get('obs_host')
+        obs_port = self.config.get('obs_port')
+        obs_password = self.config.get('obs_password')
+        if obs_host and obs_port and obs_password:
+            self.connect_obs()
 
     def validate_api_key(self):
         api_key = self.api_key_input.text()

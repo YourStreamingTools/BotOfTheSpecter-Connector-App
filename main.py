@@ -326,10 +326,6 @@ class MainWindow(QWidget):
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         log_layout.addWidget(self.log_area)
-        # Test button for event log
-        test_btn = QPushButton("Test Event Log")
-        test_btn.clicked.connect(self.test_event_log)
-        log_layout.addWidget(test_btn)
         log_group.setLayout(log_layout)
         layout.addWidget(log_group)
         self.setLayout(layout)

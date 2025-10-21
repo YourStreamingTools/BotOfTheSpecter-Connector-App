@@ -264,7 +264,9 @@ class OBSConnector(QThread):
         self.connected = False
 
     def on_event(self, event):
-        message = f"OBS Event: {event}"
+        event_type = event.__class__.__name__
+        data = event.__dict__
+        message = f"OBS Event: {event_type} - {data}"
         self.event_received.emit(message)
 
     def run(self):

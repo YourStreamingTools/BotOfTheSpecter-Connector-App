@@ -176,6 +176,19 @@ class BotOfTheSpecterConnector(QThread):
                 log_data = data
             websocket_logger.info(f"Received event '{event}': {log_data}")
             self.event_received.emit(f"Event '{event}': {log_data}")
+            # Handle SEND_OBS_EVENT
+            if event == 'SEND_OBS_EVENT':
+                if isinstance(data, dict) and self.obs_connector:
+                    try:
+                        self.obs_connector.perform_action(data)
+                        await specterSocket.emit('OBS_EVENT_RECIEVED', {'status': 'success', 'action': data})
+                        websocket_logger.info(f"Executed OBS action: {data}")
+                    except Exception as e:
+                        await specterSocket.emit('OBS_EVENT_RECIEVED', {'status': 'error', 'message': str(e), 'action': data})
+                        websocket_logger.error(f"Failed to execute OBS action: {e}")
+                else:
+                    await specterSocket.emit('OBS_EVENT_RECIEVED', {'status': 'error', 'message': 'Invalid data or no OBS connection'})
+                    websocket_logger.warning("Received SEND_OBS_EVENT but cannot execute")
 
     def is_websocket_connected(self):
         global websocket_connected

@@ -251,15 +251,20 @@ class BotOfTheSpecterConnector(QThread):
     def disconnect(self):
         asyncio.run(self.force_websocket_reconnect())
 
+    def send_event(self, event_type, data):
+        if self.is_websocket_connected():
+            asyncio.run(specterSocket.emit(event_type, data))
+
 class OBSConnector(QThread):
     status_update = pyqtSignal(str)
     event_received = pyqtSignal(str)
 
-    def __init__(self, host, port, password):
+    def __init__(self, host, port, password, bot_connector):
         super().__init__()
         self.host = host
         self.port = port
         self.password = password
+        self.bot_connector = bot_connector
         self.client = obswebsocket.obsws(host, port, password)
         self.connected = False
 
@@ -268,6 +273,9 @@ class OBSConnector(QThread):
         data = event.__dict__.get('datain', event.__dict__)
         message = f"OBS Event: {event_type} - {data}"
         self.event_received.emit(message)
+        # Forward event to BotOfTheSpecter
+        if self.bot_connector:
+            self.bot_connector.send_event('OBS_EVENT', {'type': event_type, 'data': data})
 
     def run(self):
         try:
@@ -399,7 +407,7 @@ class MainWindow(QWidget):
         self.config.set('obs_host', host)
         self.config.set('obs_port', port)
         self.config.set('obs_password', password)
-        self.obs_connector = OBSConnector(host, port, password)
+        self.obs_connector = OBSConnector(host, port, password, self.bot_connector)
         self.obs_connector.status_update.connect(self.update_obs_status)
         self.obs_connector.event_received.connect(self.log_event)
         self.obs_connector.start()

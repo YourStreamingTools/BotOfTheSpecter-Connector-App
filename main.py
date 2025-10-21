@@ -265,7 +265,7 @@ class OBSConnector(QThread):
 
     def on_event(self, event):
         event_type = event.__class__.__name__
-        data = event.__dict__
+        data = event.__dict__.get('datain', event.__dict__)
         message = f"OBS Event: {event_type} - {data}"
         self.event_received.emit(message)
 

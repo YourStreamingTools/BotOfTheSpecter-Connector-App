@@ -253,6 +253,7 @@ class BotOfTheSpecterConnector(QThread):
 
 class OBSConnector(QThread):
     status_update = pyqtSignal(str)
+    event_received = pyqtSignal(str)
 
     def __init__(self, host, port, password):
         super().__init__()
@@ -262,9 +263,14 @@ class OBSConnector(QThread):
         self.client = obswebsocket.obsws(host, port, password)
         self.connected = False
 
+    def on_event(self, event):
+        message = f"OBS Event: {event}"
+        self.event_received.emit(message)
+
     def run(self):
         try:
             self.client.connect()
+            self.client.register(self.on_event)
             self.connected = True
             self.status_update.emit("Connected to OBS")
             # Keep the connection alive
@@ -393,6 +399,7 @@ class MainWindow(QWidget):
         self.config.set('obs_password', password)
         self.obs_connector = OBSConnector(host, port, password)
         self.obs_connector.status_update.connect(self.update_obs_status)
+        self.obs_connector.event_received.connect(self.log_event)
         self.obs_connector.start()
         self.obs_connect_btn.setText("Disconnect")
 

@@ -83,13 +83,17 @@ class BotOfTheSpecterConnector(QThread):
     status_update = pyqtSignal(str)
     event_received = pyqtSignal(str)
 
-    def __init__(self, api_key):
+    def __init__(self, api_key, obs_connector=None):
         super().__init__()
         global API_TOKEN, specterSocket
         API_TOKEN = api_key
         self.api_key = api_key
+        self.obs_connector = obs_connector
         specterSocket = socketio.AsyncClient()
         self.setup_events()
+
+    def set_obs_connector(self, obs_connector):
+        self.obs_connector = obs_connector
 
     def setup_events(self):
         global specterSocket
@@ -145,7 +149,11 @@ class BotOfTheSpecterConnector(QThread):
             try:
                 # Handle different data types
                 if isinstance(data, dict):
-                    message_text = f"Event: {data.get('type', 'unknown')} - {data}"
+                    if 'action' in data and self.obs_connector:
+                        self.obs_connector.perform_action(data)
+                        message_text = f"Executed action: {data}"
+                    else:
+                        message_text = f"Event: {data.get('type', 'unknown')} - {data}"
                 else:
                     message_text = f"Message: {data}"
                 websocket_logger.info(f"About to emit to GUI: {message_text}")
@@ -294,6 +302,25 @@ class OBSConnector(QThread):
             self.connected = False
             self.status_update.emit("Disconnected from OBS")
 
+    def perform_action(self, action):
+        try:
+            if action.get('action') == 'set_scene_item_enabled':
+                req = obs_requests.SetSceneItemEnabled(
+                    sceneName=action['scene'],
+                    sceneItemId=action['item_id'],
+                    sceneItemEnabled=action['enabled']
+                )
+                self.client.call(req)
+                self.status_update.emit(f"Executed: {action}")
+            elif action.get('action') == 'set_current_program_scene':
+                req = obs_requests.SetCurrentProgramScene(sceneName=action['scene'])
+                self.client.call(req)
+                self.status_update.emit(f"Executed: {action}")
+            else:
+                self.status_update.emit(f"Unknown action: {action}")
+        except Exception as e:
+            self.status_update.emit(f"Failed to execute action: {e}")
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -390,7 +417,7 @@ class MainWindow(QWidget):
             self.bot_connect_btn.setText("Connect")
             return
         api_key = self.api_key_input.text()
-        self.bot_connector = BotOfTheSpecterConnector(api_key)
+        self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector)
         self.bot_connector.status_update.connect(self.update_bot_status)
         self.bot_connector.event_received.connect(self.log_event)
         self.bot_connector.start()
@@ -408,6 +435,8 @@ class MainWindow(QWidget):
         self.config.set('obs_port', port)
         self.config.set('obs_password', password)
         self.obs_connector = OBSConnector(host, port, password, self.bot_connector)
+        if self.bot_connector:
+            self.bot_connector.set_obs_connector(self.obs_connector)
         self.obs_connector.status_update.connect(self.update_obs_status)
         self.obs_connector.event_received.connect(self.log_event)
         self.obs_connector.start()

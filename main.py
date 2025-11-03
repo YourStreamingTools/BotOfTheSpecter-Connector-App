@@ -163,7 +163,7 @@ class BotOfTheSpecterConnector(QThread):
                 websocket_logger.error(f"Error processing message: {e}")
                 self.event_received.emit(f"Error processing message: {e}")
 
-        # Catch-all event handler
+        # Catch-all event handler (keeps logging for any event not explicitly handled)
         @specterSocket.on('*')
         async def catch_all(event, data):
             # Redact sensitive information
@@ -176,19 +176,43 @@ class BotOfTheSpecterConnector(QThread):
                 log_data = data
             websocket_logger.info(f"Received event '{event}': {log_data}")
             self.event_received.emit(f"Event '{event}': {log_data}")
-            # Handle SEND_OBS_EVENT
-            if event == 'SEND_OBS_EVENT':
+            # Legacy/compat: if an older name is used (SEND_OBS_EVENT) treat it as an OBS request
+            if event in ('SEND_OBS_EVENT', 'OBS_REQUEST'):
                 if isinstance(data, dict) and self.obs_connector:
                     try:
+                        # data is expected to contain the action details
                         self.obs_connector.perform_action(data)
-                        await specterSocket.emit('OBS_EVENT_RECIEVED', {'status': 'success', 'action': data})
+                        await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': data})
                         websocket_logger.info(f"Executed OBS action: {data}")
                     except Exception as e:
-                        await specterSocket.emit('OBS_EVENT_RECIEVED', {'status': 'error', 'message': str(e), 'action': data})
+                        await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': str(e), 'action': data})
                         websocket_logger.error(f"Failed to execute OBS action: {e}")
                 else:
-                    await specterSocket.emit('OBS_EVENT_RECIEVED', {'status': 'error', 'message': 'Invalid data or no OBS connection'})
-                    websocket_logger.warning("Received SEND_OBS_EVENT but cannot execute")
+                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': 'Invalid data or no OBS connection'})
+                    websocket_logger.warning("Received OBS request but cannot execute")
+
+        # Explicit handler for OBS_REQUEST (preferred event name for commands coming FROM Specter TO OBS)
+        @specterSocket.on('OBS_REQUEST')
+        async def handle_obs_request(data):
+            websocket_logger.info(f"OBS_REQUEST received: {data}")
+            self.event_received.emit(f"OBS_REQUEST: {data}")
+            if isinstance(data, dict) and self.obs_connector:
+                try:
+                    self.obs_connector.perform_action(data)
+                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': data})
+                    websocket_logger.info(f"Executed OBS_REQUEST action: {data}")
+                except Exception as e:
+                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': str(e), 'action': data})
+                    websocket_logger.error(f"Failed to execute OBS_REQUEST action: {e}")
+            else:
+                await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': 'Invalid data or no OBS connection'})
+
+        # Explicit handler for OBS_EVENT_RECEIVED (acknowledgements from Specter)
+        @specterSocket.on('OBS_EVENT_RECEIVED')
+        async def handle_obs_event_received(data):
+            websocket_logger.info(f"OBS_EVENT_RECEIVED: {data}")
+            # Show in GUI
+            self.event_received.emit(f"OBS_EVENT_RECEIVED: {data}")
 
     def is_websocket_connected(self):
         global websocket_connected

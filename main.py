@@ -190,6 +190,44 @@ class BotOfTheSpecterConnector(QThread):
                 else:
                     await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': 'Invalid data or no OBS connection'})
                     websocket_logger.warning("Received OBS request but cannot execute")
+            else:
+                # Register explicit handlers for common OBS event notifications coming FROM the server
+                obs_notification_events = [
+                    # Scene events
+                    "scene_change", "SceneChanged", "scene_created", "SceneCreated",
+                    "scene_removed", "SceneRemoved",
+                    # Source events
+                    "source_created", "SourceCreated", "source_removed", "SourceRemoved",
+                    "source_visibility_changed", "SourceVisibilityChanged",
+                    "source_muted", "SourceMuteStateChanged", "source_unmuted",
+                    # Recording events
+                    "record_state_changed", "RecordStateChanged", "recording_started", "RecordingStarted",
+                    "recording_stopped", "RecordingStopped",
+                    # Streaming events
+                    "stream_state_changed", "StreamStateChanged", "streaming_started", "StreamStarted",
+                    "streaming_stopped", "StreamStopped",
+                    # Filter events
+                    "source_filter_created", "SourceFilterCreated", "source_filter_removed", "SourceFilterRemoved",
+                    "source_filter_enabled_state_changed", "SourceFilterEnableStateChanged",
+                    # Virtual camera events
+                    "virtualcam_state_changed", "VirtualcamStateChanged",
+                    # Transition events
+                    "transition_began", "TransitionBegan", "transition_ended", "TransitionEnded",
+                ]
+                for ev_name in obs_notification_events:
+                    # create a handler that captures ev_name
+                    @specterSocket.on(ev_name)
+                    async def _make_handler(data, _ev=ev_name):
+                        websocket_logger.info(f"Received OBS notification '{_ev}': {data}")
+                        # Show in GUI
+                        self.event_received.emit(f"OBS Notification '{_ev}': {data}")
+                        # Forward to OBS connector if available for any additional handling
+                        if self.obs_connector:
+                            try:
+                                # allow OBSConnector to decide how to handle/format
+                                self.obs_connector.handle_specter_event(_ev, data)
+                            except Exception as e:
+                                websocket_logger.error(f"Error forwarding '{_ev}' to OBSConnector: {e}")
 
         # Explicit handler for OBS_REQUEST (preferred event name for commands coming FROM Specter TO OBS)
         @specterSocket.on('OBS_REQUEST')
@@ -321,6 +359,14 @@ class OBSConnector(QThread):
         # Forward event to BotOfTheSpecter
         if self.bot_connector:
             self.bot_connector.send_event('OBS_EVENT', {'type': event_type, 'data': data})
+
+    def handle_specter_event(self, event_name, data):
+        try:
+            message = f"Specter -> OBS event '{event_name}': {data}"
+            self.event_received.emit(message)
+        except Exception as e:
+            # Emit an error into the GUI
+            self.event_received.emit(f"Error handling specter event '{event_name}': {e}")
 
     def run(self):
         try:

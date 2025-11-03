@@ -379,13 +379,10 @@ class OBSConnector(QThread):
         except Exception as e:
             # Build a clearer, actionable message for common connection errors
             err_str = str(e)
-            user_msg = "Failed to connect to OBS."
-            # Common Windows socket error when the target actively refuses the connection
             if '10061' in err_str or 'Connection refused' in err_str or isinstance(e, ConnectionRefusedError):
-                user_msg += f" Connection refused — is OBS running and listening on {self.host}:{self.port}? " \
-                            "Make sure the OBS WebSocket server is enabled, the port is correct, and any firewall is not blocking the connection."
+                user_msg = "Failed to connect to OBS — ensure OBS and its WebSocket server are running."
             else:
-                user_msg += f" Error: {err_str}"
+                user_msg = "Failed to connect to OBS."
             # Emit the user-facing status and log the full error for debugging
             self.status_update.emit(user_msg)
             bot_logger.error(f"OBS connection error: {err_str}")

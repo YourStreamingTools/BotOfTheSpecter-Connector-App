@@ -96,6 +96,33 @@ class BotOfTheSpecterConnector(QThread):
     def set_obs_connector(self, obs_connector):
         self.obs_connector = obs_connector
 
+    def _parse_obs_event(self, data):
+        subcommand = data.get('subcommand', '').lower()
+        if subcommand == 'scene':
+            # Convert scene command to action format
+            scene_name = data.get('scene_name')
+            if not scene_name:
+                raise ValueError("scene_name is required for scene subcommand")
+            return {
+                'action': 'set_current_program_scene',
+                'scene': scene_name
+            }
+        elif subcommand == 'source':
+            # Convert source visibility command to action format
+            scene_name = data.get('scene_name')
+            item_id = data.get('source_id') or data.get('item_id')
+            enabled = data.get('enabled', True)
+            if not scene_name or item_id is None:
+                raise ValueError("scene_name and item_id/source_id are required for source subcommand")
+            return {
+                'action': 'set_scene_item_enabled',
+                'scene': scene_name,
+                'item_id': item_id,
+                'enabled': enabled
+            }
+        else:
+            raise ValueError(f"Unknown subcommand: {subcommand}")
+
     def setup_events(self):
         global specterSocket
 
@@ -181,10 +208,18 @@ class BotOfTheSpecterConnector(QThread):
             if event in ('SEND_OBS_EVENT', 'OBS_REQUEST'):
                 if isinstance(data, dict) and self.obs_connector:
                     try:
-                        # data is expected to contain the action details
-                        self.obs_connector.perform_action(data)
-                        await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': data})
-                        websocket_logger.info(f"Executed OBS action: {data}")
+                        # Parse SEND_OBS_EVENT format: convert to action format if needed
+                        if 'action' not in data and 'subcommand' in data:
+                            # This is SEND_OBS_EVENT format, parse it
+                            action_data = self._parse_obs_event(data)
+                            websocket_logger.info(f"Converted SEND_OBS_EVENT to action: {action_data}")
+                        else:
+                            # This is already in action format
+                            action_data = data
+                        
+                        self.obs_connector.perform_action(action_data)
+                        await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': action_data})
+                        websocket_logger.info(f"Executed OBS action: {action_data}")
                     except Exception as e:
                         await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': str(e), 'action': data})
                         websocket_logger.error(f"Failed to execute OBS action: {e}")
@@ -237,9 +272,16 @@ class BotOfTheSpecterConnector(QThread):
             self.event_received.emit(f"OBS_REQUEST: {data}")
             if isinstance(data, dict) and self.obs_connector:
                 try:
-                    self.obs_connector.perform_action(data)
-                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': data})
-                    websocket_logger.info(f"Executed OBS_REQUEST action: {data}")
+                    # Parse SEND_OBS_EVENT format if needed
+                    if 'action' not in data and 'subcommand' in data:
+                        action_data = self._parse_obs_event(data)
+                        websocket_logger.info(f"Converted OBS_REQUEST to action: {action_data}")
+                    else:
+                        action_data = data
+                    
+                    self.obs_connector.perform_action(action_data)
+                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': action_data})
+                    websocket_logger.info(f"Executed OBS_REQUEST action: {action_data}")
                 except Exception as e:
                     await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': str(e), 'action': data})
                     websocket_logger.error(f"Failed to execute OBS_REQUEST action: {e}")
@@ -413,7 +455,9 @@ class OBSConnector(QThread):
 
     def perform_action(self, action):
         try:
+            websocket_logger.info(f"OBSConnector.perform_action called with: {action}")
             if action.get('action') == 'set_scene_item_enabled':
+                websocket_logger.info(f"Executing set_scene_item_enabled: scene={action.get('scene')}, item_id={action.get('item_id')}, enabled={action.get('enabled')}")
                 req = obs_requests.SetSceneItemEnabled(
                     sceneName=action['scene'],
                     sceneItemId=action['item_id'],
@@ -421,13 +465,18 @@ class OBSConnector(QThread):
                 )
                 self.client.call(req)
                 self.status_update.emit(f"Executed: {action}")
+                websocket_logger.info(f"Successfully executed set_scene_item_enabled")
             elif action.get('action') == 'set_current_program_scene':
+                websocket_logger.info(f"Executing set_current_program_scene: scene={action.get('scene')}")
                 req = obs_requests.SetCurrentProgramScene(sceneName=action['scene'])
                 self.client.call(req)
                 self.status_update.emit(f"Executed: {action}")
+                websocket_logger.info(f"Successfully executed set_current_program_scene")
             else:
+                websocket_logger.warning(f"Unknown action: {action}")
                 self.status_update.emit(f"Unknown action: {action}")
         except Exception as e:
+            websocket_logger.error(f"perform_action error: {e}", exc_info=True)
             self.status_update.emit(f"Failed to execute action: {e}")
 
 class MainWindow(QWidget):

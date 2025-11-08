@@ -237,6 +237,7 @@ class BotOfTheSpecterConnector(QThread):
                         # Send acknowledgment back to Specter
                         if specterSocket.connected:
                             await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                                'code': API_TOKEN,
                                 'status': 'success',
                                 'action': action_data,
                                 'message': 'Action completed successfully'
@@ -251,6 +252,7 @@ class BotOfTheSpecterConnector(QThread):
                         try:
                             if specterSocket.connected:
                                 await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                                    'code': API_TOKEN,
                                     'status': 'error',
                                     'message': str(e),
                                     'action': data
@@ -263,6 +265,7 @@ class BotOfTheSpecterConnector(QThread):
                     try:
                         if specterSocket.connected:
                             await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                                'code': API_TOKEN,
                                 'status': 'error',
                                 'message': 'Invalid data or no OBS connection'
                             })
@@ -324,6 +327,7 @@ class BotOfTheSpecterConnector(QThread):
                     # Send acknowledgment back to Specter
                     if specterSocket.connected:
                         await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                            'code': API_TOKEN,
                             'status': 'success',
                             'action': action_data,
                             'message': 'Action completed successfully'
@@ -337,6 +341,7 @@ class BotOfTheSpecterConnector(QThread):
                     try:
                         if specterSocket.connected:
                             await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                                'code': API_TOKEN,
                                 'status': 'error',
                                 'message': str(e),
                                 'action': data
@@ -349,6 +354,7 @@ class BotOfTheSpecterConnector(QThread):
                 try:
                     if specterSocket.connected:
                         await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                            'code': API_TOKEN,
                             'status': 'error',
                             'message': 'Invalid data or no OBS connection'
                         })

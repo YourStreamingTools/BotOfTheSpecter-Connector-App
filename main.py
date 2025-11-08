@@ -194,6 +194,9 @@ class BotOfTheSpecterConnector(QThread):
         # Catch-all event handler (keeps logging for any event not explicitly handled)
         @specterSocket.on('*')
         async def catch_all(event, data):
+            # Skip logging internal OBS_EVENT responses
+            if event == 'OBS_EVENT':
+                return
             # Redact sensitive information
             if isinstance(data, dict):
                 safe_data = data.copy()
@@ -453,7 +456,50 @@ class OBSConnector(QThread):
     def on_event(self, event):
         event_type = event.__class__.__name__
         data = event.__dict__.get('datain', event.__dict__)
-        message = f"OBS Event: {event_type} - {data}"
+        
+        # Format user-friendly messages for common OBS events
+        message = None
+        if event_type == 'SceneItemEnableStateChanged':
+            scene_name = data.get('sceneName', 'Unknown Scene')
+            item_id = data.get('sceneItemId', '?')
+            enabled = data.get('sceneItemEnabled', False)
+            status = "shown" if enabled else "hidden"
+            message = f"Scene Item {item_id} in {scene_name} {status}"
+        elif event_type == 'CurrentProgramSceneChanged':
+            scene_name = data.get('sceneName', 'Unknown')
+            message = f"🎬 Scene changed to: {scene_name}"
+        elif event_type == 'SceneTransitionStarted':
+            transition = data.get('transitionName', 'Unknown')
+            message = f"🔄 Transition started: {transition}"
+        elif event_type == 'SceneTransitionEnded':
+            transition = data.get('transitionName', 'Unknown')
+            message = f"✓ Transition ended: {transition}"
+        elif event_type == 'SceneCreated':
+            scene_name = data.get('sceneName', 'Unknown')
+            message = f"✨ New scene created: {scene_name}"
+        elif event_type == 'SceneRemoved':
+            scene_name = data.get('sceneName', 'Unknown')
+            message = f"🗑️ Scene removed: {scene_name}"
+        elif event_type == 'SourceCreated':
+            source_name = data.get('sourceName', 'Unknown')
+            scene_name = data.get('sceneName', 'Unknown Scene')
+            message = f"📦 Source created: {source_name} in {scene_name}"
+        elif event_type == 'SourceRemoved':
+            source_name = data.get('sourceName', 'Unknown')
+            scene_name = data.get('sceneName', 'Unknown Scene')
+            message = f"📦 Source removed: {source_name} from {scene_name}"
+        elif event_type == 'RecordingStarted':
+            message = f"🔴 Recording started"
+        elif event_type == 'RecordingStopped':
+            message = f"⏹️ Recording stopped"
+        elif event_type == 'StreamStarted':
+            message = f"📡 Streaming started"
+        elif event_type == 'StreamStopped':
+            message = f"📡 Streaming stopped"
+        else:
+            # Fallback for unknown events - show just the event type
+            message = f"OBS Event: {event_type}"
+        
         self.event_received.emit(message)
         # Forward event to BotOfTheSpecter
         if self.bot_connector:

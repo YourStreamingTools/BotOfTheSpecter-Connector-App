@@ -5,3 +5,4 @@ BotOfTheSpecter-OBS-Connector.spec
 /dist
 log.log
 build_output.txt
+*.lnk

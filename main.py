@@ -453,7 +453,6 @@ class BotOfTheSpecterConnector(QThread):
 
     def disconnect(self):
         self.should_stop = True
-        asyncio.run(self.force_websocket_reconnect())
 
     def send_event(self, event_type, data):
         if self.is_websocket_connected():
@@ -690,7 +689,6 @@ class MainWindow(QWidget):
         self.bot_connect_btn.setEnabled(True)
 
     def toggle_bot_connection(self):
-        """Toggle bot connection - connect or disconnect based on button state"""
         if self.bot_connect_btn.text() == "Connect":
             self.connect_bot()
         else:
@@ -698,14 +696,16 @@ class MainWindow(QWidget):
 
     def connect_bot(self):
         if self.bot_connector and self.bot_connector.isRunning():
-            # Thread is still running, just trigger reconnect
+            # Thread is already running - just clear the stop flag to resume
             self.bot_connector.should_stop = False
             self.bot_connect_btn.setText("Disconnect")
-            bot_logger.info("Reconnect requested")
-            self.status_update.emit("Reconnecting to BotOfTheSpecter...")
+            bot_logger.info("Resume connection requested")
             return
         # Create new connection
         api_key = self.api_key_input.text()
+        if not api_key:
+            QMessageBox.warning(self, "Connection Error", "Please enter an API key first.")
+            return
         self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector)
         self.bot_connector.status_update.connect(self.update_bot_status)
         self.bot_connector.event_received.connect(self.log_event)
@@ -713,17 +713,18 @@ class MainWindow(QWidget):
         self.bot_connect_btn.setText("Disconnect")
 
     def disconnect_bot(self):
-        """Disconnect from bot"""
         if self.bot_connector:
             self.bot_connector.disconnect()
+            # Wait for thread to finish
+            if self.bot_connector.isRunning():
+                self.bot_connector.wait(timeout=5000)  # 5 second timeout
             self.bot_connect_btn.setText("Connect")
 
     def connect_obs(self):
         if self.obs_connector and self.obs_connector.isRunning():
-            # Thread is still running, just trigger reconnect
+            # Thread is already running - just clear the stop flag to resume
             self.obs_connector.should_stop = False
             self.obs_connect_btn.setText("Disconnect")
-            self.status_update.emit("Reconnecting to OBS...")
             return
         host = self.obs_host.text()
         port = int(self.obs_port.text())
@@ -740,16 +741,17 @@ class MainWindow(QWidget):
         self.obs_connect_btn.setText("Disconnect")
 
     def toggle_obs_connection(self):
-        """Toggle OBS connection - connect or disconnect based on button state"""
         if self.obs_connect_btn.text() == "Connect":
             self.connect_obs()
         else:
             self.disconnect_obs()
 
     def disconnect_obs(self):
-        """Disconnect from OBS"""
         if self.obs_connector:
             self.obs_connector.disconnect()
+            # Wait for thread to finish
+            if self.obs_connector.isRunning():
+                self.obs_connector.wait(timeout=5000)  # 5 second timeout
             self.obs_connect_btn.setText("Connect")
 
     def update_bot_status(self, status):

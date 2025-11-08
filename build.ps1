@@ -86,11 +86,15 @@ Write-Host "  $($pyinstallerArgs -join ' ')"
 $exePath = Join-Path -Path (Resolve-Path .\dist) -ChildPath ("$Name.exe")
 if (Test-Path $exePath) {
     Write-Host "Build succeeded: $exePath"
+    Write-Host "Launching application..."
+    & $exePath
 } else {
     # Check for folder variant dist\Name\Name.exe
     $altExe = Join-Path -Path (Resolve-Path ".\dist\$Name") -ChildPath ("$Name.exe")
     if (Test-Path $altExe) {
         Write-Host "Build succeeded: $altExe"
+        Write-Host "Launching application..."
+        & $altExe
     } else {
         Write-Host "Build finished but executable not found in dist. Check PyInstaller output above for errors."
     }

@@ -194,8 +194,8 @@ class BotOfTheSpecterConnector(QThread):
         # Catch-all event handler (keeps logging for any event not explicitly handled)
         @specterSocket.on('*')
         async def catch_all(event, data):
-            # Skip logging internal OBS_EVENT responses
-            if event == 'OBS_EVENT':
+            # Skip logging internal OBS_EVENT responses and SEND_OBS_EVENT commands (handled by explicit handlers)
+            if event in ('OBS_EVENT', 'SEND_OBS_EVENT'):
                 return
             # Format user-friendly messages for common Specter events
             message = None
@@ -482,6 +482,9 @@ class OBSConnector(QThread):
         elif event_type == 'SceneTransitionEnded':
             transition = data.get('transitionName', 'Unknown')
             message = f"✓ Transition ended: {transition}"
+        elif event_type == 'SceneTransitionVideoEnded':
+            transition = data.get('transitionName', 'Unknown')
+            message = f"✓ Transition video ended: {transition}"
         elif event_type == 'SceneCreated':
             scene_name = data.get('sceneName', 'Unknown')
             message = f"✨ New scene created: {scene_name}"

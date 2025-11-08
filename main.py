@@ -216,16 +216,35 @@ class BotOfTheSpecterConnector(QThread):
                         else:
                             # This is already in action format
                             action_data = data
-                        
+                        websocket_logger.info(f"About to execute OBS action: {action_data}")
                         self.obs_connector.perform_action(action_data)
-                        await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': action_data})
-                        websocket_logger.info(f"Executed OBS action: {action_data}")
+                        websocket_logger.info(f"OBS action executed, sending success acknowledgment")
+                        await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                            'status': 'success',
+                            'action': action_data,
+                            'message': 'Action completed successfully'
+                        })
+                        websocket_logger.info(f"OBS_EVENT_RECEIVED sent successfully for action: {action_data}")
                     except Exception as e:
-                        await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': str(e), 'action': data})
-                        websocket_logger.error(f"Failed to execute OBS action: {e}")
+                        websocket_logger.error(f"Failed to execute OBS action: {e}", exc_info=True)
+                        try:
+                            await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                                'status': 'error',
+                                'message': str(e),
+                                'action': data
+                            })
+                            websocket_logger.info(f"Error acknowledgment sent")
+                        except Exception as emit_error:
+                            websocket_logger.error(f"Failed to emit error acknowledgment: {emit_error}")
                 else:
-                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': 'Invalid data or no OBS connection'})
-                    websocket_logger.warning("Received OBS request but cannot execute")
+                    websocket_logger.warning("Received OBS request but cannot execute (no connector or invalid data)")
+                    try:
+                        await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                            'status': 'error',
+                            'message': 'Invalid data or no OBS connection'
+                        })
+                    except Exception as emit_error:
+                        websocket_logger.error(f"Failed to emit error acknowledgment: {emit_error}")
             else:
                 # Register explicit handlers for common OBS event notifications coming FROM the server
                 obs_notification_events = [
@@ -278,15 +297,35 @@ class BotOfTheSpecterConnector(QThread):
                         websocket_logger.info(f"Converted OBS_REQUEST to action: {action_data}")
                     else:
                         action_data = data
-                    
+                    websocket_logger.info(f"About to execute OBS_REQUEST action: {action_data}")
                     self.obs_connector.perform_action(action_data)
-                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'success', 'action': action_data})
-                    websocket_logger.info(f"Executed OBS_REQUEST action: {action_data}")
+                    websocket_logger.info(f"OBS_REQUEST action executed, sending success acknowledgment")
+                    await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                        'status': 'success',
+                        'action': action_data,
+                        'message': 'Action completed successfully'
+                    })
+                    websocket_logger.info(f"OBS_EVENT_RECEIVED sent successfully for OBS_REQUEST: {action_data}")
                 except Exception as e:
-                    await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': str(e), 'action': data})
-                    websocket_logger.error(f"Failed to execute OBS_REQUEST action: {e}")
+                    websocket_logger.error(f"Failed to execute OBS_REQUEST action: {e}", exc_info=True)
+                    try:
+                        await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                            'status': 'error',
+                            'message': str(e),
+                            'action': data
+                        })
+                        websocket_logger.info(f"Error acknowledgment sent for OBS_REQUEST")
+                    except Exception as emit_error:
+                        websocket_logger.error(f"Failed to emit error acknowledgment for OBS_REQUEST: {emit_error}")
             else:
-                await specterSocket.emit('OBS_EVENT_RECEIVED', {'status': 'error', 'message': 'Invalid data or no OBS connection'})
+                websocket_logger.warning("Received OBS_REQUEST but cannot execute (no connector or invalid data)")
+                try:
+                    await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                        'status': 'error',
+                        'message': 'Invalid data or no OBS connection'
+                    })
+                except Exception as emit_error:
+                    websocket_logger.error(f"Failed to emit error acknowledgment for OBS_REQUEST: {emit_error}")
 
         # Explicit handler for OBS_EVENT_RECEIVED (acknowledgements from Specter)
         @specterSocket.on('OBS_EVENT_RECEIVED')

@@ -365,9 +365,10 @@ class BotOfTheSpecterConnector(QThread):
         # Explicit handler for OBS_EVENT_RECEIVED (acknowledgements from Specter)
         @specterSocket.on('OBS_EVENT_RECEIVED')
         async def handle_obs_event_received(data):
-            websocket_logger.info(f"OBS_EVENT_RECEIVED: {data}")
-            # Show in GUI
-            self.event_received.emit(f"OBS_EVENT_RECEIVED: {data}")
+            safe_data = data.copy()
+            if 'code' in safe_data:
+                safe_data['code'] = '***REDACTED***'
+            websocket_logger.info(f"OBS_EVENT_RECEIVED: {safe_data}")
 
     def is_websocket_connected(self):
         global websocket_connected

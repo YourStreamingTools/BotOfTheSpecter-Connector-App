@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox
 )
-from PyQt6.QtCore import QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QIcon
 import socketio
 import obswebsocket
@@ -682,6 +682,7 @@ class MainWindow(QWidget):
         self.config = Config()
         self.bot_connector = None
         self.obs_connector = None
+        self.log_expanded = self.config.get('log_expanded', False)  # Default to collapsed
         download_icon()
         self.init_ui()
         if os.path.exists(ICON_FILE):
@@ -736,15 +737,26 @@ class MainWindow(QWidget):
         obs_layout.addWidget(self.obs_connect_btn)
         obs_group.setLayout(obs_layout)
         layout.addWidget(obs_group)
-        # Log Area
+        # Log Area with collapse/expand button
+        log_header_layout = QHBoxLayout()
+        self.log_toggle_btn = QPushButton("▶ Event Log")  # Arrow pointing right (collapsed)
+        self.log_toggle_btn.setMaximumWidth(150)
+        self.log_toggle_btn.clicked.connect(self.toggle_log_visibility)
+        log_header_layout.addWidget(self.log_toggle_btn)
+        log_header_layout.addStretch()
+        layout.addLayout(log_header_layout)
         log_group = QGroupBox("Event Log")
         log_layout = QVBoxLayout()
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         log_layout.addWidget(self.log_area)
         log_group.setLayout(log_layout)
+        self.log_group = log_group
         layout.addWidget(log_group)
+        layout.addStretch()
         self.setLayout(layout)
+        # Set initial log visibility based on config
+        self.set_log_visibility(self.log_expanded)
         # Auto-connect if API key exists
         if api_key:
             self.bot_connect_btn.setEnabled(True)
@@ -841,8 +853,16 @@ class MainWindow(QWidget):
     def log_event(self, event):
         self.log_area.append(event)
 
-    def test_event_log(self):
-        self.log_event("Test event - Event log is working!")
+    def toggle_log_visibility(self):
+        self.log_expanded = not self.log_expanded
+        self.set_log_visibility(self.log_expanded)
+        self.config.set('log_expanded', self.log_expanded)
+
+    def set_log_visibility(self, visible):
+        self.log_group.setVisible(visible)
+        # Update button arrow: down arrow when expanded, right arrow when collapsed
+        arrow = "▼ Event Log" if visible else "▶ Event Log"
+        self.log_toggle_btn.setText(arrow)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

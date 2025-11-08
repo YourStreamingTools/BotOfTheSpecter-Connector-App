@@ -194,12 +194,17 @@ class BotOfTheSpecterConnector(QThread):
         # Catch-all event handler (keeps logging for any event not explicitly handled)
         @specterSocket.on('*')
         async def catch_all(event, data):
-            # Skip logging internal OBS_EVENT responses and SEND_OBS_EVENT commands (handled by explicit handlers)
-            if event in ('OBS_EVENT', 'SEND_OBS_EVENT'):
+            # Log all events to file for debugging
+            websocket_logger.info(f"Received event '{event}': {data if isinstance(data, dict) else data}")
+            # Skip OBS_EVENT entirely - don't process or emit
+            if event == 'OBS_EVENT':
                 return
             # Format user-friendly messages for common Specter events
             message = None
-            if event == 'WELCOME':
+            # Don't emit SEND_OBS_EVENT to GUI - process silently but don't create a message
+            if event == 'SEND_OBS_EVENT':
+                message = None  # Explicitly skip GUI emit for this technical event
+            elif event == 'WELCOME':
                 message = "✅ Specter Connected"
             elif event == 'SUCCESS':
                 message = "✅ Specter Registered successfully"
@@ -213,8 +218,9 @@ class BotOfTheSpecterConnector(QThread):
                 else:
                     log_data = data
                 message = f"Event '{event}': {log_data}"
-            websocket_logger.info(f"Received event '{event}': {data if isinstance(data, dict) else data}")
-            self.event_received.emit(message)
+            # Only emit to GUI if we have a message (not for SEND_OBS_EVENT)
+            if message:
+                self.event_received.emit(message)
             # Legacy/compat: if an older name is used (SEND_OBS_EVENT) treat it as an OBS request
             if event in ('SEND_OBS_EVENT', 'OBS_REQUEST'):
                 if isinstance(data, dict) and self.obs_connector:

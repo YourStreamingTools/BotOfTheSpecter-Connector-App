@@ -26,7 +26,14 @@ Write-Host "Installing PyInstaller (if not present)..."
 # Optional clean
 if ($Clean) {
     Write-Host "Cleaning build/dist/__pycache__ and spec files..."
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "build" "dist" "__pycache__" "$Name.spec"
+    foreach ($item in @("build", "dist", "__pycache__")) {
+        if (Test-Path $item) {
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $item
+        }
+    }
+    if (Test-Path "$Name.spec") {
+        Remove-Item -Force -ErrorAction SilentlyContinue "$Name.spec"
+    }
 }
 
 # Build pyinstaller argument list
@@ -35,6 +42,17 @@ if ($OneFile) { $pyinstallerArgs += "--onefile" }
 if ($Console) { $pyinstallerArgs += "--console" } else { $pyinstallerArgs += "--windowed" }
 $pyinstallerArgs += "--name"
 $pyinstallerArgs += $Name
+
+# Add hidden imports for dependencies that PyInstaller might miss
+$hiddenImports = @(
+    "PyQt6.sip",
+    "engineio",
+    "engineio.async_drivers.aiohttp_polling",
+    "engineio.async_drivers.aiohttp_websocket"
+)
+foreach ($import in $hiddenImports) {
+    $pyinstallerArgs += "--hidden-import=$import"
+}
 
 # If an icon file exists in repo root, include it
 if (Test-Path ".\botofthespecter.png") {

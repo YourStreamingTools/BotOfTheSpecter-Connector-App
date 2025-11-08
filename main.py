@@ -472,11 +472,45 @@ class OBSConnector(QThread):
         self.client = obswebsocket.obsws(host, port, password)
         self.connected = False
         self.should_stop = False  # Flag to stop the connection loop
+        self.source_name_cache = {}  # Cache for source name lookups
+
+    def get_source_name(self, scene_name, item_id):
+        cache_key = f"{scene_name}:{item_id}"
+        if cache_key in self.source_name_cache:
+            return self.source_name_cache[cache_key]
+        try:
+            # Check if client is connected before attempting call
+            if not self.connected:
+                websocket_logger.info(f"Client not connected, cannot resolve source name")
+                fallback = f'Item {item_id}'
+                self.source_name_cache[cache_key] = fallback
+                return fallback
+            # Get all scene items for the scene
+            websocket_logger.info(f"Fetching scene items for '{scene_name}' to resolve item_id {item_id}")
+            scene_items = self.client.call(obs_requests.GetSceneItemList(sceneName=scene_name))
+            websocket_logger.info(f"Scene items response: {scene_items}")
+            # Find the item with matching ID and get its source name
+            for item in scene_items.datain.get('sceneItems', []):
+                if item.get('sceneItemId') == item_id:
+                    source_name = item.get('sourceName', f'Item {item_id}')
+                    websocket_logger.info(f"Resolved item {item_id} to source: {source_name}")
+                    self.source_name_cache[cache_key] = source_name
+                    return source_name
+            # If not found, return the item ID
+            websocket_logger.info(f"Item {item_id} not found in scene '{scene_name}'")
+            fallback = f'Item {item_id}'
+            self.source_name_cache[cache_key] = fallback
+            return fallback
+        except Exception as e:
+            websocket_logger.error(f"Exception in get_source_name for scene '{scene_name}', item {item_id}: {e}", exc_info=True)
+            fallback = f'Item {item_id}'
+            self.source_name_cache[cache_key] = fallback
+            return fallback
 
     def on_event(self, event):
         event_type = event.__class__.__name__
         data = event.__dict__.get('datain', event.__dict__)
-        
+        websocket_logger.info(f"OBS Event received: {event_type} - {data}")
         # Format user-friendly messages for common OBS events
         message = None
         if event_type == 'SceneItemEnableStateChanged':
@@ -484,7 +518,13 @@ class OBSConnector(QThread):
             item_id = data.get('sceneItemId', '?')
             enabled = data.get('sceneItemEnabled', False)
             status = "shown" if enabled else "hidden"
-            message = f"Scene Item {item_id} in {scene_name} {status}"
+            # Try to get source name from cache first, but don't block on new lookups from event handler
+            cache_key = f"{scene_name}:{item_id}"
+            if cache_key in self.source_name_cache:
+                source_name = self.source_name_cache[cache_key]
+            else:
+                source_name = f'Item {item_id}'
+            message = f"📺 {source_name} in {scene_name} {status}"
         elif event_type == 'CurrentProgramSceneChanged':
             scene_name = data.get('sceneName', 'Unknown')
             message = f"🎬 Scene changed to: {scene_name}"
@@ -523,7 +563,13 @@ class OBSConnector(QThread):
             # Fallback for unknown events - show just the event type
             message = f"OBS Event: {event_type}"
         
-        self.event_received.emit(message)
+        # Always log and emit
+        if message:
+            websocket_logger.info(f"Emitting OBS event to GUI: {message}")
+            self.event_received.emit(message)
+        else:
+            websocket_logger.warning(f"No message generated for event type: {event_type}")
+        
         # Forward event to BotOfTheSpecter
         if self.bot_connector:
             self.bot_connector.send_event('OBS_EVENT', {'type': event_type, 'data': data})
@@ -536,12 +582,42 @@ class OBSConnector(QThread):
             # Emit an error into the GUI
             self.event_received.emit(f"Error handling specter event '{event_name}': {e}")
 
+    def precache_source_names(self):
+        try:
+            websocket_logger.info("Pre-caching source names from all scenes...")
+            # Get list of all scenes
+            scenes_response = self.client.call(obs_requests.GetSceneList())
+            scenes = scenes_response.datain.get('scenes', [])
+            for scene in scenes:
+                scene_name = scene.get('sceneName')
+                try:
+                    # Get all items in this scene
+                    items_response = self.client.call(obs_requests.GetSceneItemList(sceneName=scene_name))
+                    items = items_response.datain.get('sceneItems', [])
+                    # Cache each item
+                    for item in items:
+                        item_id = item.get('sceneItemId')
+                        source_name = item.get('sourceName', f'Item {item_id}')
+                        cache_key = f"{scene_name}:{item_id}"
+                        self.source_name_cache[cache_key] = source_name
+                        websocket_logger.debug(f"Cached: {cache_key} -> {source_name}")
+                except Exception as scene_error:
+                    websocket_logger.warning(f"Failed to cache items for scene '{scene_name}': {scene_error}")
+            websocket_logger.info(f"Source name caching complete. Cached {len(self.source_name_cache)} entries")
+        except Exception as e:
+            websocket_logger.error(f"Failed to precache source names: {e}", exc_info=True)
+
     def run(self):
         try:
             self.client.connect()
             self.client.register(self.on_event)
             self.connected = True
             self.status_update.emit("Connected to OBS")
+            # Pre-cache all source names from all scenes
+            try:
+                self.precache_source_names()
+            except Exception as e:
+                websocket_logger.warning(f"Failed to precache source names: {e}")
             # Keep the connection alive while not stopped
             while not self.should_stop:
                 try:

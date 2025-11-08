@@ -355,6 +355,7 @@ class OBSConnector(QThread):
         self.bot_connector = bot_connector
         self.client = obswebsocket.obsws(host, port, password)
         self.connected = False
+        self.should_stop = False  # Flag to stop the connection loop
 
     def on_event(self, event):
         event_type = event.__class__.__name__
@@ -379,8 +380,16 @@ class OBSConnector(QThread):
             self.client.register(self.on_event)
             self.connected = True
             self.status_update.emit("Connected to OBS")
-            # Keep the connection alive
-            self.client.call(obs_requests.GetVersion())
+            # Keep the connection alive while not stopped
+            while not self.should_stop:
+                try:
+                    self.client.call(obs_requests.GetVersion())
+                    import time
+                    time.sleep(1)  # Check every 1 second if we should stop
+                except Exception as e:
+                    if not self.should_stop:
+                        websocket_logger.error(f"OBS keepalive error: {e}")
+                    break
         except Exception as e:
             # Build a clearer, actionable message for common connection errors
             err_str = str(e)
@@ -393,8 +402,12 @@ class OBSConnector(QThread):
             bot_logger.error(f"OBS connection error: {err_str}")
 
     def disconnect(self):
+        self.should_stop = True
         if self.connected:
-            self.client.disconnect()
+            try:
+                self.client.disconnect()
+            except Exception as e:
+                websocket_logger.warning(f"Error disconnecting OBS client: {e}")
             self.connected = False
             self.status_update.emit("Disconnected from OBS")
 
@@ -538,8 +551,10 @@ class MainWindow(QWidget):
 
     def connect_obs(self):
         if self.obs_connector and self.obs_connector.isRunning():
-            self.obs_connector.disconnect()
-            self.obs_connect_btn.setText("Connect")
+            # Thread is still running, just trigger reconnect
+            self.obs_connector.should_stop = False
+            self.obs_connect_btn.setText("Disconnect")
+            self.status_update.emit("Reconnecting to OBS...")
             return
         host = self.obs_host.text()
         port = int(self.obs_port.text())

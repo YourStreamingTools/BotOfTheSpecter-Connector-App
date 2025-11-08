@@ -89,6 +89,7 @@ class BotOfTheSpecterConnector(QThread):
         API_TOKEN = api_key
         self.api_key = api_key
         self.obs_connector = obs_connector
+        self.should_stop = False  # Flag to stop the reconnection loop
         specterSocket = socketio.AsyncClient()
         self.setup_events()
 
@@ -278,7 +279,7 @@ class BotOfTheSpecterConnector(QThread):
         # Reconnection parameters
         reconnect_delay = 60  # Fixed 60 second delay for each reconnection attempt
         consecutive_failures = 0
-        while True:
+        while not self.should_stop:
             try:
                 # Ensure clean state before connection attempt
                 websocket_connected = False
@@ -330,8 +331,12 @@ class BotOfTheSpecterConnector(QThread):
             websocket_logger.warning(f"WebSocket connection lost, preparing for reconnection attempt {consecutive_failures + 1}")
             # Small delay before next iteration to prevent tight loop
             await asyncio.sleep(1)
+        # Exit reconnection loop cleanly
+        websocket_connected = False
+        websocket_logger.info("WebSocket connection loop stopped")
 
     def disconnect(self):
+        self.should_stop = True
         asyncio.run(self.force_websocket_reconnect())
 
     def send_event(self, event_type, data):
@@ -444,7 +449,7 @@ class MainWindow(QWidget):
         self.bot_status = QLabel("Status: Not connected")
         bot_layout.addWidget(self.bot_status)
         self.bot_connect_btn = QPushButton("Connect")
-        self.bot_connect_btn.clicked.connect(self.connect_bot)
+        self.bot_connect_btn.clicked.connect(self.toggle_bot_connection)
         self.bot_connect_btn.setEnabled(False)
         bot_layout.addWidget(self.bot_connect_btn)
         bot_group.setLayout(bot_layout)
@@ -468,7 +473,7 @@ class MainWindow(QWidget):
         self.obs_status = QLabel("Status: Not connected")
         obs_layout.addWidget(self.obs_status)
         self.obs_connect_btn = QPushButton("Connect")
-        self.obs_connect_btn.clicked.connect(self.connect_obs)
+        self.obs_connect_btn.clicked.connect(self.toggle_obs_connection)
         obs_layout.addWidget(self.obs_connect_btn)
         obs_group.setLayout(obs_layout)
         layout.addWidget(obs_group)
@@ -502,17 +507,34 @@ class MainWindow(QWidget):
         self.config.set('api_key', api_key)
         self.bot_connect_btn.setEnabled(True)
 
+    def toggle_bot_connection(self):
+        """Toggle bot connection - connect or disconnect based on button state"""
+        if self.bot_connect_btn.text() == "Connect":
+            self.connect_bot()
+        else:
+            self.disconnect_bot()
+
     def connect_bot(self):
         if self.bot_connector and self.bot_connector.isRunning():
-            asyncio.run(self.bot_connector.force_websocket_reconnect())
-            self.bot_connect_btn.setText("Connect")
+            # Thread is still running, just trigger reconnect
+            self.bot_connector.should_stop = False
+            self.bot_connect_btn.setText("Disconnect")
+            bot_logger.info("Reconnect requested")
+            self.status_update.emit("Reconnecting to BotOfTheSpecter...")
             return
+        # Create new connection
         api_key = self.api_key_input.text()
         self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector)
         self.bot_connector.status_update.connect(self.update_bot_status)
         self.bot_connector.event_received.connect(self.log_event)
         self.bot_connector.start()
         self.bot_connect_btn.setText("Disconnect")
+
+    def disconnect_bot(self):
+        """Disconnect from bot"""
+        if self.bot_connector:
+            self.bot_connector.disconnect()
+            self.bot_connect_btn.setText("Connect")
 
     def connect_obs(self):
         if self.obs_connector and self.obs_connector.isRunning():
@@ -532,6 +554,19 @@ class MainWindow(QWidget):
         self.obs_connector.event_received.connect(self.log_event)
         self.obs_connector.start()
         self.obs_connect_btn.setText("Disconnect")
+
+    def toggle_obs_connection(self):
+        """Toggle OBS connection - connect or disconnect based on button state"""
+        if self.obs_connect_btn.text() == "Connect":
+            self.connect_obs()
+        else:
+            self.disconnect_obs()
+
+    def disconnect_obs(self):
+        """Disconnect from OBS"""
+        if self.obs_connector:
+            self.obs_connector.disconnect()
+            self.obs_connect_btn.setText("Connect")
 
     def update_bot_status(self, status):
         self.bot_status.setText(f"Status: {status}")

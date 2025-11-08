@@ -197,16 +197,24 @@ class BotOfTheSpecterConnector(QThread):
             # Skip logging internal OBS_EVENT responses
             if event == 'OBS_EVENT':
                 return
-            # Redact sensitive information
-            if isinstance(data, dict):
-                safe_data = data.copy()
-                if 'code' in safe_data:
-                    safe_data['code'] = '***REDACTED***'
-                log_data = safe_data
+            # Format user-friendly messages for common Specter events
+            message = None
+            if event == 'WELCOME':
+                message = "✅ Specter Connected"
+            elif event == 'SUCCESS':
+                message = "✅ Specter Registered successfully"
             else:
-                log_data = data
-            websocket_logger.info(f"Received event '{event}': {log_data}")
-            self.event_received.emit(f"Event '{event}': {log_data}")
+                # Redact sensitive information
+                if isinstance(data, dict):
+                    safe_data = data.copy()
+                    if 'code' in safe_data:
+                        safe_data['code'] = '***REDACTED***'
+                    log_data = safe_data
+                else:
+                    log_data = data
+                message = f"Event '{event}': {log_data}"
+            websocket_logger.info(f"Received event '{event}': {data if isinstance(data, dict) else data}")
+            self.event_received.emit(message)
             # Legacy/compat: if an older name is used (SEND_OBS_EVENT) treat it as an OBS request
             if event in ('SEND_OBS_EVENT', 'OBS_REQUEST'):
                 if isinstance(data, dict) and self.obs_connector:

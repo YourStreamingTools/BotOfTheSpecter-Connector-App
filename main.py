@@ -517,14 +517,15 @@ class OBSConnector(QThread):
             scene_name = data.get('sceneName', 'Unknown Scene')
             item_id = data.get('sceneItemId', '?')
             enabled = data.get('sceneItemEnabled', False)
-            status = "shown" if enabled else "hidden"
+            # Use eye emoji when shown, eye with cross when hidden
+            icon = "👁️" if enabled else "👁️‍🗨️"
             # Try to get source name from cache first, but don't block on new lookups from event handler
             cache_key = f"{scene_name}:{item_id}"
             if cache_key in self.source_name_cache:
                 source_name = self.source_name_cache[cache_key]
             else:
                 source_name = f'Item {item_id}'
-            message = f"📺 {source_name} in {scene_name} {status}"
+            message = f"{icon} {source_name} in {scene_name}"
         elif event_type == 'CurrentProgramSceneChanged':
             scene_name = data.get('sceneName', 'Unknown')
             message = f"🎬 Scene changed to: {scene_name}"

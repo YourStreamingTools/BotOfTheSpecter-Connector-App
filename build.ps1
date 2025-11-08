@@ -11,6 +11,18 @@ $python = "python"
 
 Write-Host "Using Python executable: $python"
 
+# Force close any running instance of the app
+Write-Host "Closing any running instances of BotOfTheSpecter-OBS-Connector..."
+$runningProcess = Get-Process -Name "BotOfTheSpecter-OBS-Connector" -ErrorAction SilentlyContinue
+if ($runningProcess) {
+    Write-Host "Found running instance(s), force closing..."
+    $runningProcess | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    Write-Host "Application closed successfully."
+} else {
+    Write-Host "No running instances found."
+}
+
 # Ensure pip is up-to-date and install dependencies
 Write-Host "Installing/Updating pip and project requirements..."
 & $python -m pip install --upgrade pip

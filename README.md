@@ -35,7 +35,7 @@ If you prefer to build the application from source, you can follow these steps:
 
 1.  **Prerequisites**:
     -   Python 3.7 or higher
-    -   PyQt5
+    -   PyQt6
     -   aiohttp
     -   python-socketio
     -   obs-websocket-py

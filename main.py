@@ -15,7 +15,7 @@ import obswebsocket
 from obswebsocket import requests as obs_requests
 
 # Use appdata for config
-APPDATA_DIR = os.path.join(os.path.expanduser('~'), 'AppData', 'Roaming', 'BotOfTheSpecter-OBS-Connector')
+APPDATA_DIR = os.path.join(os.path.expanduser('~'), 'AppData', 'Roaming', 'BotOfTheSpecter', 'OBSConnector')
 os.makedirs(APPDATA_DIR, exist_ok=True)
 CONFIG_FILE = os.path.join(APPDATA_DIR, 'config.json')
 LOG_FILE = os.path.join(APPDATA_DIR, 'app.log')

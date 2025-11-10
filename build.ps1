@@ -81,39 +81,38 @@ $pyinstallerArgs += $Name
 Write-Host "Creating version metadata file..."
 $versionFileContent = @"
 # UTF-8
-#
-# For more details about fixed file info 'ffi' see:
-# http://msdn.microsoft.com/en-us/library/ms646997.aspx?id=19
+# Version file for PyInstaller - DO NOT MODIFY FORMAT
 VSVersionInfo(
   ffi=FixedFileInfo(
-    # Contains as list of up to four items: (major, minor, micro, build)
-    # If not needed, tuple can end shorter
     mask=0x3f,
     mask_ex=0x3f,
-    # Contains a bitmask that specifies the valid bits 'flags'r
     reserved=0x0,
-    # Contains a bitmask that specifies the Boolean attributes of the file.
     serial=0x0,
-    # Contains the binary version number of this file.
-    # Version is as follows (all in hex)
-    # MAJOR.MINOR.MICRO.BUILD
-    struct=[(1, 1, 0, 0), (1, 1, 0, 0)],
-    # Contains the version string: %d.%d.%d.%d
-    # This is a four-part version number; for example: major.minor.micro.build
+    struct=((1, 1, 0, 0), (1, 1, 0, 0))
   ),
-  mask_ex=VarFileInfo(Translation=[1033, 1200]),
-  # Contains language ID and code page
-  dicts=[
-    {
-      'CompanyName': 'YourStreamingTools',
-      'FileDescription': 'Real-time OBS control connector for BotOfTheSpecter',
-      'FileVersion': '1.1.0.0',
-      'InternalName': 'BotOfTheSpecter-OBS-Connector',
-      'LegalCopyright': '© 2025 YourStreamingTools',
-      'OriginalFilename': 'BotOfTheSpecter-OBS-Connector.exe',
-      'ProductName': 'BotOfTheSpecter OBS Connector',
-      'ProductVersion': '1.1.0.0',
-    }
+  VarFileInfo=[VarFileInfo([1033, 1200])],
+  StringFileInfo=[
+    StringFileInfo([
+      StringTable(
+        u'040904B0',
+        [StringTable_Content(
+          u'CompanyName', u'YourStreamingTools'),
+        StringTable_Content(
+          u'FileDescription', u'Real-time OBS control connector for BotOfTheSpecter'),
+        StringTable_Content(
+          u'FileVersion', u'1.1.0.0'),
+        StringTable_Content(
+          u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
+        StringTable_Content(
+          u'LegalCopyright', u'© 2025 YourStreamingTools'),
+        StringTable_Content(
+          u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
+        StringTable_Content(
+          u'ProductName', u'BotOfTheSpecter OBS Connector'),
+        StringTable_Content(
+          u'ProductVersion', u'1.1.0.0')
+        ])
+    ])
   ]
 )
 "@

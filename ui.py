@@ -1,13 +1,141 @@
 import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox
+    QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
+    QScrollArea, QFrame, QSizePolicy
 )
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QFont, QColor
+from PyQt6.QtCore import Qt
 from config import Config
 from constants import ICON_FILE, download_icon, bot_logger
 from bot_connector import BotOfTheSpecterConnector
 from obs_connector import OBSConnector
+
+class ModernButton(QPushButton):
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setMinimumHeight(40)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.apply_style()
+
+    def apply_style(self):
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #0078d4;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #1084d8;
+            }
+            QPushButton:pressed {
+                background-color: #005a9e;
+            }
+            QPushButton:disabled {
+                background-color: #444444;
+                color: #666666;
+            }
+        """)
+
+class ModernStatusButton(QPushButton):
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setMinimumHeight(40)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.connected = False
+        self.update_style()
+
+    def set_connected(self, connected):
+        self.connected = connected
+        self.update_style()
+
+    def update_style(self):
+        if self.connected:
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #107c10;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 11px;
+                    padding: 8px 16px;
+                }
+                QPushButton:hover {
+                    background-color: #128713;
+                }
+                QPushButton:pressed {
+                    background-color: #0d6b0d;
+                }
+            """)
+            self.setText("Disconnect")
+        else:
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #0078d4;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 11px;
+                    padding: 8px 16px;
+                }
+                QPushButton:hover {
+                    background-color: #1084d8;
+                }
+                QPushButton:pressed {
+                    background-color: #005a9e;
+                }
+            """)
+            self.setText("Connect")
+
+class ModernLineEdit(QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.apply_style()
+
+    def apply_style(self):
+        self.setStyleSheet("""
+            QLineEdit {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                border: 2px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 11px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #0078d4;
+                background-color: #1e1e1e;
+            }
+        """)
+
+class ModernGroupBox(QGroupBox):
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
+        self.apply_style()
+
+    def apply_style(self):
+        self.setStyleSheet("""
+            QGroupBox {
+                color: #ffffff;
+                border: 1px solid #3d3d3d;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 16px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 3px 0 3px;
+            }
+        """)
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -20,35 +148,105 @@ class MainWindow(QWidget):
         self.init_ui()
         if os.path.exists(ICON_FILE):
             self.setWindowIcon(QIcon(ICON_FILE))
+        self.apply_global_style()
 
     def init_ui(self):
         self.setWindowTitle('BotOfTheSpecter - OBS Connector')
-        self.setGeometry(300, 300, 600, 500)
-        layout = QVBoxLayout()
+        self.setGeometry(100, 100, 800, 700)
+        self.setMinimumSize(700, 600)
+        main_layout = QVBoxLayout()
+        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(16, 16, 16, 16)
+        # Header
+        header_label = QLabel('BotOfTheSpecter - OBS Connector')
+        header_font = QFont()
+        header_font.setPointSize(16)
+        header_font.setBold(True)
+        header_label.setFont(header_font)
+        header_label.setStyleSheet("color: #ffffff; margin-bottom: 8px; background-color: transparent;")
+        main_layout.addWidget(header_label)
+        # Create scroll area for content
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: #1e1e1e;
+            }
+            QScrollBar:vertical {
+                background-color: #2d2d2d;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #555555;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #707070;
+            }
+        """)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout()
+        scroll_layout.setSpacing(16)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
         # BotOfTheSpecter Group
         bot_group = self._create_bot_group()
-        layout.addWidget(bot_group)
+        scroll_layout.addWidget(bot_group)
         # OBS Group
         obs_group = self._create_obs_group()
-        layout.addWidget(obs_group)
+        scroll_layout.addWidget(obs_group)
         # Log Area with collapse/expand button
         log_header_layout = QHBoxLayout()
-        self.log_toggle_btn = QPushButton("▶ Event Log")
-        self.log_toggle_btn.setMaximumWidth(150)
+        log_header_layout.setSpacing(8)
+        self.log_toggle_btn = QPushButton("▼ Event Log")
+        self.log_toggle_btn.setMaximumWidth(140)
+        self.log_toggle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                font-weight: bold;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background-color: #3d3d3d;
+            }
+            QPushButton:pressed {
+                background-color: #1d1d1d;
+            }
+        """)
         self.log_toggle_btn.clicked.connect(self.toggle_log_visibility)
         log_header_layout.addWidget(self.log_toggle_btn)
         log_header_layout.addStretch()
-        layout.addLayout(log_header_layout)
-        log_group = QGroupBox("Event Log")
+        scroll_layout.addLayout(log_header_layout)
+        log_group = ModernGroupBox("Event Log")
         log_layout = QVBoxLayout()
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
+        self.log_area.setStyleSheet("""
+            QTextEdit {
+                background-color: #252525;
+                color: #e0e0e0;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 8px;
+                font-family: 'Courier New', monospace;
+                font-size: 10px;
+            }
+        """)
+        self.log_area.setMinimumHeight(150)
         log_layout.addWidget(self.log_area)
         log_group.setLayout(log_layout)
         self.log_group = log_group
-        layout.addWidget(log_group)
-        layout.addStretch()
-        self.setLayout(layout)
+        scroll_layout.addWidget(log_group)
+        scroll_layout.addStretch()
+        scroll_content.setLayout(scroll_layout)
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
+        self.setLayout(main_layout)
         # Set initial log visibility
         self.set_log_visibility(self.log_expanded)
         # Auto-connect if API key exists
@@ -64,22 +262,37 @@ class MainWindow(QWidget):
             self.connect_obs()
 
     def _create_bot_group(self):
-        bot_group = QGroupBox("BotOfTheSpecter Settings")
+        bot_group = ModernGroupBox("BotOfTheSpecter Settings")
         bot_layout = QVBoxLayout()
+        bot_layout.setSpacing(12)
+        # API Key Input
         api_layout = QHBoxLayout()
-        api_layout.addWidget(QLabel("API Key:"))
-        self.api_key_input = QLineEdit()
+        api_layout.setSpacing(8)
+        api_label = QLabel("API Key:")
+        api_label.setStyleSheet("font-weight: bold; min-width: 80px;")
+        api_layout.addWidget(api_label)
+        self.api_key_input = ModernLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         api_key = self.config.get('api_key', '')
         self.api_key_input.setText(api_key)
-        api_layout.addWidget(self.api_key_input)
-        self.validate_btn = QPushButton("Validate")
+        api_layout.addWidget(self.api_key_input, 1)
+        self.validate_btn = ModernButton("Validate")
+        self.validate_btn.setMaximumWidth(100)
         self.validate_btn.clicked.connect(self.validate_api_key)
         api_layout.addWidget(self.validate_btn)
         bot_layout.addLayout(api_layout)
-        self.bot_status = QLabel("Status: Not connected")
+        # Status Label
+        self.bot_status = QLabel("Status: ⚫ Not connected")
+        self.bot_status.setStyleSheet("""
+            color: #aaaaaa;
+            font-size: 11px;
+            padding: 8px;
+            background-color: #2d2d2d;
+            border-radius: 4px;
+        """)
         bot_layout.addWidget(self.bot_status)
-        self.bot_connect_btn = QPushButton("Connect")
+        # Connect Button
+        self.bot_connect_btn = ModernStatusButton("Connect")
         self.bot_connect_btn.clicked.connect(self.toggle_bot_connection)
         self.bot_connect_btn.setEnabled(False)
         bot_layout.addWidget(self.bot_connect_btn)
@@ -87,24 +300,48 @@ class MainWindow(QWidget):
         return bot_group
 
     def _create_obs_group(self):
-        obs_group = QGroupBox("OBS WebSocket Settings")
+        obs_group = ModernGroupBox("OBS WebSocket Settings")
         obs_layout = QVBoxLayout()
+        obs_layout.setSpacing(12)
+        # OBS Configuration Inputs
         obs_config_layout = QHBoxLayout()
-        obs_config_layout.addWidget(QLabel("Host:"))
-        self.obs_host = QLineEdit(self.config.get('obs_host', 'localhost'))
-        obs_config_layout.addWidget(self.obs_host)
-        obs_config_layout.addWidget(QLabel("Port:"))
-        self.obs_port = QLineEdit(str(self.config.get('obs_port', 4455)))
+        obs_config_layout.setSpacing(8)
+        # Host
+        host_label = QLabel("Host:")
+        host_label.setStyleSheet("font-weight: bold; min-width: 50px;")
+        obs_config_layout.addWidget(host_label)
+        self.obs_host = ModernLineEdit()
+        self.obs_host.setText(self.config.get('obs_host', 'localhost'))
+        obs_config_layout.addWidget(self.obs_host, 1)
+        # Port
+        port_label = QLabel("Port:")
+        port_label.setStyleSheet("font-weight: bold; min-width: 40px;")
+        obs_config_layout.addWidget(port_label)
+        self.obs_port = ModernLineEdit()
+        self.obs_port.setText(str(self.config.get('obs_port', 4455)))
+        self.obs_port.setMaximumWidth(100)
         obs_config_layout.addWidget(self.obs_port)
-        obs_config_layout.addWidget(QLabel("Password:"))
-        self.obs_password = QLineEdit()
+        # Password
+        pwd_label = QLabel("Password:")
+        pwd_label.setStyleSheet("font-weight: bold; min-width: 65px;")
+        obs_config_layout.addWidget(pwd_label)
+        self.obs_password = ModernLineEdit()
         self.obs_password.setEchoMode(QLineEdit.EchoMode.Password)
         self.obs_password.setText(self.config.get('obs_password', ''))
-        obs_config_layout.addWidget(self.obs_password)
+        obs_config_layout.addWidget(self.obs_password, 1)
         obs_layout.addLayout(obs_config_layout)
-        self.obs_status = QLabel("Status: Not connected")
+        # Status Label
+        self.obs_status = QLabel("Status: ⚫ Not connected")
+        self.obs_status.setStyleSheet("""
+            color: #aaaaaa;
+            font-size: 11px;
+            padding: 8px;
+            background-color: #2d2d2d;
+            border-radius: 4px;
+        """)
         obs_layout.addWidget(self.obs_status)
-        self.obs_connect_btn = QPushButton("Connect")
+        # Connect Button
+        self.obs_connect_btn = ModernStatusButton("Connect")
         self.obs_connect_btn.clicked.connect(self.toggle_obs_connection)
         obs_layout.addWidget(self.obs_connect_btn)
         obs_group.setLayout(obs_layout)
@@ -181,10 +418,34 @@ class MainWindow(QWidget):
             self.obs_connect_btn.setText("Connect")
 
     def update_bot_status(self, status):
-        self.bot_status.setText(f"Status: {status}")
+        status_text = f"Status: {status}"
+        color = "#4ec745" if "Connected" in status else "#f55047" if "Error" in status or "Failed" in status else "#aaaaaa"
+        indicator = "🟢" if "Connected" in status else "🔴" if "Error" in status or "Failed" in status else "⚫"
+        self.bot_status.setText(f"{indicator} {status_text}")
+        self.bot_status.setStyleSheet(f"""
+            color: {color};
+            font-size: 11px;
+            padding: 8px;
+            background-color: #2d2d2d;
+            border-radius: 4px;
+        """)
+        is_connected = "Connected" in status
+        self.bot_connect_btn.set_connected(is_connected)
 
     def update_obs_status(self, status):
-        self.obs_status.setText(f"Status: {status}")
+        status_text = f"Status: {status}"
+        color = "#4ec745" if "Connected" in status else "#f55047" if "Error" in status or "Failed" in status else "#aaaaaa"
+        indicator = "🟢" if "Connected" in status else "🔴" if "Error" in status or "Failed" in status else "⚫"
+        self.obs_status.setText(f"{indicator} {status_text}")
+        self.obs_status.setStyleSheet(f"""
+            color: {color};
+            font-size: 11px;
+            padding: 8px;
+            background-color: #2d2d2d;
+            border-radius: 4px;
+        """)
+        is_connected = "Connected" in status
+        self.obs_connect_btn.set_connected(is_connected)
 
     def log_event(self, event):
         self.log_area.append(event)
@@ -198,3 +459,90 @@ class MainWindow(QWidget):
         self.log_group.setVisible(visible)
         arrow = "▼ Event Log" if visible else "▶ Event Log"
         self.log_toggle_btn.setText(arrow)
+
+    def apply_global_style(self):
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+                background-color: transparent;
+            }
+            QLineEdit {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                border: 2px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 8px;
+                selection-background-color: #0078d4;
+            }
+            QLineEdit:focus {
+                border: 2px solid #0078d4;
+            }
+            QPushButton {
+                background-color: #0078d4;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #1084d8;
+            }
+            QPushButton:pressed {
+                background-color: #005a9e;
+            }
+            QPushButton:disabled {
+                background-color: #444444;
+                color: #666666;
+            }
+            QGroupBox {
+                color: #ffffff;
+                border: 1px solid #3d3d3d;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 16px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 3px 0 3px;
+            }
+            QTextEdit {
+                background-color: #252525;
+                color: #e0e0e0;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 8px;
+            }
+            QScrollArea {
+                background-color: #1e1e1e;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background-color: #2d2d2d;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #555555;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #707070;
+            }
+            QMessageBox {
+                background-color: #1e1e1e;
+            }
+            QMessageBox QLabel {
+                color: #ffffff;
+            }
+            QMessageBox QPushButton {
+                min-width: 70px;
+            }
+        """)

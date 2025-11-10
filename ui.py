@@ -253,6 +253,7 @@ class MainWindow(QWidget):
         self.bot_connector = None
         self.obs_connector = None
         self.log_expanded = self.config.get('log_expanded', False)
+        self.is_locked = False  # Lock state - when True, OBS commands are ignored
         # Initialize status refresh timer
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.refresh_status)
@@ -269,14 +270,39 @@ class MainWindow(QWidget):
         main_layout = QVBoxLayout()
         main_layout.setSpacing(16)
         main_layout.setContentsMargins(16, 16, 16, 16)
-        # Header
+        # Header with lock button
+        header_layout = QHBoxLayout()
         header_label = QLabel('BotOfTheSpecter - OBS Connector')
         header_font = QFont()
         header_font.setPointSize(16)
         header_font.setBold(True)
         header_label.setFont(header_font)
-        header_label.setStyleSheet("color: #ffffff; margin-bottom: 8px; background-color: transparent;")
-        main_layout.addWidget(header_label)
+        header_label.setStyleSheet("color: #ffffff; background-color: transparent;")
+        header_layout.addWidget(header_label)
+        header_layout.addStretch()
+        # Lock/Unlock button
+        self.lock_btn = ModernButton("🔓 Unlocked")
+        self.lock_btn.setMaximumWidth(150)
+        self.lock_btn.setStyleSheet("""
+            ModernButton {
+                background-color: #4ec745;
+                color: #ffffff;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            ModernButton:hover {
+                background-color: #5fd855;
+            }
+            ModernButton:pressed {
+                background-color: #3fa536;
+            }
+        """)
+        self.lock_btn.clicked.connect(self.toggle_lock)
+        header_layout.addWidget(self.lock_btn)
+        main_layout.addLayout(header_layout)
         # Create scroll area for content
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -471,6 +497,49 @@ class MainWindow(QWidget):
         self.config.set('api_key', api_key)
         self.bot_connect_btn.setEnabled(True)
 
+    def toggle_lock(self):
+        self.is_locked = not self.is_locked
+        if self.is_locked:
+            self.lock_btn.setText("🔒 Locked")
+            self.lock_btn.setStyleSheet("""
+                ModernButton {
+                    background-color: #f55047;
+                    color: #ffffff;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+                ModernButton:hover {
+                    background-color: #ff6655;
+                }
+                ModernButton:pressed {
+                    background-color: #e03f3f;
+                }
+            """)
+            self.log_event("🔒 Control Panel LOCKED - OBS commands will be ignored")
+        else:
+            self.lock_btn.setText("🔓 Unlocked")
+            self.lock_btn.setStyleSheet("""
+                ModernButton {
+                    background-color: #4ec745;
+                    color: #ffffff;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+                ModernButton:hover {
+                    background-color: #5fd855;
+                }
+                ModernButton:pressed {
+                    background-color: #3fa536;
+                }
+            """)
+            self.log_event("🔓 Control Panel UNLOCKED - OBS commands will now work")
+
     def toggle_bot_connection(self):
         if self.bot_connect_btn.text() == "Connect":
             self.connect_bot()
@@ -487,7 +556,7 @@ class MainWindow(QWidget):
         if not api_key:
             QMessageBox.warning(self, "Connection Error", "Please enter an API key first.")
             return
-        self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector)
+        self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector, main_window=self)
         self.bot_connector.status_update.connect(self.update_bot_status)
         self.bot_connector.event_received.connect(self.log_event)
         self.bot_connector.start()

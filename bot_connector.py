@@ -17,12 +17,13 @@ class BotOfTheSpecterConnector(QThread):
     status_update = pyqtSignal(str)
     event_received = pyqtSignal(str)
 
-    def __init__(self, api_key, obs_connector=None):
+    def __init__(self, api_key, obs_connector=None, main_window=None):
         super().__init__()
         global API_TOKEN, specterSocket
         API_TOKEN = api_key
         self.api_key = api_key
         self.obs_connector = obs_connector
+        self.main_window = main_window  # Reference to main window to check lock state
         self.should_stop = False
         specterSocket = socketio.AsyncClient()
         self.setup_events()
@@ -218,6 +219,21 @@ class BotOfTheSpecterConnector(QThread):
         @specterSocket.on('OBS_REQUEST')
         async def handle_obs_request(data):
             websocket_logger.info(f"OBS_REQUEST received: {data}")
+            # Check if control panel is locked
+            if self.main_window and self.main_window.is_locked:
+                websocket_logger.warning(f"OBS_REQUEST blocked: Control panel is LOCKED")
+                self.event_received.emit(f"🔒 OBS Request BLOCKED: Control panel is locked")
+                try:
+                    if specterSocket.connected:
+                        await specterSocket.emit('OBS_EVENT_RECEIVED', {
+                            'code': API_TOKEN,
+                            'status': 'blocked',
+                            'message': 'Control panel is locked - commands ignored',
+                            'action': data
+                        })
+                except Exception as emit_error:
+                    websocket_logger.error(f"Failed to emit blocked acknowledgment: {emit_error}")
+                return
             if isinstance(data, dict) and self.obs_connector:
                 try:
                     if 'action' not in data and 'subcommand' in data:

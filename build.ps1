@@ -84,7 +84,7 @@ $versionFileContent = @"
 VSVersionInfo(
   ffi=FixedFileInfo(
     mask=0x3f,
-    mask_ex=0x3f,
+    mask_ex=0x0,
     reserved=0x0,
     serial=0x0,
     struct=((1, 1, 0, 0), (1, 1, 0, 0))
@@ -109,12 +109,8 @@ VSVersionInfo(
 
 $versionFilePath = Join-Path -Path (Get-Location) -ChildPath "version.txt"
 Set-Content -Path $versionFilePath -Value $versionFileContent -Encoding UTF8
-
-# Add version file to PyInstaller args
-$pyinstallerArgs += "--version-file=$versionFilePath"
-
 # Add hidden imports for dependencies that PyInstaller might miss
-$hiddenImports = @(
+$hiddenImports = @( 
     "PyQt6.sip",
     "engineio",
     "engineio.async_drivers.aiohttp_polling",

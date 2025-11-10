@@ -21,6 +21,9 @@ class OBSConnector(QThread):
         self.connected = False
         self.should_stop = False
         self.source_name_cache = {}
+        # Store latest bitrate values calculated from stream/record status
+        self.latest_stream_bitrate = 0
+        self.latest_record_bitrate = 0
 
     def get_source_name(self, scene_name, item_id):
         cache_key = f"{scene_name}:{item_id}"
@@ -67,10 +70,30 @@ class OBSConnector(QThread):
             stats_data = stats_resp.datain if stats_resp.datain else {}
             if obs_events_logger:
                 obs_events_logger.info(f"Stream Status: {stream_data}")
+                # Calculate stream bitrate: (bytes * 8 bits/byte) / (duration in seconds) = bits/second / 1000 = kbps
+                try:
+                    stream_bytes = stream_data.get('outputBytes', 0)
+                    stream_duration_ms = stream_data.get('outputDuration', 0)
+                    if stream_bytes > 0 and stream_duration_ms > 0:
+                        stream_bitrate_kbps = (stream_bytes * 8) / (stream_duration_ms / 1000) / 1000
+                        self.latest_stream_bitrate = stream_bitrate_kbps
+                        obs_events_logger.info(f"Stream Bitrate: {stream_bitrate_kbps:.2f} Kbps")
+                except Exception as calc_err:
+                    websocket_logger.debug(f"Failed to calculate stream bitrate: {calc_err}")
                 obs_events_logger.info(f"Record Status: {record_data}")
+                # Calculate record bitrate: (bytes * 8 bits/byte) / (duration in seconds) = bits/second / 1000 = kbps
+                try:
+                    record_bytes = record_data.get('outputBytes', 0)
+                    record_duration_ms = record_data.get('outputDuration', 0)
+                    if record_bytes > 0 and record_duration_ms > 0:
+                        record_bitrate_kbps = (record_bytes * 8) / (record_duration_ms / 1000) / 1000
+                        self.latest_record_bitrate = record_bitrate_kbps
+                        obs_events_logger.info(f"Record Bitrate: {record_bitrate_kbps:.2f} Kbps")
+                except Exception as calc_err:
+                    websocket_logger.debug(f"Failed to calculate record bitrate: {calc_err}")
                 obs_events_logger.info(f"OBS Stats: {stats_data}")
         except Exception as e:
-            websocket_logger.debug(f"Failed to query stream stats: {e}")
+            websocket_logger.error(f"Failed to query stream stats: {e}", exc_info=True)
 
     def on_event(self, event):
         # Get the logger at runtime to ensure it's initialized
@@ -351,20 +374,6 @@ class OBSConnector(QThread):
                     'memory_usage': 0,
                     'gpu_usage': 0
                 }
-            # Get stream bitrate from streaming output
-            stream_bitrate = 0
-            try:
-                stream_status = self.client.call(obs_requests.GetStreamStatus())
-                stream_bitrate = stream_status.datain.get('outputTotalKbps', 0)
-            except:
-                pass
-            # Get recording bitrate from recording output
-            record_bitrate = 0
-            try:
-                record_status = self.client.call(obs_requests.GetRecordStatus())
-                record_bitrate = record_status.datain.get('outputTotalKbps', 0)
-            except:
-                pass
             # Get general stats
             stats_response = self.client.call(obs_requests.GetStats())
             stats_data = stats_response.datain
@@ -372,9 +381,9 @@ class OBSConnector(QThread):
                 'streaming': False,
                 'recording': False,
                 'replay_buffer': False,
-                'stream_bitrate': stream_bitrate,
+                'stream_bitrate': self.latest_stream_bitrate,
                 'stream_fps': stats_data.get('averageFrameTime', 0),
-                'record_bitrate': record_bitrate,
+                'record_bitrate': self.latest_record_bitrate,
                 'render_total_frames': stats_data.get('renderTotalFrames', 0),
                 'render_missed_frames': stats_data.get('renderMissedFrames', 0),
                 'output_total_frames': stats_data.get('outputTotalFrames', 0),

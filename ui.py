@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon, QFont, QColor
 from PyQt6.QtCore import Qt, QTimer
 from config import Config
-from constants import ICON_FILE, download_icon, bot_logger, websocket_logger
+from constants import ICON_FILE, download_icon, bot_logger, websocket_logger, VERSION
 from bot_connector import BotOfTheSpecterConnector
 from obs_connector import OBSConnector
 
@@ -276,13 +276,28 @@ class MainWindow(QWidget):
         main_layout.setContentsMargins(16, 16, 16, 16)
         # Header with lock button
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(0)
+        # Version label above on the left (subtle)
+        left_section = QVBoxLayout()
+        left_section.setContentsMargins(0, 0, 0, 0)
+        left_section.setSpacing(2)
+        version_label = QLabel(f'v{VERSION}')
+        version_font = QFont()
+        version_font.setPointSize(8)
+        version_label.setFont(version_font)
+        version_label.setStyleSheet("color: #666666; background-color: transparent;")
+        left_section.addWidget(version_label)
         header_label = QLabel('BotOfTheSpecter - OBS Connector')
         header_font = QFont()
         header_font.setPointSize(16)
         header_font.setBold(True)
         header_label.setFont(header_font)
         header_label.setStyleSheet("color: #ffffff; background-color: transparent;")
-        header_layout.addWidget(header_label)
+        left_section.addWidget(header_label)
+        left_widget = QWidget()
+        left_widget.setLayout(left_section)
+        header_layout.addWidget(left_widget)
         header_layout.addStretch()
         # Lock/Unlock button
         self.lock_btn = ModernButton("🔓 Unlocked")

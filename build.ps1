@@ -77,6 +77,53 @@ if ($Console) {
 $pyinstallerArgs += "--name"
 $pyinstallerArgs += $Name
 
+# Create version file for executable metadata
+Write-Host "Creating version metadata file..."
+$versionFileContent = @"
+# UTF-8
+#
+# For more details about fixed file info 'ffi' see:
+# http://msdn.microsoft.com/en-us/library/ms646997.aspx?id=19
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    # Contains as list of up to four items: (major, minor, micro, build)
+    # If not needed, tuple can end shorter
+    mask=0x3f,
+    mask_ex=0x3f,
+    # Contains a bitmask that specifies the valid bits 'flags'r
+    reserved=0x0,
+    # Contains a bitmask that specifies the Boolean attributes of the file.
+    serial=0x0,
+    # Contains the binary version number of this file.
+    # Version is as follows (all in hex)
+    # MAJOR.MINOR.MICRO.BUILD
+    struct=[(1, 1, 0, 0), (1, 1, 0, 0)],
+    # Contains the version string: %d.%d.%d.%d
+    # This is a four-part version number; for example: major.minor.micro.build
+  ),
+  mask_ex=VarFileInfo(Translation=[1033, 1200]),
+  # Contains language ID and code page
+  dicts=[
+    {
+      'CompanyName': 'YourStreamingTools',
+      'FileDescription': 'Real-time OBS control connector for BotOfTheSpecter',
+      'FileVersion': '1.1.0.0',
+      'InternalName': 'BotOfTheSpecter-OBS-Connector',
+      'LegalCopyright': '© 2025 YourStreamingTools',
+      'OriginalFilename': 'BotOfTheSpecter-OBS-Connector.exe',
+      'ProductName': 'BotOfTheSpecter OBS Connector',
+      'ProductVersion': '1.1.0.0',
+    }
+  ]
+)
+"@
+
+$versionFilePath = Join-Path -Path (Get-Location) -ChildPath "version.txt"
+Set-Content -Path $versionFilePath -Value $versionFileContent -Encoding UTF8
+
+# Add version file to PyInstaller args
+$pyinstallerArgs += "--version-file=$versionFilePath"
+
 # Add hidden imports for dependencies that PyInstaller might miss
 $hiddenImports = @(
     "PyQt6.sip",
@@ -118,21 +165,33 @@ Write-Host "  $($pyinstallerArgs -join ' ')"
 # Run PyInstaller
 & python -m PyInstaller @pyinstallerArgs
 
-# Report result
+# Report result and update EXE metadata
 $exePath = Join-Path -Path (Resolve-Path .\dist) -ChildPath ("$Name.exe")
+if (-not (Test-Path $exePath)) {
+    $exePath = Join-Path -Path (Resolve-Path ".\dist\$Name") -ChildPath ("$Name.exe")
+}
+
 if (Test-Path $exePath) {
     Write-Host "Build succeeded: $exePath"
+    # Verify EXE metadata
+    Write-Host "EXE Properties:"
+    $fileInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
+    Write-Host "  Product Name: $($fileInfo.ProductName)"
+    Write-Host "  Company Name: $($fileInfo.CompanyName)"
+    Write-Host "  File Version: $($fileInfo.FileVersion)"
+    Write-Host "  Product Version: $($fileInfo.ProductVersion)"
+    Write-Host "  Copyright: $($fileInfo.LegalCopyright)"
+    Write-Host "  Description: $($fileInfo.FileDescription)"
+    Write-Host ""
     Write-Host "Launching application..."
     & $exePath
 } else {
-    $altExe = Join-Path -Path (Resolve-Path ".\dist\$Name") -ChildPath ("$Name.exe")
-    if (Test-Path $altExe) {
-        Write-Host "Build succeeded: $altExe"
-        Write-Host "Launching application..."
-        & $altExe
-    } else {
-        Write-Host "Build finished but executable not found in dist. Check PyInstaller output above for errors."
-    }
+    Write-Host "Build finished but executable not found in dist. Check PyInstaller output above for errors."
+}
+
+# Cleanup temporary version file
+if (Test-Path $versionFilePath) {
+    Remove-Item $versionFilePath -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "Done."

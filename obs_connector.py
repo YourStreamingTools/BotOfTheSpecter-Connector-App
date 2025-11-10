@@ -4,6 +4,7 @@ import obswebsocket
 from obswebsocket import requests as obs_requests
 import constants
 from constants import websocket_logger, bot_logger, redact_sensitive_data
+import threading
 
 class OBSConnector(QThread):
     status_update = pyqtSignal(str)
@@ -50,6 +51,27 @@ class OBSConnector(QThread):
             self.source_name_cache[cache_key] = fallback
             return fallback
 
+    def query_stream_stats(self):
+        try:
+            if not self.connected:
+                return
+            obs_events_logger = constants.obs_events_logger
+            # Get stream status with bitrate
+            stream_resp = self.client.call(obs_requests.GetStreamStatus())
+            stream_data = stream_resp.datain if stream_resp.datain else {}
+            # Get record status  
+            record_resp = self.client.call(obs_requests.GetRecordStatus())
+            record_data = record_resp.datain if record_resp.datain else {}
+            # Get stats
+            stats_resp = self.client.call(obs_requests.GetStats())
+            stats_data = stats_resp.datain if stats_resp.datain else {}
+            if obs_events_logger:
+                obs_events_logger.info(f"Stream Status: {stream_data}")
+                obs_events_logger.info(f"Record Status: {record_data}")
+                obs_events_logger.info(f"OBS Stats: {stats_data}")
+        except Exception as e:
+            websocket_logger.debug(f"Failed to query stream stats: {e}")
+
     def on_event(self, event):
         # Get the logger at runtime to ensure it's initialized
         obs_events_logger = constants.obs_events_logger
@@ -62,6 +84,12 @@ class OBSConnector(QThread):
             obs_events_logger.info(f"=== OBS EVENT ===")
             obs_events_logger.info(f"Event Type: {event_type}")
             obs_events_logger.info(f"Event Data: {redacted_data}")
+            # Query stats in a background thread to avoid blocking
+            try:
+                stats_thread = threading.Thread(target=self.query_stream_stats, daemon=True)
+                stats_thread.start()
+            except Exception as e:
+                websocket_logger.debug(f"Failed to start stats thread: {e}")
             obs_events_logger.info(f"=================")
         # Also log to main websocket logger
         websocket_logger.info(f"OBS Event: {event_type} - {redacted_data}")

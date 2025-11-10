@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon, QFont, QColor
 from PyQt6.QtCore import Qt, QTimer
 from config import Config
-from constants import ICON_FILE, download_icon, bot_logger
+from constants import ICON_FILE, download_icon, bot_logger, websocket_logger
 from bot_connector import BotOfTheSpecterConnector
 from obs_connector import OBSConnector
 
@@ -236,15 +236,19 @@ class StatusPanel(QWidget):
         # Update streaming bitrate
         stream_bitrate = status_dict.get('stream_bitrate', 0)
         if stream_bitrate > 0:
-            self.stream_bitrate.setText(f"{stream_bitrate} Kbps")
+            self.stream_bitrate.setText(self.format_bitrate(stream_bitrate))
         else:
-            self.stream_bitrate.setText("0 Kbps")
+            self.stream_bitrate.setText("0 kb/s")
         # Update recording bitrate
         record_bitrate = status_dict.get('record_bitrate', 0)
         if record_bitrate > 0:
-            self.record_bitrate.setText(f"{record_bitrate} Kbps")
+            self.record_bitrate.setText(self.format_bitrate(record_bitrate))
         else:
-            self.record_bitrate.setText("0 Kbps")
+            self.record_bitrate.setText("0 kb/s")
+
+    def format_bitrate(self, kbps):
+        # Always show in kb/s since that matches OBS settings
+        return f"{kbps:.0f} kb/s"
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -621,6 +625,7 @@ class MainWindow(QWidget):
                     'stream_bitrate': output_status.get('stream_bitrate', 0),
                     'record_bitrate': output_status.get('record_bitrate', 0)
                 }
+                websocket_logger.info(f"refresh_status called - streaming:{combined_status['streaming']}, recording:{combined_status['recording']}, record_bitrate:{combined_status['record_bitrate']}")
                 self.status_panel.update_status(combined_status)
             except Exception as e:
                 bot_logger.error(f"Error refreshing status: {e}")

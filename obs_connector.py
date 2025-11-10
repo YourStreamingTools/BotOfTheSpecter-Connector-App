@@ -24,6 +24,11 @@ class OBSConnector(QThread):
         # Store latest bitrate values calculated from stream/record status
         self.latest_stream_bitrate = 0
         self.latest_record_bitrate = 0
+        # Track previous values for delta calculation
+        self.prev_stream_bytes = 0
+        self.prev_stream_duration_ms = 0
+        self.prev_record_bytes = 0
+        self.prev_record_duration_ms = 0
 
     def get_source_name(self, scene_name, item_id):
         cache_key = f"{scene_name}:{item_id}"
@@ -68,29 +73,29 @@ class OBSConnector(QThread):
             # Get stats
             stats_resp = self.client.call(obs_requests.GetStats())
             stats_data = stats_resp.datain if stats_resp.datain else {}
+            # Calculate stream bitrate: (bytes * 8 bits/byte) / (duration in seconds) = bits/second / 1000 = kbps
+            try:
+                stream_bytes = stream_data.get('outputBytes', 0)
+                stream_duration_ms = stream_data.get('outputDuration', 0)
+                if stream_bytes > 0 and stream_duration_ms > 0:
+                    stream_bitrate_kbps = (stream_bytes * 8) / (stream_duration_ms / 1000) / 1000
+                    self.latest_stream_bitrate = stream_bitrate_kbps
+                    websocket_logger.info(f"Stream Bitrate Calculated: {stream_bitrate_kbps:.2f} Kbps")
+            except Exception as calc_err:
+                websocket_logger.debug(f"Failed to calculate stream bitrate: {calc_err}")
+            # Calculate record bitrate: (bytes * 8 bits/byte) / (duration in seconds) = bits/second / 1000 = kbps
+            try:
+                record_bytes = record_data.get('outputBytes', 0)
+                record_duration_ms = record_data.get('outputDuration', 0)
+                if record_bytes > 0 and record_duration_ms > 0:
+                    record_bitrate_kbps = (record_bytes * 8) / (record_duration_ms / 1000) / 1000
+                    self.latest_record_bitrate = record_bitrate_kbps
+                    websocket_logger.info(f"Record Bitrate Calculated: {record_bitrate_kbps:.2f} Kbps")
+            except Exception as calc_err:
+                websocket_logger.debug(f"Failed to calculate record bitrate: {calc_err}")
             if obs_events_logger:
                 obs_events_logger.info(f"Stream Status: {stream_data}")
-                # Calculate stream bitrate: (bytes * 8 bits/byte) / (duration in seconds) = bits/second / 1000 = kbps
-                try:
-                    stream_bytes = stream_data.get('outputBytes', 0)
-                    stream_duration_ms = stream_data.get('outputDuration', 0)
-                    if stream_bytes > 0 and stream_duration_ms > 0:
-                        stream_bitrate_kbps = (stream_bytes * 8) / (stream_duration_ms / 1000) / 1000
-                        self.latest_stream_bitrate = stream_bitrate_kbps
-                        obs_events_logger.info(f"Stream Bitrate: {stream_bitrate_kbps:.2f} Kbps")
-                except Exception as calc_err:
-                    websocket_logger.debug(f"Failed to calculate stream bitrate: {calc_err}")
                 obs_events_logger.info(f"Record Status: {record_data}")
-                # Calculate record bitrate: (bytes * 8 bits/byte) / (duration in seconds) = bits/second / 1000 = kbps
-                try:
-                    record_bytes = record_data.get('outputBytes', 0)
-                    record_duration_ms = record_data.get('outputDuration', 0)
-                    if record_bytes > 0 and record_duration_ms > 0:
-                        record_bitrate_kbps = (record_bytes * 8) / (record_duration_ms / 1000) / 1000
-                        self.latest_record_bitrate = record_bitrate_kbps
-                        obs_events_logger.info(f"Record Bitrate: {record_bitrate_kbps:.2f} Kbps")
-                except Exception as calc_err:
-                    websocket_logger.debug(f"Failed to calculate record bitrate: {calc_err}")
                 obs_events_logger.info(f"OBS Stats: {stats_data}")
         except Exception as e:
             websocket_logger.error(f"Failed to query stream stats: {e}", exc_info=True)
@@ -380,9 +385,17 @@ class OBSConnector(QThread):
                 stream_data = stream_resp.datain if stream_resp.datain else {}
                 stream_bytes = stream_data.get('outputBytes', 0)
                 stream_duration_ms = stream_data.get('outputDuration', 0)
-                if stream_bytes > 0 and stream_duration_ms > 0:
-                    stream_bitrate_kbps = (stream_bytes * 8) / (stream_duration_ms / 1000) / 1000
-                    self.latest_stream_bitrate = stream_bitrate_kbps
+                websocket_logger.debug(f"Stream data - bytes: {stream_bytes}, duration: {stream_duration_ms}ms")
+                # Calculate bitrate based on delta (change) in bytes and duration since last check
+                if stream_bytes > self.prev_stream_bytes and stream_duration_ms > self.prev_stream_duration_ms:
+                    delta_bytes = stream_bytes - self.prev_stream_bytes
+                    delta_duration_ms = stream_duration_ms - self.prev_stream_duration_ms
+                    if delta_duration_ms > 0:
+                        stream_bitrate_kbps = (delta_bytes * 8) / (delta_duration_ms / 1000) / 1000
+                        self.latest_stream_bitrate = stream_bitrate_kbps
+                        websocket_logger.info(f"Updated stream bitrate: {stream_bitrate_kbps:.2f} Kbps (delta: {delta_bytes} bytes / {delta_duration_ms}ms)")
+                self.prev_stream_bytes = stream_bytes
+                self.prev_stream_duration_ms = stream_duration_ms
             except Exception as e:
                 websocket_logger.debug(f"Failed to query stream status for bitrate: {e}")
             try:
@@ -390,15 +403,23 @@ class OBSConnector(QThread):
                 record_data = record_resp.datain if record_resp.datain else {}
                 record_bytes = record_data.get('outputBytes', 0)
                 record_duration_ms = record_data.get('outputDuration', 0)
-                if record_bytes > 0 and record_duration_ms > 0:
-                    record_bitrate_kbps = (record_bytes * 8) / (record_duration_ms / 1000) / 1000
-                    self.latest_record_bitrate = record_bitrate_kbps
+                websocket_logger.info(f"Record data - bytes: {record_bytes}, duration: {record_duration_ms}ms")
+                # Calculate bitrate based on delta (change) in bytes and duration since last check
+                if record_bytes > self.prev_record_bytes and record_duration_ms > self.prev_record_duration_ms:
+                    delta_bytes = record_bytes - self.prev_record_bytes
+                    delta_duration_ms = record_duration_ms - self.prev_record_duration_ms
+                    if delta_duration_ms > 0:
+                        record_bitrate_kbps = (delta_bytes * 8) / (delta_duration_ms / 1000) / 1000
+                        self.latest_record_bitrate = record_bitrate_kbps
+                        websocket_logger.info(f"Updated record bitrate: {record_bitrate_kbps:.2f} Kbps (delta: {delta_bytes} bytes / {delta_duration_ms}ms)")
+                self.prev_record_bytes = record_bytes
+                self.prev_record_duration_ms = record_duration_ms
             except Exception as e:
                 websocket_logger.debug(f"Failed to query record status for bitrate: {e}")
             # Get general stats
             stats_response = self.client.call(obs_requests.GetStats())
             stats_data = stats_response.datain
-            websocket_logger.debug(f"Returning bitrates - Stream: {self.latest_stream_bitrate:.2f}, Record: {self.latest_record_bitrate:.2f}")
+            websocket_logger.info(f"Returning status - Stream bitrate: {self.latest_stream_bitrate:.2f} Kbps, Record bitrate: {self.latest_record_bitrate:.2f} Kbps")
             return {
                 'streaming': False,
                 'recording': False,

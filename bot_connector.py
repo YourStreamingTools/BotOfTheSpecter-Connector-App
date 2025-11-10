@@ -6,7 +6,7 @@ import socketio
 from constants import (
     API_TOKEN, CHANNEL_NAME, VERSION, SPECTER_WEBSOCKET_URI,
     RECONNECT_DELAY, CONNECTION_TIMEOUT, JITTER_RANGE,
-    websocket_logger, bot_logger
+    websocket_logger, bot_logger, redact_sensitive_data
 )
 
 # Global variables
@@ -103,14 +103,15 @@ class BotOfTheSpecterConnector(QThread):
 
         @specterSocket.event
         async def message(data):
-            websocket_logger.info(f"Message event received: {data}")
+            safe_data = redact_sensitive_data(data) if isinstance(data, dict) else data
+            websocket_logger.info(f"Message event received: {safe_data}")
             try:
                 if isinstance(data, dict):
                     if 'action' in data and self.obs_connector:
                         self.obs_connector.perform_action(data)
                         message_text = f"Executed action: {data}"
                     else:
-                        message_text = f"Event: {data.get('type', 'unknown')} - {data}"
+                        message_text = f"Event: {data.get('type', 'unknown')} - {redact_sensitive_data(data)}"
                 else:
                     message_text = f"Message: {data}"
                 websocket_logger.info(f"About to emit to GUI: {message_text}")
@@ -122,7 +123,8 @@ class BotOfTheSpecterConnector(QThread):
 
         @specterSocket.on('*')
         async def catch_all(event, data):
-            websocket_logger.info(f"Received event '{event}': {data if isinstance(data, dict) else data}")
+            safe_data = redact_sensitive_data(data) if isinstance(data, dict) else data
+            websocket_logger.info(f"Received event '{event}': {safe_data}")
             if event == 'OBS_EVENT':
                 return
             message = None
@@ -134,10 +136,8 @@ class BotOfTheSpecterConnector(QThread):
                 message = "✅ Specter Registered successfully"
             else:
                 if isinstance(data, dict):
-                    safe_data = data.copy()
-                    if 'code' in safe_data:
-                        safe_data['code'] = '***REDACTED***'
-                    log_data = safe_data
+                    safe_data_display = redact_sensitive_data(data)
+                    log_data = safe_data_display
                 else:
                     log_data = data
                 message = f"Event '{event}': {log_data}"

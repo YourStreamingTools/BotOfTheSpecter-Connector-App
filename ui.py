@@ -1,11 +1,11 @@
 import os
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
     QScrollArea, QFrame, QSizePolicy
 )
 from PyQt6.QtGui import QIcon, QFont, QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from config import Config
 from constants import ICON_FILE, download_icon, bot_logger
 from bot_connector import BotOfTheSpecterConnector
@@ -137,6 +137,115 @@ class ModernGroupBox(QGroupBox):
             }
         """)
 
+class StatusPanel(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet("""
+            StatusPanel {
+                background-color: #252525;
+                border: 1px solid #3d3d3d;
+                border-radius: 6px;
+                padding: 12px;
+            }
+        """)
+        self.init_ui()
+    
+    def init_ui(self):
+        layout = QHBoxLayout()
+        layout.setSpacing(24)
+        layout.setContentsMargins(0, 0, 0, 0)
+        # Streaming Column
+        stream_column = QVBoxLayout()
+        stream_column.setSpacing(8)
+        stream_title = QLabel("Streaming")
+        stream_title.setStyleSheet("font-weight: bold; color: #ffffff; font-size: 12px;")
+        stream_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.stream_status = QLabel("🔴 OFF")
+        self.stream_status.setStyleSheet("color: #f55047; font-weight: bold; text-align: center;")
+        self.stream_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        stream_bitrate_label = QLabel("Bitrate:")
+        stream_bitrate_label.setStyleSheet("color: #aaaaaa; font-size: 10px;")
+        stream_bitrate_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.stream_bitrate = QLabel("0 Kbps")
+        self.stream_bitrate.setStyleSheet("color: #0078d4; font-weight: bold; font-size: 11px;")
+        self.stream_bitrate.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        stream_column.addWidget(stream_title)
+        stream_column.addWidget(self.stream_status)
+        stream_column.addWidget(stream_bitrate_label)
+        stream_column.addWidget(self.stream_bitrate)
+        stream_column.addStretch()
+        # Recording Column
+        record_column = QVBoxLayout()
+        record_column.setSpacing(8)
+        record_title = QLabel("Recording")
+        record_title.setStyleSheet("font-weight: bold; color: #ffffff; font-size: 12px;")
+        record_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_status = QLabel("🔴 OFF")
+        self.record_status.setStyleSheet("color: #f55047; font-weight: bold; text-align: center;")
+        self.record_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        record_bitrate_label = QLabel("Bitrate:")
+        record_bitrate_label.setStyleSheet("color: #aaaaaa; font-size: 10px;")
+        record_bitrate_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_bitrate = QLabel("0 Kbps")
+        self.record_bitrate.setStyleSheet("color: #0078d4; font-weight: bold; font-size: 11px;")
+        self.record_bitrate.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        record_column.addWidget(record_title)
+        record_column.addWidget(self.record_status)
+        record_column.addWidget(record_bitrate_label)
+        record_column.addWidget(self.record_bitrate)
+        record_column.addStretch()
+        # Replay Buffer Column
+        replay_column = QVBoxLayout()
+        replay_column.setSpacing(8)
+        replay_title = QLabel("Replay Buffer")
+        replay_title.setStyleSheet("font-weight: bold; color: #ffffff; font-size: 12px;")
+        replay_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.replay_status = QLabel("⚫ DISABLED")
+        self.replay_status.setStyleSheet("color: #aaaaaa; font-weight: bold; text-align: center;")
+        self.replay_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        replay_column.addWidget(replay_title)
+        replay_column.addWidget(self.replay_status)
+        replay_column.addStretch()
+        layout.addLayout(stream_column)
+        layout.addLayout(record_column)
+        layout.addLayout(replay_column)
+        self.setLayout(layout)
+
+    def update_status(self, status_dict):
+        # Update streaming status
+        if status_dict.get('streaming', False):
+            self.stream_status.setText("🟢 ON")
+            self.stream_status.setStyleSheet("color: #4ec745; font-weight: bold; text-align: center;")
+        else:
+            self.stream_status.setText("🔴 OFF")
+            self.stream_status.setStyleSheet("color: #f55047; font-weight: bold; text-align: center;")
+        # Update recording status
+        if status_dict.get('recording', False):
+            self.record_status.setText("🟢 ON")
+            self.record_status.setStyleSheet("color: #4ec745; font-weight: bold; text-align: center;")
+        else:
+            self.record_status.setText("🔴 OFF")
+            self.record_status.setStyleSheet("color: #f55047; font-weight: bold; text-align: center;")
+        # Update replay buffer status
+        if status_dict.get('replay_buffer', False):
+            self.replay_status.setText("🟢 ENABLED")
+            self.replay_status.setStyleSheet("color: #4ec745; font-weight: bold; text-align: center;")
+        else:
+            self.replay_status.setText("⚫ DISABLED")
+            self.replay_status.setStyleSheet("color: #aaaaaa; font-weight: bold; text-align: center;")
+        # Update streaming bitrate
+        stream_bitrate = status_dict.get('stream_bitrate', 0)
+        if stream_bitrate > 0:
+            self.stream_bitrate.setText(f"{stream_bitrate} Kbps")
+        else:
+            self.stream_bitrate.setText("0 Kbps")
+        # Update recording bitrate
+        record_bitrate = status_dict.get('record_bitrate', 0)
+        if record_bitrate > 0:
+            self.record_bitrate.setText(f"{record_bitrate} Kbps")
+        else:
+            self.record_bitrate.setText("0 Kbps")
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -144,6 +253,9 @@ class MainWindow(QWidget):
         self.bot_connector = None
         self.obs_connector = None
         self.log_expanded = self.config.get('log_expanded', False)
+        # Initialize status refresh timer
+        self.status_timer = QTimer()
+        self.status_timer.timeout.connect(self.refresh_status)
         download_icon()
         self.init_ui()
         if os.path.exists(ICON_FILE):
@@ -152,8 +264,8 @@ class MainWindow(QWidget):
 
     def init_ui(self):
         self.setWindowTitle('BotOfTheSpecter - OBS Connector')
-        self.setGeometry(100, 100, 800, 700)
-        self.setMinimumSize(700, 600)
+        self.setGeometry(100, 100, 800, 900)
+        self.setMinimumSize(700, 800)
         main_layout = QVBoxLayout()
         main_layout.setSpacing(16)
         main_layout.setContentsMargins(16, 16, 16, 16)
@@ -340,6 +452,9 @@ class MainWindow(QWidget):
             border-radius: 4px;
         """)
         obs_layout.addWidget(self.obs_status)
+        # Status Panel
+        self.status_panel = StatusPanel()
+        obs_layout.addWidget(self.status_panel)
         # Connect Button
         self.obs_connect_btn = ModernStatusButton("Connect")
         self.obs_connect_btn.clicked.connect(self.toggle_obs_connection)
@@ -389,6 +504,9 @@ class MainWindow(QWidget):
         if self.obs_connector and self.obs_connector.isRunning():
             self.obs_connector.should_stop = False
             self.obs_connect_btn.setText("Disconnect")
+            # Start status refresh timer (if not already running)
+            if not self.status_timer.isActive():
+                self.status_timer.start(1000)  # Refresh every 1000ms
             return
         host = self.obs_host.text()
         port = int(self.obs_port.text())
@@ -403,6 +521,8 @@ class MainWindow(QWidget):
         self.obs_connector.event_received.connect(self.log_event)
         self.obs_connector.start()
         self.obs_connect_btn.setText("Disconnect")
+        # Start status refresh timer
+        self.status_timer.start(1000)  # Refresh every 1000ms
 
     def toggle_obs_connection(self):
         if self.obs_connect_btn.text() == "Connect":
@@ -416,11 +536,30 @@ class MainWindow(QWidget):
             if self.obs_connector.isRunning():
                 self.obs_connector.wait(timeout=5000)
             self.obs_connect_btn.setText("Connect")
+            # Stop status refresh timer
+            self.status_timer.stop()
+
+    def refresh_status(self):
+        if self.obs_connector and self.obs_connector.connected:
+            try:
+                status = self.obs_connector.get_stream_status()
+                output_status = self.obs_connector.get_output_status()
+                # Combine status and bitrate info for the panel
+                combined_status = {
+                    'streaming': status.get('streaming', False),
+                    'recording': status.get('recording', False),
+                    'replay_buffer': status.get('replay_buffer', False),
+                    'stream_bitrate': output_status.get('stream_bitrate', 0),
+                    'record_bitrate': output_status.get('record_bitrate', 0)
+                }
+                self.status_panel.update_status(combined_status)
+            except Exception as e:
+                bot_logger.error(f"Error refreshing status: {e}")
 
     def update_bot_status(self, status):
         status_text = f"Status: {status}"
         color = "#4ec745" if "Connected" in status else "#f55047" if "Error" in status or "Failed" in status else "#aaaaaa"
-        indicator = "🟢" if "Connected" in status else "🔴" if "Error" in status or "Failed" in status else "⚫"
+        indicator = "🟢 " if "Connected" in status else "🔴 " if "Error" in status or "Failed" in status else "⚫ "
         self.bot_status.setText(f"{indicator} {status_text}")
         self.bot_status.setStyleSheet(f"""
             color: {color};
@@ -435,7 +574,7 @@ class MainWindow(QWidget):
     def update_obs_status(self, status):
         status_text = f"Status: {status}"
         color = "#4ec745" if "Connected" in status else "#f55047" if "Error" in status or "Failed" in status else "#aaaaaa"
-        indicator = "🟢" if "Connected" in status else "🔴" if "Error" in status or "Failed" in status else "⚫"
+        indicator = "🟢 " if "Connected" in status else "🔴 " if "Error" in status or "Failed" in status else "⚫ "
         self.obs_status.setText(f"{indicator} {status_text}")
         self.obs_status.setStyleSheet(f"""
             color: {color};

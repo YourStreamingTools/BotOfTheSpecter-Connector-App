@@ -81,7 +81,6 @@ $pyinstallerArgs += $Name
 Write-Host "Creating version metadata file..."
 $versionFileContent = @"
 # UTF-8
-# Version file for PyInstaller - DO NOT MODIFY FORMAT
 VSVersionInfo(
   ffi=FixedFileInfo(
     mask=0x3f,
@@ -95,23 +94,14 @@ VSVersionInfo(
     StringFileInfo([
       StringTable(
         u'040904B0',
-        [StringTable_Content(
-          u'CompanyName', u'YourStreamingTools'),
-        StringTable_Content(
-          u'FileDescription', u'Real-time OBS control connector for BotOfTheSpecter'),
-        StringTable_Content(
-          u'FileVersion', u'1.1.0.0'),
-        StringTable_Content(
-          u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
-        StringTable_Content(
-          u'LegalCopyright', u'© 2025 YourStreamingTools'),
-        StringTable_Content(
-          u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
-        StringTable_Content(
-          u'ProductName', u'BotOfTheSpecter OBS Connector'),
-        StringTable_Content(
-          u'ProductVersion', u'1.1.0.0')
-        ])
+        [(u'CompanyName', u'YourStreamingTools'),
+         (u'FileDescription', u'Real-time OBS control connector for BotOfTheSpecter'),
+         (u'FileVersion', u'1.1.0.0'),
+         (u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
+         (u'LegalCopyright', u'© 2025 YourStreamingTools'),
+         (u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
+         (u'ProductName', u'BotOfTheSpecter OBS Connector'),
+         (u'ProductVersion', u'1.1.0.0')])
     ])
   ]
 )

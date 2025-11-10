@@ -567,11 +567,21 @@ class MainWindow(QWidget):
         self.bot_connect_btn.setText("Disconnect")
 
     def disconnect_bot(self):
-        if self.bot_connector:
-            self.bot_connector.disconnect()
-            if self.bot_connector.isRunning():
-                self.bot_connector.wait(timeout=5000)
+        try:
+            if self.bot_connector:
+                self.bot_connector.disconnect()
+                if self.bot_connector.isRunning():
+                    self.bot_connector.wait(5000)
+                self.bot_connect_btn.setText("Connect")
+                # Stop status refresh timer to prevent crashes during disconnect
+                self.status_timer.stop()
+                # Update status to show disconnected
+                self.update_bot_status("Disconnected from BotOfTheSpecter")
+        except Exception as e:
+            bot_logger.error(f"Error disconnecting bot: {e}")
             self.bot_connect_btn.setText("Connect")
+            self.status_timer.stop()
+            self.update_bot_status("Disconnected from BotOfTheSpecter")
 
     def connect_obs(self):
         if self.obs_connector and self.obs_connector.isRunning():
@@ -604,31 +614,40 @@ class MainWindow(QWidget):
             self.disconnect_obs()
 
     def disconnect_obs(self):
-        if self.obs_connector:
-            self.obs_connector.disconnect()
-            if self.obs_connector.isRunning():
-                self.obs_connector.wait(timeout=5000)
+        try:
+            if self.obs_connector:
+                self.obs_connector.disconnect()
+                if self.obs_connector.isRunning():
+                    self.obs_connector.wait(5000)
+                self.obs_connect_btn.setText("Connect")
+                # Stop status refresh timer
+                self.status_timer.stop()
+                # Update status to show disconnected
+                self.update_obs_status("Disconnected from OBS")
+        except Exception as e:
+            bot_logger.error(f"Error disconnecting OBS: {e}")
             self.obs_connect_btn.setText("Connect")
-            # Stop status refresh timer
             self.status_timer.stop()
+            self.update_obs_status("Disconnected from OBS")
 
     def refresh_status(self):
-        if self.obs_connector and self.obs_connector.connected:
-            try:
-                status = self.obs_connector.get_stream_status()
-                output_status = self.obs_connector.get_output_status()
-                # Combine status and bitrate info for the panel
-                combined_status = {
-                    'streaming': status.get('streaming', False),
-                    'recording': status.get('recording', False),
-                    'replay_buffer': status.get('replay_buffer', False),
-                    'stream_bitrate': output_status.get('stream_bitrate', 0),
-                    'record_bitrate': output_status.get('record_bitrate', 0)
-                }
-                websocket_logger.info(f"refresh_status called - streaming:{combined_status['streaming']}, recording:{combined_status['recording']}, record_bitrate:{combined_status['record_bitrate']}")
-                self.status_panel.update_status(combined_status)
-            except Exception as e:
-                bot_logger.error(f"Error refreshing status: {e}")
+        if not self.obs_connector or not self.obs_connector.connected:
+            return
+        try:
+            status = self.obs_connector.get_stream_status()
+            output_status = self.obs_connector.get_output_status()
+            # Combine status and bitrate info for the panel
+            combined_status = {
+                'streaming': status.get('streaming', False),
+                'recording': status.get('recording', False),
+                'replay_buffer': status.get('replay_buffer', False),
+                'stream_bitrate': output_status.get('stream_bitrate', 0),
+                'record_bitrate': output_status.get('record_bitrate', 0)
+            }
+            websocket_logger.info(f"refresh_status called - streaming:{combined_status['streaming']}, recording:{combined_status['recording']}, record_bitrate:{combined_status['record_bitrate']}")
+            self.status_panel.update_status(combined_status)
+        except Exception as e:
+            bot_logger.error(f"Error refreshing status: {e}")
 
     def update_bot_status(self, status):
         status_text = f"Status: {status}"

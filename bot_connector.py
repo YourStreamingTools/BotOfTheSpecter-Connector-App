@@ -19,12 +19,14 @@ class BotOfTheSpecterConnector(QThread):
 
     def __init__(self, api_key, obs_connector=None, main_window=None):
         super().__init__()
-        global API_TOKEN, specterSocket
+        global API_TOKEN, specterSocket, websocket_connected
         API_TOKEN = api_key
         self.api_key = api_key
         self.obs_connector = obs_connector
         self.main_window = main_window  # Reference to main window to check lock state
         self.should_stop = False
+        # Reset global state for clean reconnection
+        websocket_connected = False
         specterSocket = socketio.AsyncClient()
         self.setup_events()
 
@@ -327,15 +329,34 @@ class BotOfTheSpecterConnector(QThread):
                 await specterSocket.connect(SPECTER_WEBSOCKET_URI, transports=['websocket'])
                 connection_timeout = CONNECTION_TIMEOUT
                 start_time = datetime.now()
-                while not websocket_connected:
+                while not websocket_connected and not self.should_stop:
                     if (datetime.now() - start_time).total_seconds() > connection_timeout:
                         raise asyncio.TimeoutError("Connection establishment and registration timeout")
                     await asyncio.sleep(0.5)
+                
+                if self.should_stop:
+                    break
+                    
                 consecutive_failures = 0
                 websocket_logger.info("Successfully connected and registered with Internal WebSocket Server")
                 websocket_logger.info(f"Connected with session ID: {specterSocket.sid}")
                 websocket_logger.info(f"Transport method: {specterSocket.transport()}")
-                await specterSocket.wait()
+                
+                # Use a task for wait() that we can monitor for should_stop
+                wait_task = asyncio.create_task(specterSocket.wait())
+                while not self.should_stop:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(wait_task), timeout=1.0)
+                        break
+                    except asyncio.TimeoutError:
+                        continue
+                
+                if not self.should_stop:
+                    wait_task.cancel()
+                    try:
+                        await wait_task
+                    except asyncio.CancelledError:
+                        pass
             except ConnectionError as e:
                 consecutive_failures += 1
                 websocket_connected = False
@@ -348,15 +369,33 @@ class BotOfTheSpecterConnector(QThread):
                 consecutive_failures += 1
                 websocket_connected = False
                 websocket_logger.error(f"Unexpected error with Internal WebSocket (attempt {consecutive_failures}): {e}")
-            websocket_connected = False
-            websocket_logger.warning(f"WebSocket connection lost, preparing for reconnection attempt {consecutive_failures + 1}")
-            await asyncio.sleep(1)
+            
+            if not self.should_stop:
+                websocket_connected = False
+                websocket_logger.warning(f"WebSocket connection lost, preparing for reconnection attempt {consecutive_failures + 1}")
+                await asyncio.sleep(1)
+        
+        # Clean up on disconnect
         websocket_connected = False
+        try:
+            if specterSocket and specterSocket.connected:
+                await specterSocket.disconnect()
+                websocket_logger.info("WebSocket disconnected")
+        except Exception as e:
+            websocket_logger.warning(f"Error during socket cleanup: {e}")
         websocket_logger.info("WebSocket connection loop stopped")
 
     def disconnect(self):
+        global specterSocket
         self.should_stop = True
+        # The event loop will handle disconnection when should_stop is True
+        websocket_logger.info("Disconnect requested, event loop will shut down gracefully")
 
     def send_event(self, event_type, data):
-        if self.is_websocket_connected():
-            asyncio.run(specterSocket.emit(event_type, data))
+        global specterSocket
+        if self.is_websocket_connected() and specterSocket and specterSocket.connected:
+            try:
+                # Use a task to emit in the event loop thread
+                asyncio.ensure_future(specterSocket.emit(event_type, data))
+            except Exception as e:
+                websocket_logger.error(f"Error sending event: {e}")

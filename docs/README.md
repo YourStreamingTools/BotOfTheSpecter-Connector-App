@@ -28,3 +28,5 @@ See the [main README](../README.md) for installation and usage instructions.
 
 ## Version History
 [Version 1.0](1.0.md) - Initial Release
+
+[Version 1.1](1.1.md) - Real-Time Bitrate Monitoring & Control Lock Feature

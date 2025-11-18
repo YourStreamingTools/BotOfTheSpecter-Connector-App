@@ -4,9 +4,9 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
     QScrollArea, QTreeWidget, QTreeWidgetItem
 )
-from PyQt6.QtGui import QIcon, QFont
-from PyQt6.QtCore import Qt, QTimer
-from obswebsocket import requests as obs_requests
+from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QAction
+from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtWidgets import QMenu
 from config import Config
 from constants import ICON_FILE, download_icon, bot_logger, websocket_logger, VERSION
 from bot_connector import BotOfTheSpecterConnector
@@ -318,6 +318,8 @@ class MainWindow(QWidget):
             }
             ModernButton:pressed {
                 background-color: #3fa536;
+                # Force header stylesheet to stay dark and readable
+                self.scene_tree.header().setStyleSheet("QHeaderView::section { background-color: #2b2b2b; color: #e0e0e0; padding: 6px; }")
             }
         """)
         self.lock_btn.clicked.connect(self.toggle_lock)
@@ -520,6 +522,15 @@ class MainWindow(QWidget):
         refresh_btn.setMaximumWidth(140)
         refresh_btn.clicked.connect(self.request_scene_refresh)
         header_layout.addWidget(refresh_btn)
+        # Filter field for quick search
+        self.scene_filter = ModernLineEdit()
+        self.scene_filter.setMaximumWidth(220)
+        self.scene_filter.setPlaceholderText('Filter scenes or sources...')
+        self.scene_filter.textChanged.connect(self.filter_scene_tree)
+        # Make the placeholder text readable on dark theme
+        base_style = self.scene_filter.styleSheet() or ''
+        self.scene_filter.setStyleSheet(base_style + " QLineEdit::placeholder { color: #aaaaaa; } QLineEdit:placeholder { color: #aaaaaa; }")
+        header_layout.addWidget(self.scene_filter)
         header_layout.addStretch()
         scenes_layout.addLayout(header_layout)
         info_label = QLabel("Double-click a source to toggle visibility")
@@ -533,6 +544,7 @@ class MainWindow(QWidget):
             QTreeWidget {
                 background-color: #252525;
                 color: #e0e0e0;
+                alternate-background-color: #2b2b2b;
                 border: 1px solid #3d3d3d;
                 border-radius: 4px;
                 padding: 8px;
@@ -540,11 +552,42 @@ class MainWindow(QWidget):
             }
             QTreeWidget::item {
                 padding: 4px 8px;
+                background-color: transparent;
+                color: #e0e0e0;
             }
+            QTreeWidget::item:alternate { background-color: #2b2b2b; }
+            /* Header section styling to prevent the white bar */
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #e0e0e0;
+                padding: 6px;
+                border: none;
+                font-weight: bold;
+            }
+            QTreeWidget::item:selected { background: #3d3d3d; color: #ffffff; }
+            QTreeWidget::item:hover { background: #333333; }
         """)
         self.scene_tree.setMinimumHeight(200)
+        self.scene_tree.setAlternatingRowColors(True)
+        # Make header a bit shorter and ensure consistent header styling to avoid layout artifacts
+        self.scene_tree.header().setFixedHeight(28)
+        try:
+            self.scene_tree.header().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        except Exception:
+            pass
+        # Improve indentation for child source items
+        try:
+            self.scene_tree.setIndentation(16)
+        except Exception:
+            pass
+        self.scene_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.scene_tree.customContextMenuRequested.connect(self.scene_tree_context_menu)
         self.scene_tree.itemDoubleClicked.connect(self.on_scene_item_double_clicked)
         scenes_layout.addWidget(self.scene_tree)
+        # Last updated label
+        self.scenes_last_updated = QLabel("Last updated: Never")
+        self.scenes_last_updated.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px;")
+        scenes_layout.addWidget(self.scenes_last_updated)
         scenes_group.setLayout(scenes_layout)
         return scenes_group
 
@@ -743,9 +786,23 @@ class MainWindow(QWidget):
                     child.setToolTip(0, f"ID: {src.get('id')} | Enabled: {src.get('enabled')}")
                     # Store the scene name and item id for actions
                     child.setData(0, Qt.ItemDataRole.UserRole, (scene_name, src.get('id'), src.get('enabled')))
+                    # Use a smaller font for source items
+                    child_font = child.font(0)
+                    child_font.setPointSize(10)
+                    child.setFont(0, child_font)
+                    try:
+                        child.setIcon(0, self._build_status_dot(src.get('enabled')))
+                    except Exception:
+                        pass
             # Expand top-level nodes by default
             for i in range(self.scene_tree.topLevelItemCount()):
                 self.scene_tree.topLevelItem(i).setExpanded(True)
+            try:
+                import datetime
+                if hasattr(self, 'scenes_last_updated'):
+                    self.scenes_last_updated.setText('Last updated: ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            except Exception:
+                pass
         except Exception as e:
             bot_logger.error(f"Failed to update scene tree: {e}")
 
@@ -773,6 +830,86 @@ class MainWindow(QWidget):
             self.obs_connector.precache_source_names()
         except Exception as e:
             websocket_logger.error(f"Failed to request scenes refresh: {e}")
+
+    def _build_status_dot(self, enabled):
+        try:
+            size = QSize(12, 12)
+            pix = QPixmap(size)
+            pix.fill(QColor(0, 0, 0, 0))
+            p = QPainter(pix)
+            color = QColor('#4ec745') if enabled else QColor('#777777')
+            p.setBrush(color)
+            p.setPen(Qt.GlobalColor.transparent)
+            radius = 5
+            center_x = size.width() // 2
+            center_y = size.height() // 2
+            p.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
+            p.end()
+            return QIcon(pix)
+        except Exception:
+            return QIcon()
+
+    def filter_scene_tree(self, text):
+        try:
+            if not text:
+                for i in range(self.scene_tree.topLevelItemCount()):
+                    scene_item = self.scene_tree.topLevelItem(i)
+                    scene_item.setHidden(False)
+                    for j in range(scene_item.childCount()):
+                        scene_item.child(j).setHidden(False)
+                return
+            text = text.lower()
+            for i in range(self.scene_tree.topLevelItemCount()):
+                scene_item = self.scene_tree.topLevelItem(i)
+                scene_match = text in scene_item.text(0).lower()
+                any_child_visible = False
+                for j in range(scene_item.childCount()):
+                    child = scene_item.child(j)
+                    child_match = text in child.text(0).lower()
+                    child.setHidden(not child_match)
+                    if child_match:
+                        any_child_visible = True
+                scene_item.setHidden(not (scene_match or any_child_visible))
+        except Exception as e:
+            bot_logger.error(f"Error filtering scene tree: {e}")
+
+    def scene_tree_context_menu(self, pos):
+        try:
+            item = self.scene_tree.itemAt(pos)
+            if item is None:
+                return
+            menu = QMenu(self.scene_tree)
+            is_top_level = item.parent() is None
+            if is_top_level:
+                # Set as current scene
+                set_scene_action = QAction('Set as Current Scene', self.scene_tree)
+                set_scene_action.triggered.connect(lambda: self._context_set_current_scene(item.text(0)))
+                menu.addAction(set_scene_action)
+            else:
+                data = item.data(0, Qt.ItemDataRole.UserRole)
+                if data:
+                    scene_name, item_id, enabled = data
+                    toggle_action = QAction('Toggle Visibility', self.scene_tree)
+                    toggle_action.triggered.connect(lambda: self._context_toggle_source(scene_name, item_id, enabled))
+                    menu.addAction(toggle_action)
+            menu.addAction(QAction('Refresh Scenes', self.scene_tree, triggered=self.request_scene_refresh))
+            menu.exec(self.scene_tree.viewport().mapToGlobal(pos))
+        except Exception as e:
+            bot_logger.error(f"Error building scene context menu: {e}")
+
+    def _context_set_current_scene(self, scene_name):
+        if not self.obs_connector or not self.obs_connector.connected:
+            QMessageBox.warning(self, "Set Scene", "OBS is not connected.")
+            return
+        action = {'action': 'set_current_program_scene', 'scene': scene_name}
+        self.obs_connector.perform_action(action)
+
+    def _context_toggle_source(self, scene_name, item_id, enabled):
+        if not self.obs_connector or not self.obs_connector.connected:
+            QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
+            return
+        action = {'action': 'set_scene_item_enabled', 'scene': scene_name, 'item_id': item_id, 'enabled': not enabled}
+        self.obs_connector.perform_action(action)
 
     def on_scene_item_double_clicked(self, item, column):
         # Only handle double-clicks on child items (sources)

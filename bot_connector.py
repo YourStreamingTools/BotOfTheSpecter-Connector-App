@@ -12,6 +12,10 @@ from constants import (
 # Global variables
 websocket_connected = False
 specterSocket = socketio.AsyncClient()
+websocket_loop = None  # The asyncio event loop that runs the Specter websocket
+pending_emits = []
+import threading
+pending_emits_lock = threading.Lock()
 
 class BotOfTheSpecterConnector(QThread):
     status_update = pyqtSignal(str)
@@ -308,7 +312,7 @@ class BotOfTheSpecterConnector(QThread):
         asyncio.run(self.specter_websocket())
 
     async def specter_websocket(self):
-        global websocket_connected, specterSocket
+        global websocket_connected, specterSocket, websocket_loop
         reconnect_delay = RECONNECT_DELAY
         consecutive_failures = 0
         while not self.should_stop:
@@ -327,6 +331,23 @@ class BotOfTheSpecterConnector(QThread):
                     await asyncio.sleep(total_delay)
                 bot_logger.info(f"Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
                 await specterSocket.connect(SPECTER_WEBSOCKET_URI, transports=['websocket'])
+                try:
+                    websocket_loop = asyncio.get_running_loop()
+                    websocket_logger.debug(f"WebSocket event loop set: {websocket_loop}")
+                except Exception:
+                    websocket_loop = None
+                # Flush any pending emits queued prior to loop availability
+                if websocket_loop is not None:
+                    try:
+                        with pending_emits_lock:
+                            for et, d in pending_emits:
+                                try:
+                                    asyncio.run_coroutine_threadsafe(specterSocket.emit(et, d), websocket_loop)
+                                except Exception as e:
+                                    websocket_logger.error(f"Failed to flush queued emit {et}: {e}")
+                            pending_emits.clear()
+                    except Exception as e:
+                        websocket_logger.debug(f"Error flushing pending emits: {e}")
                 connection_timeout = CONNECTION_TIMEOUT
                 start_time = datetime.now()
                 while not websocket_connected and not self.should_stop:
@@ -377,6 +398,7 @@ class BotOfTheSpecterConnector(QThread):
         
         # Clean up on disconnect
         websocket_connected = False
+        websocket_loop = None
         try:
             if specterSocket and specterSocket.connected:
                 await specterSocket.disconnect()
@@ -393,9 +415,19 @@ class BotOfTheSpecterConnector(QThread):
 
     def send_event(self, event_type, data):
         global specterSocket
+        global websocket_loop
         if self.is_websocket_connected() and specterSocket and specterSocket.connected:
             try:
-                # Use a task to emit in the event loop thread
-                asyncio.ensure_future(specterSocket.emit(event_type, data))
+                # If we have the event loop for the websocket thread, use run_coroutine_threadsafe
+                if websocket_loop is not None:
+                    asyncio.run_coroutine_threadsafe(specterSocket.emit(event_type, data), websocket_loop)
+                else:
+                    # No loop yet; queue the emit so that it will be flushed once loop is available
+                    try:
+                        with pending_emits_lock:
+                            pending_emits.append((event_type, data))
+                        websocket_logger.debug("Queued websocket emit until event loop becomes available")
+                    except Exception as e:
+                        websocket_logger.error(f"Failed to queue websocket emit: {e}")
             except Exception as e:
                 websocket_logger.error(f"Error sending event: {e}")

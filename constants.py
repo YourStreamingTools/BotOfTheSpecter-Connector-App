@@ -1,6 +1,8 @@
 import os
 import logging
 import requests
+import sys
+import io
 
 # Directory and file paths
 APPDATA_DIR = os.path.join(os.path.expanduser('~'), 'AppData', 'Roaming', 'BotOfTheSpecter', 'OBSConnector')
@@ -24,14 +26,52 @@ JITTER_RANGE = (0, 5)  # 0-5 second jitter to prevent simultaneous reconnections
 
 # Setup logging
 def setup_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(LOG_FILE),
-            logging.StreamHandler()
-        ]
-    )
+    # Root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # File handler with UTF-8 encoding
+    try:
+        file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    except Exception as e:
+        print(f"Failed to create file handler: {e}")
+    # Helper: safe stream wrapper to avoid exceptions when sys.stdout/sys.stderr are closed
+    class _SafeStream:
+        def __init__(self, stream):
+            self._stream = stream
+        def write(self, s):
+            try:
+                return self._stream.write(s)
+            except Exception:
+                return 0
+        def flush(self):
+            try:
+                return self._stream.flush()
+            except Exception:
+                return None
+
+    # Stream handler wrapping stdout in utf-8 with replace errors to avoid UnicodeEncodeError
+    try:
+        stream_handler = None
+        if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'buffer') and not sys.stdout.closed:
+            try:
+                stream = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+                stream_handler = logging.StreamHandler(stream=_SafeStream(stream))
+            except Exception:
+                stream_handler = None
+        if stream_handler is None:
+            # Fallback to a stream handler using an in-memory buffer wrapped by SafeStream
+            stream_handler = logging.StreamHandler(stream=_SafeStream(io.StringIO()))
+        stream_handler.setLevel(logging.INFO)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+    except Exception as e:
+        # Use logging to report the error; avoid print which may be using a closed stdout
+        fallback_log = logging.getLogger(__name__)
+        fallback_log.error(f"Failed to create stream handler: {e}")
     return logging.getLogger(__name__)
 
 # Get loggers for different components
@@ -48,22 +88,45 @@ def setup_obs_events_logging():
     obs_events_logger.handlers = []
     # File handler
     try:
-        obs_events_handler = logging.FileHandler(OBS_EVENTS_LOG_FILE)
+        obs_events_handler = logging.FileHandler(OBS_EVENTS_LOG_FILE, encoding='utf-8')
         obs_events_handler.setLevel(logging.INFO)
         obs_events_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         obs_events_handler.setFormatter(obs_events_formatter)
         obs_events_logger.addHandler(obs_events_handler)
     except Exception as e:
         print(f"Failed to create OBS events file handler: {e}")
-    # Console handler for debugging
+    # Console handler for debugging (wrap stdout in UTF-8 to avoid UnicodeEncodeError)
+    class _SafeStream:
+        def __init__(self, stream):
+            self._stream = stream
+        def write(self, s):
+            try:
+                return self._stream.write(s)
+            except Exception:
+                return 0
+        def flush(self):
+            try:
+                return self._stream.flush()
+            except Exception:
+                return None
     try:
-        obs_events_console_handler = logging.StreamHandler()
-        obs_events_console_handler.setLevel(logging.INFO)
+        console_handler = None
+        if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'buffer') and not sys.stdout.closed:
+            try:
+                stream = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+                console_handler = logging.StreamHandler(stream=_SafeStream(stream))
+            except Exception:
+                console_handler = None
+        if console_handler is None:
+            console_handler = logging.StreamHandler(stream=_SafeStream(io.StringIO()))
+        console_handler.setLevel(logging.INFO)
         obs_events_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        obs_events_console_handler.setFormatter(obs_events_formatter)
-        obs_events_logger.addHandler(obs_events_console_handler)
+        console_handler.setFormatter(obs_events_formatter)
+        obs_events_logger.addHandler(console_handler)
     except Exception as e:
-        print(f"Failed to create OBS events console handler: {e}")
+        # Use the root logger to report the problem, print may fail if stdout is closed
+        error_logger = logging.getLogger(__name__)
+        error_logger.error(f"Failed to create OBS events console handler: {e}")
     return obs_events_logger
 
 # Setup initial obs_events_logger

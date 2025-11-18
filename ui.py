@@ -1,11 +1,12 @@
 import os
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QHeaderView,
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
-    QScrollArea, QFrame, QSizePolicy
+    QScrollArea, QTreeWidget, QTreeWidgetItem
 )
-from PyQt6.QtGui import QIcon, QFont, QColor
+from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtCore import Qt, QTimer
+from obswebsocket import requests as obs_requests
 from config import Config
 from constants import ICON_FILE, download_icon, bot_logger, websocket_logger, VERSION
 from bot_connector import BotOfTheSpecterConnector
@@ -261,7 +262,7 @@ class MainWindow(QWidget):
         # Initialize status refresh timer
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.refresh_status)
-        download_icon()
+        # Prepare UI first, then do background tasks like icon download and auto-connections
         self.init_ui()
         if os.path.exists(ICON_FILE):
             self.setWindowIcon(QIcon(ICON_FILE))
@@ -354,6 +355,9 @@ class MainWindow(QWidget):
         # OBS Group
         obs_group = self._create_obs_group()
         scroll_layout.addWidget(obs_group)
+        # Scenes Panel
+        scenes_group = self._create_scenes_group()
+        scroll_layout.addWidget(scenes_group)
         # Log Area with collapse/expand button
         log_header_layout = QHBoxLayout()
         log_header_layout.setSpacing(8)
@@ -407,10 +411,8 @@ class MainWindow(QWidget):
         # Set initial log visibility
         self.set_log_visibility(self.log_expanded)
         # Auto-connect if API key exists
-        api_key = self.config.get('api_key', '')
-        if api_key:
-            self.bot_connect_btn.setEnabled(True)
-            self.connect_bot()
+        # Defer heavy operations (icon download, auto-connect) to after the UI has shown
+        QTimer.singleShot(100, self.post_init_connects)
         # Auto-connect to OBS if settings exist
         obs_host = self.config.get('obs_host')
         obs_port = self.config.get('obs_port')
@@ -506,6 +508,45 @@ class MainWindow(QWidget):
         obs_layout.addWidget(self.obs_connect_btn)
         obs_group.setLayout(obs_layout)
         return obs_group
+
+    def _create_scenes_group(self):
+        scenes_group = ModernGroupBox("Scenes")
+        scenes_layout = QVBoxLayout()
+        scenes_layout.setSpacing(8)
+        # Header with refresh button
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        refresh_btn = ModernButton("Refresh Scenes")
+        refresh_btn.setMaximumWidth(140)
+        refresh_btn.clicked.connect(self.request_scene_refresh)
+        header_layout.addWidget(refresh_btn)
+        header_layout.addStretch()
+        scenes_layout.addLayout(header_layout)
+        info_label = QLabel("Double-click a source to toggle visibility")
+        info_label.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px;")
+        scenes_layout.addWidget(info_label)
+        # Tree view for scenes and sources
+        self.scene_tree = QTreeWidget()
+        self.scene_tree.setHeaderLabels(["Scenes and Sources"])
+        self.scene_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.scene_tree.setStyleSheet("""
+            QTreeWidget {
+                background-color: #252525;
+                color: #e0e0e0;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 11px;
+            }
+            QTreeWidget::item {
+                padding: 4px 8px;
+            }
+        """)
+        self.scene_tree.setMinimumHeight(200)
+        self.scene_tree.itemDoubleClicked.connect(self.on_scene_item_double_clicked)
+        scenes_layout.addWidget(self.scene_tree)
+        scenes_group.setLayout(scenes_layout)
+        return scenes_group
 
     def validate_api_key(self):
         api_key = self.api_key_input.text()
@@ -617,10 +658,37 @@ class MainWindow(QWidget):
             self.bot_connector.set_obs_connector(self.obs_connector)
         self.obs_connector.status_update.connect(self.update_obs_status)
         self.obs_connector.event_received.connect(self.log_event)
+        self.obs_connector.stats_update.connect(self.handle_stats_update)
+        # Connect to scenes updates
+        try:
+            self.obs_connector.scenes_updated.connect(self.update_scene_tree)
+        except Exception:
+            pass
         self.obs_connector.start()
         self.obs_connect_btn.setText("Disconnect")
-        # Start status refresh timer
-        self.status_timer.start(1000)  # Refresh every 1000ms
+        # Don't call prerequest precache here; the OBS connector will precache on successful connect.
+        # No blocking UI polling - OBSConnector emits status updates via stats_update
+
+    def post_init_connects(self):
+        # Download icon in a background thread if missing to avoid UI freeze
+        try:
+            import threading
+            if not os.path.exists(ICON_FILE):
+                t = threading.Thread(target=download_icon, daemon=True)
+                t.start()
+        except Exception:
+            pass
+        # Auto-connect if API key exists
+        api_key = self.config.get('api_key', '')
+        if api_key:
+            self.bot_connect_btn.setEnabled(True)
+            self.connect_bot()
+        # Auto-connect to OBS if settings exist
+        obs_host = self.config.get('obs_host')
+        obs_port = self.config.get('obs_port')
+        obs_password = self.config.get('obs_password')
+        if obs_host and obs_port and obs_password:
+            self.connect_obs()
 
     def toggle_obs_connection(self):
         if self.obs_connect_btn.text() == "Connect":
@@ -639,6 +707,12 @@ class MainWindow(QWidget):
                 self.status_timer.stop()
                 # Update status to show disconnected
                 self.update_obs_status("Disconnected from OBS")
+                # Clear scenes tree since we are disconnected
+                try:
+                    if hasattr(self, 'scene_tree'):
+                        self.scene_tree.clear()
+                except Exception:
+                    pass
         except Exception as e:
             bot_logger.error(f"Error disconnecting OBS: {e}")
             self.obs_connect_btn.setText("Connect")
@@ -646,23 +720,93 @@ class MainWindow(QWidget):
             self.update_obs_status("Disconnected from OBS")
 
     def refresh_status(self):
-        if not self.obs_connector or not self.obs_connector.connected:
-            return
+        # Periodic UI status refresh is now handled by the OBSConnector.stats_update signal.
+        # Keep this function as a no-op fallback for older behavior.
+        return
+
+    def update_scene_tree(self, scenes_dict):
         try:
-            status = self.obs_connector.get_stream_status()
-            output_status = self.obs_connector.get_output_status()
-            # Combine status and bitrate info for the panel
+            self.scene_tree.clear()
+            if not scenes_dict:
+                return
+            # Sort scene names for stable order
+            for scene_name in sorted(scenes_dict.keys()):
+                scene_item = QTreeWidgetItem(self.scene_tree)
+                scene_item.setText(0, scene_name)
+                # Bold font for scene items
+                font = scene_item.font(0)
+                font.setBold(True)
+                scene_item.setFont(0, font)
+                for src in scenes_dict.get(scene_name, []):
+                    child = QTreeWidgetItem(scene_item)
+                    child.setText(0, src.get('name', f"Item {src.get('id')}") + (" ✅" if src.get('enabled') else ""))
+                    child.setToolTip(0, f"ID: {src.get('id')} | Enabled: {src.get('enabled')}")
+                    # Store the scene name and item id for actions
+                    child.setData(0, Qt.ItemDataRole.UserRole, (scene_name, src.get('id'), src.get('enabled')))
+            # Expand top-level nodes by default
+            for i in range(self.scene_tree.topLevelItemCount()):
+                self.scene_tree.topLevelItem(i).setExpanded(True)
+        except Exception as e:
+            bot_logger.error(f"Failed to update scene tree: {e}")
+
+    def handle_stats_update(self, status):
+        try:
             combined_status = {
                 'streaming': status.get('streaming', False),
                 'recording': status.get('recording', False),
                 'replay_buffer': status.get('replay_buffer', False),
-                'stream_bitrate': output_status.get('stream_bitrate', 0),
-                'record_bitrate': output_status.get('record_bitrate', 0)
+                'stream_bitrate': status.get('stream_bitrate', 0),
+                'record_bitrate': status.get('record_bitrate', 0)
             }
-            websocket_logger.info(f"refresh_status called - streaming:{combined_status['streaming']}, recording:{combined_status['recording']}, record_bitrate:{combined_status['record_bitrate']}")
             self.status_panel.update_status(combined_status)
         except Exception as e:
-            bot_logger.error(f"Error refreshing status: {e}")
+            bot_logger.error(f"Error updating status panel from stats_update: {e}")
+
+    def request_scene_refresh(self):
+        if not self.obs_connector:
+            QMessageBox.warning(self, "Refresh Scenes", "No OBS connector available.")
+            return
+        if not self.obs_connector.connected:
+            QMessageBox.warning(self, "Refresh Scenes", "OBS is not connected.")
+            return
+        try:
+            self.obs_connector.precache_source_names()
+        except Exception as e:
+            websocket_logger.error(f"Failed to request scenes refresh: {e}")
+
+    def on_scene_item_double_clicked(self, item, column):
+        # Only handle double-clicks on child items (sources)
+        parent = item.parent()
+        if not parent:
+            return
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data or not self.obs_connector:
+            return
+        # Stored data: (scene_name, item_id, enabled)
+        scene_name, item_id, enabled = data
+        if not self.obs_connector.connected:
+            QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
+            return
+        try:
+            # We have the cached enabled state in item data; use that to toggle
+            if enabled is None:
+                QMessageBox.warning(self, "Toggle Source", "Could not find the source to toggle.")
+                return
+            # Toggle enabled state
+            action = {
+                'action': 'set_scene_item_enabled',
+                'scene': scene_name,
+                'item_id': item_id,
+                'enabled': not enabled
+            }
+            self.obs_connector.perform_action(action)
+            # Refresh scenes to reflect change
+            try:
+                self.obs_connector.precache_source_names()
+            except Exception:
+                pass
+        except Exception as e:
+            websocket_logger.error(f"Failed to toggle source enabled state: {e}")
 
     def update_bot_status(self, status):
         status_text = f"Status: {status}"

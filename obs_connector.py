@@ -9,6 +9,7 @@ import threading
 class OBSConnector(QThread):
     status_update = pyqtSignal(str)
     event_received = pyqtSignal(str)
+    scenes_updated = pyqtSignal(dict)  # Signal with scenes mapping to sources
     stats_update = pyqtSignal(dict)  # Signal for periodic stats updates
 
     def __init__(self, host, port, password, bot_connector):
@@ -176,6 +177,16 @@ class OBSConnector(QThread):
             websocket_logger.warning(f"No message generated for event type: {event_type}")
         if self.bot_connector:
             self.bot_connector.send_event('OBS_EVENT', {'type': event_type, 'data': redacted_data})
+        # If important scene/source changes happened, refresh our cache and notify UI
+        try:
+            if event_type in ('SceneCreated', 'SceneRemoved', 'SourceCreated', 'SourceRemoved', 'SceneItemEnableStateChanged', 'SourceEnableStateChanged'):
+                websocket_logger.info(f"Event {event_type} can change scene/source layout; refreshing cache")
+                try:
+                    self.precache_source_names()
+                except Exception as precache_err:
+                    websocket_logger.debug(f"Failed to update scene cache on event {event_type}: {precache_err}")
+        except Exception:
+            pass
 
     def handle_specter_event(self, event_name, data):
         try:
@@ -186,23 +197,35 @@ class OBSConnector(QThread):
 
     def precache_source_names(self):
         try:
+            if not self.connected:
+                websocket_logger.debug("Cannot precache source names - OBS client not connected yet")
+                return
             websocket_logger.info("Pre-caching source names from all scenes...")
             scenes_response = self.client.call(obs_requests.GetSceneList())
             scenes = scenes_response.datain.get('scenes', [])
+            scene_sources = {}
             for scene in scenes:
                 scene_name = scene.get('sceneName')
                 try:
                     items_response = self.client.call(obs_requests.GetSceneItemList(sceneName=scene_name))
                     items = items_response.datain.get('sceneItems', [])
+                    scene_sources.setdefault(scene_name, [])
                     for item in items:
                         item_id = item.get('sceneItemId')
                         source_name = item.get('sourceName', f'Item {item_id}')
+                        enabled = item.get('sceneItemEnabled', False)
                         cache_key = f"{scene_name}:{item_id}"
                         self.source_name_cache[cache_key] = source_name
-                        websocket_logger.debug(f"Cached: {cache_key} -> {source_name}")
+                        scene_sources[scene_name].append({'name': source_name, 'id': item_id, 'enabled': enabled})
+                        websocket_logger.debug(f"Cached: {cache_key} -> {source_name} (enabled={enabled})")
                 except Exception as scene_error:
                     websocket_logger.warning(f"Failed to cache items for scene '{scene_name}': {scene_error}")
             websocket_logger.info(f"Source name caching complete. Cached {len(self.source_name_cache)} entries")
+            # Emit the scenes->sources mapping for UI consumption
+            try:
+                self.scenes_updated.emit(scene_sources)
+            except Exception as e:
+                websocket_logger.debug(f"Failed to emit scenes_updated signal: {e}")
         except Exception as e:
             websocket_logger.error(f"Failed to precache source names: {e}", exc_info=True)
 
@@ -229,10 +252,15 @@ class OBSConnector(QThread):
                 self.precache_source_names()
             except Exception as e:
                 websocket_logger.warning(f"Failed to precache source names: {e}")
-            # Main connection loop - just keepalive, no polling for now
+            # Main connection loop - poll for status updates periodically
             while not self.should_stop:
                 try:
-                    self.client.call(obs_requests.GetVersion())
+                    # Gather output status and emit via signal for the UI to consume
+                    status = self.get_output_status()
+                    try:
+                        self.stats_update.emit(status)
+                    except Exception as e:
+                        websocket_logger.debug(f"Failed to emit stats_update: {e}")
                     time.sleep(1)
                 except Exception as e:
                     if not self.should_stop:

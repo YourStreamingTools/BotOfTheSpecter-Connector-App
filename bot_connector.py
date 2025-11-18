@@ -115,8 +115,13 @@ class BotOfTheSpecterConnector(QThread):
             try:
                 if isinstance(data, dict):
                     if 'action' in data and self.obs_connector:
-                        self.obs_connector.perform_action(data)
-                        message_text = f"Executed action: {data}"
+                        # Request the OBS connector to execute the action on its thread
+                        try:
+                            self.obs_connector.action_requested.emit(data)
+                            message_text = f"Executed action: {data}"
+                        except Exception as e:
+                            websocket_logger.error(f"Failed to request action via signal from message: {e}")
+                            message_text = f"Error executing action: {e}"
                     else:
                         message_text = f"Event: {data.get('type', 'unknown')} - {redact_sensitive_data(data)}"
                 else:
@@ -158,7 +163,10 @@ class BotOfTheSpecterConnector(QThread):
                         else:
                             action_data = data
                         websocket_logger.info(f"Executing OBS action: {action_data}")
-                        self.obs_connector.perform_action(action_data)
+                        try:
+                            self.obs_connector.action_requested.emit(action_data)
+                        except Exception as e:
+                            websocket_logger.error(f"Failed to request action via signal from event: {e}")
                         if specterSocket.connected:
                             await specterSocket.emit('OBS_EVENT_RECEIVED', {
                                 'code': API_TOKEN,
@@ -247,7 +255,10 @@ class BotOfTheSpecterConnector(QThread):
                     else:
                         action_data = data
                     websocket_logger.info(f"Executing OBS_REQUEST action: {action_data}")
-                    self.obs_connector.perform_action(action_data)
+                    try:
+                        self.obs_connector.action_requested.emit(action_data)
+                    except Exception as e:
+                        websocket_logger.error(f"Failed to request action via signal from OBS_REQUEST: {e}")
                     if specterSocket.connected:
                         await specterSocket.emit('OBS_EVENT_RECEIVED', {
                             'code': API_TOKEN,

@@ -302,9 +302,10 @@ class MainWindow(QWidget):
         header_layout.addStretch()
         # Lock/Unlock button
         self.lock_btn = ModernButton("🔓 Unlocked")
+        self.lock_btn.setObjectName('lock_btn')
         self.lock_btn.setMaximumWidth(150)
         self.lock_btn.setStyleSheet("""
-            ModernButton {
+            QPushButton#lock_btn {
                 background-color: #4ec745;
                 color: #ffffff;
                 border: none;
@@ -313,13 +314,11 @@ class MainWindow(QWidget):
                 font-weight: bold;
                 font-size: 11px;
             }
-            ModernButton:hover {
+            QPushButton#lock_btn:hover {
                 background-color: #5fd855;
             }
-            ModernButton:pressed {
+            QPushButton#lock_btn:pressed {
                 background-color: #3fa536;
-                # Force header stylesheet to stay dark and readable
-                self.scene_tree.header().setStyleSheet("QHeaderView::section { background-color: #2b2b2b; color: #e0e0e0; padding: 6px; }")
             }
         """)
         self.lock_btn.clicked.connect(self.toggle_lock)
@@ -605,7 +604,7 @@ class MainWindow(QWidget):
         if self.is_locked:
             self.lock_btn.setText("🔒 Locked")
             self.lock_btn.setStyleSheet("""
-                ModernButton {
+                QPushButton#lock_btn {
                     background-color: #f55047;
                     color: #ffffff;
                     border: none;
@@ -614,10 +613,10 @@ class MainWindow(QWidget):
                     font-weight: bold;
                     font-size: 11px;
                 }
-                ModernButton:hover {
+                QPushButton#lock_btn:hover {
                     background-color: #ff6655;
                 }
-                ModernButton:pressed {
+                QPushButton#lock_btn:pressed {
                     background-color: #e03f3f;
                 }
             """)
@@ -625,7 +624,7 @@ class MainWindow(QWidget):
         else:
             self.lock_btn.setText("🔓 Unlocked")
             self.lock_btn.setStyleSheet("""
-                ModernButton {
+                QPushButton#lock_btn {
                     background-color: #4ec745;
                     color: #ffffff;
                     border: none;
@@ -634,10 +633,10 @@ class MainWindow(QWidget):
                     font-weight: bold;
                     font-size: 11px;
                 }
-                ModernButton:hover {
+                QPushButton#lock_btn:hover {
                     background-color: #5fd855;
                 }
-                ModernButton:pressed {
+                QPushButton#lock_btn:pressed {
                     background-color: #3fa536;
                 }
             """)
@@ -690,6 +689,11 @@ class MainWindow(QWidget):
             if not self.status_timer.isActive():
                 self.status_timer.start(1000)  # Refresh every 1000ms
             return
+        # Additional handler to revert optimistic UI toggles when action fails
+        try:
+            self.obs_connector.event_received.connect(self._on_obs_event_for_revert)
+        except Exception:
+            pass
         host = self.obs_host.text()
         port = int(self.obs_port.text())
         password = self.obs_password.text()
@@ -827,7 +831,7 @@ class MainWindow(QWidget):
             QMessageBox.warning(self, "Refresh Scenes", "OBS is not connected.")
             return
         try:
-            self.obs_connector.precache_source_names()
+            self.obs_connector.refresh_requested.emit()
         except Exception as e:
             websocket_logger.error(f"Failed to request scenes refresh: {e}")
 
@@ -901,15 +905,42 @@ class MainWindow(QWidget):
         if not self.obs_connector or not self.obs_connector.connected:
             QMessageBox.warning(self, "Set Scene", "OBS is not connected.")
             return
+        if not self.obs_connector.isRunning():
+            websocket_logger.warning("OBS connector thread not running; attempting to start it...")
+            try:
+                self.obs_connector.start()
+            except Exception as e:
+                websocket_logger.error(f"Failed to start OBS connector thread: {e}")
+                QMessageBox.warning(self, "Set Scene", "OBS connector thread was not running and failed to start.")
+                return
         action = {'action': 'set_current_program_scene', 'scene': scene_name}
-        self.obs_connector.perform_action(action)
+        try:
+            self.obs_connector.action_requested.emit(action)
+            # Immediate UI feedback
+            self.log_event(f"Requested action: {action}")
+        except Exception as e:
+            websocket_logger.error(f"Failed to request action via signal: {e}")
+            QMessageBox.warning(self, "Action Error", "Failed to request OBS action; please try again.")
 
     def _context_toggle_source(self, scene_name, item_id, enabled):
         if not self.obs_connector or not self.obs_connector.connected:
             QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
             return
+        if not self.obs_connector.isRunning():
+            websocket_logger.warning("OBS connector thread not running; attempting to start it...")
+            try:
+                self.obs_connector.start()
+            except Exception as e:
+                websocket_logger.error(f"Failed to start OBS connector thread: {e}")
+                QMessageBox.warning(self, "Toggle Source", "OBS connector thread was not running and failed to start.")
+                return
         action = {'action': 'set_scene_item_enabled', 'scene': scene_name, 'item_id': item_id, 'enabled': not enabled}
-        self.obs_connector.perform_action(action)
+        try:
+            self.obs_connector.action_requested.emit(action)
+            self.log_event(f"Requested action: {action}")
+        except Exception as e:
+            websocket_logger.error(f"Failed to request action via signal: {e}")
+            QMessageBox.warning(self, "Action Error", "Failed to request OBS action; please try again.")
 
     def on_scene_item_double_clicked(self, item, column):
         # Only handle double-clicks on child items (sources)
@@ -924,6 +955,14 @@ class MainWindow(QWidget):
         if not self.obs_connector.connected:
             QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
             return
+        if not self.obs_connector.isRunning():
+            websocket_logger.warning("OBS connector thread not running; attempting to start it...")
+            try:
+                self.obs_connector.start()
+            except Exception as e:
+                websocket_logger.error(f"Failed to start OBS connector thread: {e}")
+                QMessageBox.warning(self, "Toggle Source", "OBS connector thread was not running and failed to start.")
+                return
         try:
             # We have the cached enabled state in item data; use that to toggle
             if enabled is None:
@@ -936,12 +975,73 @@ class MainWindow(QWidget):
                 'item_id': item_id,
                 'enabled': not enabled
             }
-            self.obs_connector.perform_action(action)
-            # Refresh scenes to reflect change
             try:
-                self.obs_connector.precache_source_names()
-            except Exception:
-                pass
+                self.obs_connector.action_requested.emit(action)
+                # Optimistic UI update: reflect toggled state immediately
+                try:
+                    current_text = item.text(0)
+                    base_name = current_text.replace(' ✅', '').replace(' ❌', '')
+                    new_enabled = not enabled
+                    item.setText(0, base_name + (' ✅' if new_enabled else ''))
+                    item.setData(0, Qt.ItemDataRole.UserRole, (scene_name, item_id, new_enabled))
+                except Exception:
+                    pass
+                self.log_event(f"Requested action: {action}")
+            except Exception as e:
+                websocket_logger.error(f"Failed to request action via signal: {e}")
+                QMessageBox.warning(self, "Action Error", "Failed to request OBS action; please try again.")
+            # Refresh scenes to reflect change by signaling the connector thread
+            try:
+                self.obs_connector.refresh_requested.emit()
+            except Exception as e:
+                websocket_logger.error(f"Failed to request scenes refresh via signal: {e}")
+        except Exception as e:
+            websocket_logger.error(f"Failed to toggle source enabled state: {e}")
+
+    def _on_obs_event_for_revert(self, message):
+        try:
+            if not isinstance(message, str):
+                return
+            if message.startswith('Failed to execute action:'):
+                # Message format: Failed to execute action: {'action': 'set_scene_item_enabled', ...} - <error>
+                try:
+                    # split and extract payload
+                    payload = message.split(':', 1)[1].strip()
+                    # The payload contains the action dict and error - we just find the action dict start
+                    # We attempt to find "{'action'" and eval the dict safely
+                    dict_start = payload.find("{'")
+                    if dict_start == -1:
+                        dict_start = payload.find('{')
+                    if dict_start == -1:
+                        return
+                    dict_part = payload[dict_start:payload.rfind('}')+1]
+                    # Use ast.literal_eval for safety
+                    import ast
+                    action = ast.literal_eval(dict_part)
+                    if action.get('action') == 'set_scene_item_enabled':
+                        scene = action.get('scene')
+                        item_id = action.get('item_id')
+                        # Find the tree item and revert the enabled state
+                        for i in range(self.scene_tree.topLevelItemCount()):
+                            scene_item = self.scene_tree.topLevelItem(i)
+                            if scene_item.text(0) == scene:
+                                for j in range(scene_item.childCount()):
+                                    child = scene_item.child(j)
+                                    data = child.data(0, Qt.ItemDataRole.UserRole)
+                                    if data and data[1] == item_id:
+                                        # Revert the enabled flag
+                                        current_data = data
+                                        # set enabled back to not what action requested
+                                        child.setData(0, Qt.ItemDataRole.UserRole, (current_data[0], current_data[1], not action.get('enabled')))
+                                        # Update text adornment
+                                        base_name = child.text(0).replace(' ✅', '').replace(' ❌', '')
+                                        child.setText(0, base_name + (' ✅' if not action.get('enabled') else ''))
+                                        self.log_event(f"Reverted optimistic toggle for item {item_id} in {scene} due to failure")
+                                        return
+                except Exception:
+                    return
+        except Exception:
+            pass
         except Exception as e:
             websocket_logger.error(f"Failed to toggle source enabled state: {e}")
 

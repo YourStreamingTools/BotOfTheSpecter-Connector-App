@@ -5,11 +5,14 @@ from obswebsocket import requests as obs_requests
 import constants
 from constants import websocket_logger, bot_logger, redact_sensitive_data
 import threading
+import queue
 
 class OBSConnector(QThread):
     status_update = pyqtSignal(str)
     event_received = pyqtSignal(str)
     scenes_updated = pyqtSignal(dict)  # Signal with scenes mapping to sources
+    action_requested = pyqtSignal(object)  # request to run an action on the connector thread
+    refresh_requested = pyqtSignal()
     stats_update = pyqtSignal(dict)  # Signal for periodic stats updates
 
     def __init__(self, host, port, password, bot_connector):
@@ -22,6 +25,17 @@ class OBSConnector(QThread):
         self.connected = False
         self.should_stop = False
         self.source_name_cache = {}
+        # Action queue for cross-thread requests from UI or Bot
+        self._action_queue = queue.Queue()
+        # Connect signals intended to be emitted from other threads (UI or bot) to enqueue actions
+        try:
+            self.action_requested.connect(self._enqueue_action)
+        except Exception:
+            pass
+        try:
+            self.refresh_requested.connect(lambda: self._enqueue_action({'_action': 'refresh'}))
+        except Exception:
+            pass
         # Store latest bitrate values calculated from stream/record status
         self.latest_stream_bitrate = 0
         self.latest_record_bitrate = 0
@@ -229,6 +243,30 @@ class OBSConnector(QThread):
         except Exception as e:
             websocket_logger.error(f"Failed to precache source names: {e}", exc_info=True)
 
+    def _enqueue_action(self, action):
+        try:
+            self._action_queue.put(action)
+            websocket_logger.debug(f"Enqueued action: {action}")
+            try:
+                # Inform UI that action was queued
+                self.event_received.emit(f"Queued action: {action}")
+            except Exception:
+                pass
+        except Exception as e:
+            websocket_logger.error(f"Failed to enqueue action: {e}")
+
+    def _handle_action_request(self, action):
+        try:
+            # The slot should run on the thread of this QThread (OBSConnector)
+            websocket_logger.info(f"_handle_action_request processing: {action}")
+            self.perform_action(action)
+        except Exception as e:
+            websocket_logger.error(f"_handle_action_request error: {e}", exc_info=True)
+            try:
+                self.event_received.emit(f"Action request failed: {e}")
+            except Exception:
+                pass
+
     def run(self):
         try:
             self.client.connect()
@@ -261,6 +299,22 @@ class OBSConnector(QThread):
                         self.stats_update.emit(status)
                     except Exception as e:
                         websocket_logger.debug(f"Failed to emit stats_update: {e}")
+                    # Process any queued actions requested from UI or bot
+                    try:
+                        while not self._action_queue.empty():
+                            action = self._action_queue.get_nowait()
+                            if isinstance(action, dict) and action.get('_action') == 'refresh':
+                                try:
+                                    self.precache_source_names()
+                                except Exception as e:
+                                    websocket_logger.error(f"Failed to refresh scenes on queue: {e}", exc_info=True)
+                            else:
+                                try:
+                                    self.perform_action(action)
+                                except Exception as e:
+                                    websocket_logger.error(f"Failed to execute queued action: {e}", exc_info=True)
+                    except Exception as e:
+                        websocket_logger.debug(f"Error processing action queue: {e}")
                     time.sleep(1)
                 except Exception as e:
                     if not self.should_stop:
@@ -296,19 +350,36 @@ class OBSConnector(QThread):
                     sceneItemEnabled=action['enabled']
                 )
                 self.client.call(req)
+                # Emit success to UI event log and status
                 self.status_update.emit(f"Executed: {action}")
+                try:
+                    self.event_received.emit(f"Executed: {action}")
+                except Exception:
+                    pass
                 websocket_logger.info(f"Successfully executed set_scene_item_enabled")
             elif action.get('action') == 'set_current_program_scene':
                 websocket_logger.info(f"Executing set_current_program_scene: scene={action.get('scene')}")
                 req = obs_requests.SetCurrentProgramScene(sceneName=action['scene'])
                 self.client.call(req)
                 self.status_update.emit(f"Executed: {action}")
+                try:
+                    self.event_received.emit(f"Executed: {action}")
+                except Exception:
+                    pass
                 websocket_logger.info(f"Successfully executed set_current_program_scene")
             else:
                 websocket_logger.warning(f"Unknown action: {action}")
+                try:
+                    self.event_received.emit(f"Unknown action: {action}")
+                except Exception:
+                    pass
                 self.status_update.emit(f"Unknown action: {action}")
         except Exception as e:
             websocket_logger.error(f"perform_action error: {e}", exc_info=True)
+            try:
+                self.event_received.emit(f"Failed to execute action: {action} - {e}")
+            except Exception:
+                pass
             self.status_update.emit(f"Failed to execute action: {e}")
 
     def get_stream_status(self):

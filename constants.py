@@ -15,7 +15,7 @@ ICON_FILE = os.path.join(APPDATA_DIR, 'botofthespecter.png')
 # Application Constants
 API_TOKEN = None  # Will be set from config
 CHANNEL_NAME = "OBS"
-VERSION = "1.1"
+VERSION = "1.2"
 SPECTER_WEBSOCKET_URI = "https://websocket.botofthespecter.com"
 ICON_URL = "https://cdn.botofthespecter.com/logo.png"
 

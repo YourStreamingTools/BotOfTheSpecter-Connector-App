@@ -24,6 +24,18 @@ RECONNECT_DELAY = 60  # Fixed 60 second delay for each reconnection attempt
 CONNECTION_TIMEOUT = 30  # 30 second timeout for connection + registration
 JITTER_RANGE = (0, 5)  # 0-5 second jitter to prevent simultaneous reconnections
 
+# BotOfTheSpecter API
+BOTOFTHESPECTER_API_BASE = "https://api.botofthespecter.com"
+
+# Twitch API Configuration
+TWITCH_API_BASE = "https://api.twitch.tv/helix"
+TWITCH_CLIENT_ID = "mrjucsmsnri89ifucl66jj1n35jkj8"
+
+# Channel Points
+REWARD_SYNC_INTERVAL = 300  # 5 minutes
+MAX_REWARD_QUEUE_SIZE = 100
+TOKEN_EXPIRATION_HOURS = 4
+
 # Setup logging
 def setup_logging():
     # Root logger

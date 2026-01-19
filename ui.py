@@ -11,7 +11,12 @@ from config import Config
 from constants import ICON_FILE, download_icon, bot_logger, websocket_logger, VERSION
 from bot_connector import BotOfTheSpecterConnector
 from obs_connector import OBSConnector
+from obs_connector import OBSConnector
 from variable_manager import VariableManager
+from twitch_api import TwitchAPI
+from reward_manager import RewardManager
+from redemption_handler import RedemptionHandler
+from ui_channel_points import ChannelPointsTab
 
 class ModernButton(QPushButton):
     def __init__(self, text, parent=None):
@@ -264,6 +269,16 @@ class MainWindow(QWidget):
         # Initialize status refresh timer
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.refresh_status)
+        
+        # Initialize Channel Points Managers
+        api_key = self.config.get('api_key', '')
+        # Only init TwitchAPI if we have a key, or init with empty? 
+        # API expects key. Even empty string is fine for init (caught in _get_valid_token logic we added)
+        self.twitch_api = TwitchAPI(api_key)
+        self.reward_manager = RewardManager(self.config, self.twitch_api)
+        self.redemption_handler = RedemptionHandler(self.reward_manager, self.obs_connector, self.twitch_api)
+        self.redemption_handler.start() # Start background thread for queue processing
+
         # Prepare UI first, then do background tasks like icon download and auto-connections
         self.init_ui()
         if os.path.exists(ICON_FILE):
@@ -397,7 +412,12 @@ class MainWindow(QWidget):
         
         variables_layout.addStretch()
         variables_tab.setLayout(variables_layout)
+        variables_tab.setLayout(variables_layout)
         self.tabs.addTab(variables_tab, "📊 Variables")
+
+        # Tab 5: Twitch Channel Points (New)
+        self.cp_tab = ChannelPointsTab(self.reward_manager, self.redemption_handler)
+        self.tabs.addTab(self.cp_tab, "🟣 Twitch Channel Points")
         
         # Tab 4: Event Log
         log_tab = QWidget()
@@ -853,7 +873,21 @@ class MainWindow(QWidget):
         if not api_key:
             QMessageBox.warning(self, "Connection Error", "Please enter an API key first.")
             return
-        self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector, main_window=self, variable_manager=self.variable_manager)
+        if not api_key:
+            QMessageBox.warning(self, "Connection Error", "Please enter an API key first.")
+            return
+            
+        # Update Twitch API Key just in case it changed
+        if self.twitch_api:
+             self.twitch_api.set_api_key(api_key)
+             
+        self.bot_connector = BotOfTheSpecterConnector(
+            api_key, 
+            self.obs_connector, 
+            main_window=self, 
+            variable_manager=self.variable_manager,
+            redemption_handler=self.redemption_handler
+        )
         self.bot_connector.status_update.connect(self.update_bot_status)
         self.bot_connector.event_received.connect(self.log_event)
         self.bot_connector.start()
@@ -898,6 +932,11 @@ class MainWindow(QWidget):
         self.obs_connector = OBSConnector(host, port, password, self.bot_connector)
         if self.bot_connector:
             self.bot_connector.set_obs_connector(self.obs_connector)
+        
+        # Update handler with new connector
+        if self.redemption_handler:
+            self.redemption_handler.set_obs_connector(self.obs_connector)
+
         self.obs_connector.status_update.connect(self.update_obs_status)
         self.obs_connector.event_received.connect(self.log_event)
         self.obs_connector.stats_update.connect(self.handle_stats_update)

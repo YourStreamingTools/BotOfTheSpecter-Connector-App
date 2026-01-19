@@ -2,7 +2,7 @@ import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QHeaderView,
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
-    QScrollArea, QTreeWidget, QTreeWidgetItem
+    QScrollArea, QTreeWidget, QTreeWidgetItem, QTabWidget
 )
 from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QAction
 from PyQt6.QtCore import Qt, QTimer, QSize
@@ -11,6 +11,7 @@ from config import Config
 from constants import ICON_FILE, download_icon, bot_logger, websocket_logger, VERSION
 from bot_connector import BotOfTheSpecterConnector
 from obs_connector import OBSConnector
+from variable_manager import VariableManager
 
 class ModernButton(QPushButton):
     def __init__(self, text, parent=None):
@@ -257,6 +258,7 @@ class MainWindow(QWidget):
         self.config = Config()
         self.bot_connector = None
         self.obs_connector = None
+        self.variable_manager = VariableManager(self.config)
         self.log_expanded = self.config.get('log_expanded', False)
         self.is_locked = False  # Lock state - when True, OBS commands are ignored
         # Initialize status refresh timer
@@ -324,68 +326,87 @@ class MainWindow(QWidget):
         self.lock_btn.clicked.connect(self.toggle_lock)
         header_layout.addWidget(self.lock_btn)
         main_layout.addLayout(header_layout)
-        # Create scroll area for content
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
+        
+        # Create tab widget instead of scroll area
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #3d3d3d;
                 background-color: #1e1e1e;
+                border-radius: 4px;
             }
-            QScrollBar:vertical {
-                background-color: #2d2d2d;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #555555;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #707070;
-            }
-        """)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout()
-        scroll_layout.setSpacing(16)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
-        # BotOfTheSpecter Group
-        bot_group = self._create_bot_group()
-        scroll_layout.addWidget(bot_group)
-        # OBS Group
-        obs_group = self._create_obs_group()
-        scroll_layout.addWidget(obs_group)
-        # Scenes Panel
-        scenes_group = self._create_scenes_group()
-        scroll_layout.addWidget(scenes_group)
-        # Log Area with collapse/expand button
-        log_header_layout = QHBoxLayout()
-        log_header_layout.setSpacing(8)
-        self.log_toggle_btn = QPushButton("▼ Event Log")
-        self.log_toggle_btn.setMaximumWidth(140)
-        self.log_toggle_btn.setStyleSheet("""
-            QPushButton {
+            QTabBar::tab {
                 background-color: #2d2d2d;
                 color: #ffffff;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
+                padding: 10px 20px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
                 font-weight: bold;
-                padding: 6px 12px;
+                font-size: 11px;
             }
-            QPushButton:hover {
+            QTabBar::tab:selected {
+                background-color: #0078d4;
+            }
+            QTabBar::tab:hover:!selected {
                 background-color: #3d3d3d;
             }
-            QPushButton:pressed {
-                background-color: #1d1d1d;
-            }
         """)
-        self.log_toggle_btn.clicked.connect(self.toggle_log_visibility)
-        log_header_layout.addWidget(self.log_toggle_btn)
-        log_header_layout.addStretch()
-        scroll_layout.addLayout(log_header_layout)
-        log_group = ModernGroupBox("Event Log")
+        
+        # Tab 1: Connection Settings
+        connection_tab = QWidget()
+        connection_layout = QVBoxLayout()
+        connection_layout.setSpacing(16)
+        connection_layout.setContentsMargins(16, 16, 16, 16)
+        
+        # BotOfTheSpecter Group
+        bot_group = self._create_bot_group()
+        connection_layout.addWidget(bot_group)
+        
+        # OBS Group
+        obs_group = self._create_obs_group()
+        connection_layout.addWidget(obs_group)
+        
+        connection_layout.addStretch()
+        connection_tab.setLayout(connection_layout)
+        self.tabs.addTab(connection_tab, "⚙️ Connection")
+        
+        # Tab 2: Controls
+        controls_tab = QWidget()
+        controls_layout = QVBoxLayout()
+        controls_layout.setSpacing(16)
+        controls_layout.setContentsMargins(16, 16, 16, 16)
+        
+        # Scenes Panel
+        scenes_group = self._create_scenes_group()
+        controls_layout.addWidget(scenes_group)
+        
+        controls_layout.addStretch()
+        controls_tab.setLayout(controls_layout)
+        self.tabs.addTab(controls_tab, "🎮 Controls")
+        
+        # Tab 3: Variables
+        variables_tab = QWidget()
+        variables_layout = QVBoxLayout()
+        variables_layout.setSpacing(16)
+        variables_layout.setContentsMargins(16, 16, 16, 16)
+        
+        # Variables Panel
+        variables_group = self._create_variables_group()
+        variables_layout.addWidget(variables_group)
+        
+        variables_layout.addStretch()
+        variables_tab.setLayout(variables_layout)
+        self.tabs.addTab(variables_tab, "📊 Variables")
+        
+        # Tab 4: Event Log
+        log_tab = QWidget()
         log_layout = QVBoxLayout()
+        log_layout.setSpacing(8)
+        log_layout.setContentsMargins(16, 16, 16, 16)
+        
+        log_group = ModernGroupBox("Event Log")
+        log_inner_layout = QVBoxLayout()
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         self.log_area.setStyleSheet("""
@@ -399,18 +420,17 @@ class MainWindow(QWidget):
                 font-size: 10px;
             }
         """)
-        self.log_area.setMinimumHeight(150)
-        log_layout.addWidget(self.log_area)
-        log_group.setLayout(log_layout)
-        self.log_group = log_group
-        scroll_layout.addWidget(log_group)
-        scroll_layout.addStretch()
-        scroll_content.setLayout(scroll_layout)
-        scroll_area.setWidget(scroll_content)
-        main_layout.addWidget(scroll_area)
+        self.log_area.setMinimumHeight(400)
+        log_inner_layout.addWidget(self.log_area)
+        log_group.setLayout(log_inner_layout)
+        log_layout.addWidget(log_group)
+        
+        log_tab.setLayout(log_layout)
+        self.tabs.addTab(log_tab, "📋 Event Log")
+        
+        main_layout.addWidget(self.tabs)
         self.setLayout(main_layout)
-        # Set initial log visibility
-        self.set_log_visibility(self.log_expanded)
+        
         # Auto-connect if API key exists
         # Defer heavy operations (icon download, auto-connect) to after the UI has shown
         QTimer.singleShot(100, self.post_init_connects)
@@ -503,6 +523,78 @@ class MainWindow(QWidget):
         # Status Panel
         self.status_panel = StatusPanel()
         obs_layout.addWidget(self.status_panel)
+        # Streaming Controls Section
+        controls_group = ModernGroupBox("Stream Controls")
+        controls_layout = QVBoxLayout()
+        controls_layout.setSpacing(8)
+        # Row 1: Stream and Recording
+        row1_layout = QHBoxLayout()
+        row1_layout.setSpacing(8)
+        self.start_stream_btn = ModernButton("▶ Start Stream")
+        self.start_stream_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #107c10;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 10px 16px;
+            }
+            QPushButton:hover {
+                background-color: #128713;
+            }
+            QPushButton:pressed {
+                background-color: #0d6b0d;
+            }
+            QPushButton:disabled {
+                background-color: #444444;
+                color: #666666;
+            }
+        """)
+        self.start_stream_btn.clicked.connect(self.on_start_stream_clicked)
+        self.start_stream_btn.setEnabled(False)
+        row1_layout.addWidget(self.start_stream_btn)
+        self.start_recording_btn = ModernButton("⏺ Start Recording")
+        self.start_recording_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #c50f1f;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 10px 16px;
+            }
+            QPushButton:hover {
+                background-color: #d52030;
+            }
+            QPushButton:pressed {
+                background-color: #a00d18;
+            }
+            QPushButton:disabled {
+                background-color: #444444;
+                color: #666666;
+            }
+        """)
+        self.start_recording_btn.clicked.connect(self.on_start_recording_clicked)
+        self.start_recording_btn.setEnabled(False)
+        row1_layout.addWidget(self.start_recording_btn)
+        controls_layout.addLayout(row1_layout)
+        # Row 2: Replay Buffer and Virtual Cam
+        row2_layout = QHBoxLayout()
+        row2_layout.setSpacing(8)
+        self.save_replay_btn = ModernButton("💾 Save Replay")
+        self.save_replay_btn.clicked.connect(self.on_save_replay_clicked)
+        self.save_replay_btn.setEnabled(False)
+        row2_layout.addWidget(self.save_replay_btn)
+        self.toggle_vcam_btn = ModernButton("📹 Virtual Cam: OFF")
+        self.toggle_vcam_btn.clicked.connect(self.on_toggle_vcam_clicked)
+        self.toggle_vcam_btn.setEnabled(False)
+        row2_layout.addWidget(self.toggle_vcam_btn)
+        controls_layout.addLayout(row2_layout)
+        controls_group.setLayout(controls_layout)
+        obs_layout.addWidget(controls_group)
         # Connect Button
         self.obs_connect_btn = ModernStatusButton("Connect")
         self.obs_connect_btn.clicked.connect(self.toggle_obs_connection)
@@ -585,10 +677,113 @@ class MainWindow(QWidget):
         scenes_layout.addWidget(self.scene_tree)
         # Last updated label
         self.scenes_last_updated = QLabel("Last updated: Never")
-        self.scenes_last_updated.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px;")
         scenes_layout.addWidget(self.scenes_last_updated)
         scenes_group.setLayout(scenes_layout)
         return scenes_group
+    
+    def _create_variables_group(self):
+        variables_group = ModernGroupBox("Variables")
+        variables_layout = QVBoxLayout()
+        variables_layout.setSpacing(8)
+        # Header with filter
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        # Filter field
+        self.variables_filter = ModernLineEdit()
+        self.variables_filter.setMaximumWidth(220)
+        self.variables_filter.setPlaceholderText('Filter variables...')
+        self.variables_filter.textChanged.connect(self.filter_variables_table)
+        base_style = self.variables_filter.styleSheet() or ''
+        self.variables_filter.setStyleSheet(base_style + " QLineEdit::placeholder { color: #aaaaaa; }")
+        header_layout.addWidget(self.variables_filter)
+        header_layout.addStretch()
+        variables_layout.addLayout(header_layout)
+        info_label = QLabel("📊 Real-time event data captured from BotOfTheSpecter")
+        info_label.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px;")
+        variables_layout.addWidget(info_label)
+        # Tree view for variables
+        self.variables_tree = QTreeWidget()
+        self.variables_tree.setHeaderLabels(["Variable", "Value"])
+        self.variables_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.variables_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.variables_tree.setStyleSheet("""
+            QTreeWidget {
+                background-color: #252525;
+                color: #e0e0e0;
+                alternate-background-color: #2b2b2b;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 11px;
+            }
+            QTreeWidget::item {
+                padding: 4px 8px;
+                background-color: transparent;
+                color: #e0e0e0;
+            }
+            QTreeWidget::item:alternate { background-color: #2b2b2b; }
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #e0e0e0;
+                padding: 6px;
+                border: none;
+                font-weight: bold;
+            }
+            QTreeWidget::item:selected { background: #3d3d3d; color: #ffffff; }
+            QTreeWidget::item:hover { background: #333333; }
+        """)
+        self.variables_tree.setMinimumHeight(200)
+        self.variables_tree.setAlternatingRowColors(True)
+        self.variables_tree.header().setFixedHeight(28)
+        self.variables_tree.setColumnWidth(0, 200)
+        variables_layout.addWidget(self.variables_tree)
+        # Info label
+        self.variables_count_label = QLabel("Variables: 0 | Counters: 0")
+        self.variables_count_label.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px;")
+        variables_layout.addWidget(self.variables_count_label)
+        variables_group.setLayout(variables_layout)
+        # Set up variable manager listener
+        self.variable_manager.add_listener(self.on_variable_changed)
+        # Initial population
+        self.update_variables_display()
+        return variables_group
+    
+    def on_variable_changed(self, action, name, new_value, old_value):
+        self.update_variables_display()
+    
+    def update_variables_display(self):
+        if not hasattr(self, 'variables_tree'):
+            return
+        self.variables_tree.clear()
+        # Get all variables
+        all_vars = self.variable_manager.get_all_variables()
+        var_count = len(self.variable_manager.variables)
+        counter_count = len(self.variable_manager.counters)
+        # Update count label
+        if hasattr(self, 'variables_count_label'):
+            self.variables_count_label.setText(f"Variables: {var_count} | Counters: {counter_count}")
+        # Sort variables by name
+        for name in sorted(all_vars.keys()):
+            value = all_vars[name]
+            item = QTreeWidgetItem(self.variables_tree)
+            item.setText(0, name)
+            item.setText(1, str(value))
+            # Different icons for regular vars vs counters
+            is_counter = name in self.variable_manager.counters
+            if is_counter:
+                font = item.font(0)
+                font.setBold(True)
+                item.setFont(0, font)
+                item.setToolTip(0, "Counter variable")
+            else:
+                item.setToolTip(0, "Regular variable")
+    
+    def filter_variables_table(self):
+        filter_text = self.variables_filter.text().lower()
+        for i in range(self.variables_tree.topLevelItemCount()):
+            item = self.variables_tree.topLevelItem(i)
+            visible = filter_text in item.text(0).lower() or filter_text in item.text(1).lower()
+            item.setHidden(not visible)
 
     def validate_api_key(self):
         api_key = self.api_key_input.text()
@@ -658,7 +853,7 @@ class MainWindow(QWidget):
         if not api_key:
             QMessageBox.warning(self, "Connection Error", "Please enter an API key first.")
             return
-        self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector, main_window=self)
+        self.bot_connector = BotOfTheSpecterConnector(api_key, self.obs_connector, main_window=self, variable_manager=self.variable_manager)
         self.bot_connector.status_update.connect(self.update_bot_status)
         self.bot_connector.event_received.connect(self.log_event)
         self.bot_connector.start()
@@ -713,6 +908,14 @@ class MainWindow(QWidget):
             pass
         self.obs_connector.start()
         self.obs_connect_btn.setText("Disconnect")
+        # Enable streaming control buttons when connected
+        self.start_stream_btn.setEnabled(True)
+        self.start_recording_btn.setEnabled(True)
+        self.save_replay_btn.setEnabled(True)
+        self.toggle_vcam_btn.setEnabled(True)
+        # Start status refresh timer (if not already running)
+        if not self.status_timer.isActive():
+            self.status_timer.start(1000)  # Refresh every 1000ms
         # Don't call prerequest precache here; the OBS connector will precache on successful connect.
         # No blocking UI polling - OBSConnector emits status updates via stats_update
 
@@ -750,6 +953,18 @@ class MainWindow(QWidget):
                 if self.obs_connector.isRunning():
                     self.obs_connector.wait(5000)
                 self.obs_connect_btn.setText("Connect")
+                # Disable streaming control buttons
+                if hasattr(self, 'start_stream_btn'):
+                    self.start_stream_btn.setEnabled(False)
+                    self.start_stream_btn.setText("▶ Start Stream")
+                if hasattr(self, 'start_recording_btn'):
+                    self.start_recording_btn.setEnabled(False)
+                    self.start_recording_btn.setText("⏺ Start Recording")
+                if hasattr(self, 'save_replay_btn'):
+                    self.save_replay_btn.setEnabled(False)
+                if hasattr(self, 'toggle_vcam_btn'):
+                    self.toggle_vcam_btn.setEnabled(False)
+                    self.toggle_vcam_btn.setText("📹 Virtual Cam: OFF")
                 # Stop status refresh timer
                 self.status_timer.stop()
                 # Update status to show disconnected
@@ -763,6 +978,15 @@ class MainWindow(QWidget):
         except Exception as e:
             bot_logger.error(f"Error disconnecting OBS: {e}")
             self.obs_connect_btn.setText("Connect")
+            # Disable buttons on error too
+            if hasattr(self, 'start_stream_btn'):
+                self.start_stream_btn.setEnabled(False)
+            if hasattr(self, 'start_recording_btn'):
+                self.start_recording_btn.setEnabled(False)
+            if hasattr(self, 'save_replay_btn'):
+                self.save_replay_btn.setEnabled(False)
+            if hasattr(self, 'toggle_vcam_btn'):
+                self.toggle_vcam_btn.setEnabled(False)
             self.status_timer.stop()
             self.update_obs_status("Disconnected from OBS")
 
@@ -1087,6 +1311,58 @@ class MainWindow(QWidget):
         self.log_group.setVisible(visible)
         arrow = "▼ Event Log" if visible else "▶ Event Log"
         self.log_toggle_btn.setText(arrow)
+
+    
+    def on_start_stream_clicked(self):
+        if not self.obs_connector:
+            return
+        try:
+            is_streaming = self.status_panel.stream_status.text() == "🟢 ON"
+            if is_streaming:
+                self.obs_connector.stop_stream()
+                self.start_stream_btn.setText("▶ Start Stream")
+                self.log_event("⏹ Stopping stream...")
+            else:
+                self.obs_connector.start_stream()
+                self.start_stream_btn.setText("⏹ Stop Stream")
+                self.log_event("▶ Starting stream...")
+        except Exception as e:
+            self.log_event(f"Error toggling stream: {e}")
+    
+    def on_start_recording_clicked(self):
+        if not self.obs_connector:
+            return
+        try:
+            is_recording = self.status_panel.record_status.text() == "🟢 ON"
+            if is_recording:
+                self.obs_connector.stop_recording()
+                self.start_recording_btn.setText("⏺ Start Recording")
+                self.log_event("⏹ Stopping recording...")
+            else:
+                self.obs_connector.start_recording()
+                self.start_recording_btn.setText("⏹ Stop Recording")
+                self.log_event("⏺ Starting recording...")
+        except Exception as e:
+            self.log_event(f"Error toggling recording: {e}")
+    
+    def on_save_replay_clicked(self):
+        if not self.obs_connector:
+            return
+        try:
+            self.obs_connector.save_replay_buffer()
+            self.log_event("💾 Replay buffer saved")
+        except Exception as e:
+            self.log_event(f"Error saving replay: {e}")
+    
+    def on_toggle_vcam_clicked(self):
+        if not self.obs_connector:
+            return
+        try:
+            # Toggle virtual camera
+            self.obs_connector.toggle_virtual_camera()
+            self.log_event("📹 Toggling virtual camera...")
+        except Exception as e:
+            self.log_event(f"Error toggling virtual camera: {e}")
 
     def apply_global_style(self):
         self.setStyleSheet("""

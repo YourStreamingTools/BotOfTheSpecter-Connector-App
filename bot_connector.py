@@ -21,15 +21,15 @@ class BotOfTheSpecterConnector(QThread):
     status_update = pyqtSignal(str)
     event_received = pyqtSignal(str)
 
-    def __init__(self, api_key, obs_connector=None, main_window=None):
+    def __init__(self, api_key, obs_connector=None, main_window=None, variable_manager=None):
         super().__init__()
         global API_TOKEN, specterSocket, websocket_connected
         API_TOKEN = api_key
         self.api_key = api_key
         self.obs_connector = obs_connector
-        self.main_window = main_window  # Reference to main window to check lock state
+        self.main_window = main_window
+        self.variable_manager = variable_manager
         self.should_stop = False
-        # Reset global state for clean reconnection
         websocket_connected = False
         specterSocket = socketio.AsyncClient()
         self.setup_events()
@@ -229,6 +229,12 @@ class BotOfTheSpecterConnector(QThread):
                                 self.obs_connector.handle_specter_event(_ev, data)
                             except Exception as e:
                                 websocket_logger.error(f"Error forwarding '{_ev}' to OBSConnector: {e}")
+                # Capture all events in variable manager
+                if self.variable_manager and event not in ['OBS_EVENT', 'OBS_REQUEST','OBS_EVENT_RECEIVED']:
+                    try:
+                        self.variable_manager.handle_event(event, data or {})
+                    except Exception as e:
+                        websocket_logger.error(f"Error capturing event in variable manager: {e}")
 
         @specterSocket.on('OBS_REQUEST')
         async def handle_obs_request(data):

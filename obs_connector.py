@@ -382,6 +382,60 @@ class OBSConnector(QThread):
                 pass
             self.status_update.emit(f"Failed to execute action: {e}")
 
+    def start_stream(self):
+        try:
+            self.client.call(obs_requests.StartStream())
+            websocket_logger.info("Started stream")
+            self.status_update.emit("Stream started")
+        except Exception as e:
+            websocket_logger.error(f"Failed to start stream: {e}")
+            self.status_update.emit(f"Failed to start stream: {e}")
+
+    def stop_stream(self):
+        try:
+            self.client.call(obs_requests.StopStream())
+            websocket_logger.info("Stopped stream")
+            self.status_update.emit("Stream stopped")
+        except Exception as e:
+            websocket_logger.error(f"Failed to stop stream: {e}")
+            self.status_update.emit(f"Failed to stop stream: {e}")
+
+    def start_recording(self):
+        try:
+            self.client.call(obs_requests.StartRecord())
+            websocket_logger.info("Started recording")
+            self.status_update.emit("Recording started")
+        except Exception as e:
+            websocket_logger.error(f"Failed to start recording: {e}")
+            self.status_update.emit(f"Failed to start recording: {e}")
+
+    def stop_recording(self):
+        try:
+            self.client.call(obs_requests.StopRecord())
+            websocket_logger.info("Stopped recording")
+            self.status_update.emit("Recording stopped")
+        except Exception as e:
+            websocket_logger.error(f"Failed to stop recording: {e}")
+            self.status_update.emit(f"Failed to stop recording: {e}")
+
+    def save_replay_buffer(self):
+        try:
+            self.client.call(obs_requests.SaveReplayBuffer())
+            websocket_logger.info("Saved replay buffer")
+            self.status_update.emit("Replay buffer saved")
+        except Exception as e:
+            websocket_logger.error(f"Failed to save replay buffer: {e}")
+            self.status_update.emit(f"Failed to save replay buffer: {e}")
+
+    def toggle_virtual_camera(self):
+        try:
+            self.client.call(obs_requests.ToggleVirtualCam())
+            websocket_logger.info("Toggled virtual camera")
+            self.status_update.emit("Virtual camera toggled")
+        except Exception as e:
+            websocket_logger.error(f"Failed to toggle virtual camera: {e}")
+            self.status_update.emit(f"Failed to toggle virtual camera: {e}")
+
     def get_stream_status(self):
         try:
             if not self.connected:

@@ -532,13 +532,18 @@ class OBSConnector(QThread):
                     'memory_usage': 0,
                     'gpu_usage': 0
                 }
+            # Initialize status variables
+            streaming = False
+            recording = False
+            replay_buffer = False
             # Query stream and record status to get fresh bitrate data
             try:
                 stream_resp = self.client.call(obs_requests.GetStreamStatus())
                 stream_data = stream_resp.datain if stream_resp.datain else {}
                 stream_bytes = stream_data.get('outputBytes', 0)
                 stream_duration_ms = stream_data.get('outputDuration', 0)
-                websocket_logger.debug(f"Stream data - bytes: {stream_bytes}, duration: {stream_duration_ms}ms")
+                streaming = stream_data.get('outputActive', False)  # Extract actual streaming status
+                websocket_logger.debug(f"Stream data - bytes: {stream_bytes}, duration: {stream_duration_ms}ms, active: {streaming}")
                 # Calculate bitrate based on delta (change) in bytes and duration since last check
                 if stream_bytes > self.prev_stream_bytes and stream_duration_ms > self.prev_stream_duration_ms:
                     delta_bytes = stream_bytes - self.prev_stream_bytes
@@ -556,7 +561,8 @@ class OBSConnector(QThread):
                 record_data = record_resp.datain if record_resp.datain else {}
                 record_bytes = record_data.get('outputBytes', 0)
                 record_duration_ms = record_data.get('outputDuration', 0)
-                websocket_logger.info(f"Record data - bytes: {record_bytes}, duration: {record_duration_ms}ms")
+                recording = record_data.get('outputActive', False)  # Extract actual recording status
+                websocket_logger.info(f"Record data - bytes: {record_bytes}, duration: {record_duration_ms}ms, active: {recording}")
                 # Calculate bitrate based on delta (change) in bytes and duration since last check
                 if record_bytes > self.prev_record_bytes and record_duration_ms > self.prev_record_duration_ms:
                     delta_bytes = record_bytes - self.prev_record_bytes
@@ -569,14 +575,21 @@ class OBSConnector(QThread):
                 self.prev_record_duration_ms = record_duration_ms
             except Exception as e:
                 websocket_logger.debug(f"Failed to query record status for bitrate: {e}")
+            # Get replay buffer status
+            try:
+                replay_resp = self.client.call(obs_requests.GetReplayBufferStatus())
+                replay_data = replay_resp.datain if replay_resp.datain else {}
+                replay_buffer = replay_data.get('outputActive', False)  # Extract actual replay buffer status
+            except Exception as e:
+                websocket_logger.debug(f"Failed to query replay buffer status: {e}")
             # Get general stats
             stats_response = self.client.call(obs_requests.GetStats())
             stats_data = stats_response.datain
-            websocket_logger.info(f"Returning status - Stream bitrate: {self.latest_stream_bitrate:.2f} Kbps, Record bitrate: {self.latest_record_bitrate:.2f} Kbps")
+            websocket_logger.info(f"Returning status - Streaming: {streaming}, Recording: {recording}, Replay: {replay_buffer}, Stream bitrate: {self.latest_stream_bitrate:.2f} Kbps, Record bitrate: {self.latest_record_bitrate:.2f} Kbps")
             return {
-                'streaming': False,
-                'recording': False,
-                'replay_buffer': False,
+                'streaming': streaming,
+                'recording': recording,
+                'replay_buffer': replay_buffer,
                 'stream_bitrate': self.latest_stream_bitrate,
                 'stream_fps': stats_data.get('averageFrameTime', 0),
                 'record_bitrate': self.latest_record_bitrate,

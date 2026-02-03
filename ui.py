@@ -1020,7 +1020,8 @@ class MainWindow(QWidget):
             self.connect_obs()
         # Attempt an initial Channel Points refresh shortly after startup
         try:
-            QTimer.singleShot(1500, lambda: self.cp_tab.schedule_refresh())
+            # Schedule a single startup refresh; mark as startup so duplicate startup requests are ignored
+            QTimer.singleShot(1500, lambda: self.cp_tab.schedule_refresh(startup=True))
         except Exception as e:
             bot_logger.debug(f"ChannelPoints: scheduled initial refresh failed: {e}")
 

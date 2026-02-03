@@ -2,7 +2,7 @@ import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QHeaderView,
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
-    QScrollArea, QTreeWidget, QTreeWidgetItem, QTabWidget
+    QScrollArea, QTreeWidget, QTreeWidgetItem, QStackedWidget
 )
 from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QAction
 from PyQt6.QtCore import Qt, QTimer, QSize
@@ -342,92 +342,59 @@ class MainWindow(QWidget):
         header_layout.addWidget(self.lock_btn)
         main_layout.addLayout(header_layout)
         
-        # Create tab widget instead of scroll area
-        self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #3d3d3d;
-                background-color: #1e1e1e;
-                border-radius: 4px;
-            }
-            QTabBar::tab {
-                background-color: #2d2d2d;
-                color: #ffffff;
-                padding: 10px 20px;
-                margin-right: 2px;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QTabBar::tab:selected {
-                background-color: #0078d4;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #3d3d3d;
-            }
-        """)
-        
+        # Create left sidebar + stacked pages layout
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(12)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+
         # Tab 1: Connection Settings
         connection_tab = QWidget()
         connection_layout = QVBoxLayout()
         connection_layout.setSpacing(16)
         connection_layout.setContentsMargins(16, 16, 16, 16)
-        
         # BotOfTheSpecter Group
         bot_group = self._create_bot_group()
         connection_layout.addWidget(bot_group)
-        
         # OBS Group
         obs_group = self._create_obs_group()
         connection_layout.addWidget(obs_group)
-        
         connection_layout.addStretch()
         connection_tab.setLayout(connection_layout)
-        self.tabs.addTab(connection_tab, "⚙️ Connection")
-        
+
         # Tab 2: Controls
         controls_tab = QWidget()
         controls_layout = QVBoxLayout()
         controls_layout.setSpacing(16)
         controls_layout.setContentsMargins(16, 16, 16, 16)
-        
         # Scenes Panel
         scenes_group = self._create_scenes_group()
         controls_layout.addWidget(scenes_group)
-        
         controls_layout.addStretch()
         controls_tab.setLayout(controls_layout)
-        self.tabs.addTab(controls_tab, "🎮 Controls")
-        
+
         # Tab 3: Variables
         variables_tab = QWidget()
         variables_layout = QVBoxLayout()
         variables_layout.setSpacing(16)
         variables_layout.setContentsMargins(16, 16, 16, 16)
-        
         # Variables Panel
         variables_group = self._create_variables_group()
         variables_layout.addWidget(variables_group)
-        
         variables_layout.addStretch()
         variables_tab.setLayout(variables_layout)
-        variables_tab.setLayout(variables_layout)
-        self.tabs.addTab(variables_tab, "📊 Variables")
 
         # Tab 5: Twitch Channel Points (New)
         self.cp_tab = ChannelPointsTab(self.reward_manager, self.redemption_handler)
-        self.tabs.addTab(self.cp_tab, "🟣 Twitch Channel Points")
-        
+
         # Tab 4: Event Log
         log_tab = QWidget()
         log_layout = QVBoxLayout()
         log_layout.setSpacing(8)
         log_layout.setContentsMargins(16, 16, 16, 16)
-        
         log_group = ModernGroupBox("Event Log")
         log_inner_layout = QVBoxLayout()
         self.log_area = QTextEdit()
+        self.log_area.setObjectName('logArea')
         self.log_area.setReadOnly(True)
         self.log_area.setStyleSheet("""
             QTextEdit {
@@ -444,11 +411,71 @@ class MainWindow(QWidget):
         log_inner_layout.addWidget(self.log_area)
         log_group.setLayout(log_inner_layout)
         log_layout.addWidget(log_group)
-        
         log_tab.setLayout(log_layout)
-        self.tabs.addTab(log_tab, "📋 Event Log")
-        
-        main_layout.addWidget(self.tabs)
+
+        # Sidebar
+        sidebar = QWidget()
+        sidebar.setObjectName('sidebar')
+        sidebar.setFixedWidth(180)
+        sidebar_layout = QVBoxLayout()
+        sidebar_layout.setContentsMargins(8, 8, 8, 8)
+        sidebar_layout.setSpacing(8)
+
+        logo_label = QLabel()
+        logo_label.setObjectName('sidebarLogo')
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if os.path.exists(ICON_FILE):
+            pix = QPixmap(ICON_FILE).scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            logo_label.setPixmap(pix)
+        sidebar_layout.addWidget(logo_label)
+        v_label = QLabel(f"v{VERSION}")
+        v_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        v_label.setObjectName('versionLabel')
+        v_label.setProperty('class', 'small')
+        sidebar_layout.addWidget(v_label)
+        sidebar_layout.addSpacing(6)
+
+        # Navigation buttons
+        self.nav_buttons = []
+        nav_items = [("⚙️ Connection", connection_tab),
+                     ("🎮 Controls", controls_tab),
+                     ("📊 Variables", variables_tab),
+                     ("🟣 Channel Points", self.cp_tab),
+                     ("📋 Event Log", log_tab)]
+        # Navigation click handler keeps buttons mutually exclusive and switches pages
+        def _on_nav_clicked(i):
+            for bi, b in enumerate(self.nav_buttons):
+                b.setChecked(bi == i)
+            self.pages.setCurrentIndex(i)
+
+        for idx, (label, page_widget) in enumerate(nav_items):
+            btn = QPushButton(label)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setCheckable(True)
+            btn.setProperty('nav', True)
+            btn.clicked.connect(lambda checked, i=idx: _on_nav_clicked(i))
+            sidebar_layout.addWidget(btn)
+            self.nav_buttons.append(btn)
+
+        sidebar_layout.addStretch()
+        sidebar.setLayout(sidebar_layout)
+
+        # Pages area
+        self.pages = QStackedWidget()
+        self.pages.addWidget(connection_tab)
+        self.pages.addWidget(controls_tab)
+        self.pages.addWidget(variables_tab)
+        self.pages.addWidget(self.cp_tab)
+        self.pages.addWidget(log_tab)
+
+        # Default page
+        self.pages.setCurrentIndex(0)
+        if self.nav_buttons:
+            self.nav_buttons[0].setChecked(True)
+
+        content_layout.addWidget(sidebar)
+        content_layout.addWidget(self.pages, 1)
+        main_layout.addLayout(content_layout)
         self.setLayout(main_layout)
         
         # Auto-connect if API key exists

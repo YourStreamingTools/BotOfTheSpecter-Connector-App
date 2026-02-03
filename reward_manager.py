@@ -35,16 +35,34 @@ class RewardData:
 
     @classmethod
     def from_twitch_data(cls, data: Dict[str, Any], obs_actions: List[Dict[str, Any]] = None):
-        default_image = data.get('default_image')
         image_url = None
-        if default_image:
-            image_url = default_image.get('url_1x')
+        # If there's an explicitly provided 'image_url_1x' use it
+        if data.get('image_url_1x'):
+            image_url = data.get('image_url_1x')
+        # Common Twitch payloads include 'default_image' with url_1x/url_2x/url_4x
+        if not image_url:
+            default_image = data.get('default_image') or data.get('image') or data.get('images')
+            if isinstance(default_image, dict):
+                # Prefer url_1x then url_2x then url_4x, then generic keys
+                for key in ('url_1x', 'url', 'url_2x', 'url_4x', '1x', '2x', '4x'):
+                    image_url = default_image.get(key)
+                    if image_url:
+                        break
+            elif isinstance(default_image, str):
+                image_url = default_image
+        # Some API variants may include 'thumbnail' or nested structures - search shallowly
+        if not image_url:
+            for k in ('thumbnail', 'image_url', 'imageUrl'):
+                v = data.get(k)
+                if isinstance(v, str) and v:
+                    image_url = v
+                    break
         return cls(
             id=data['id'],
             title=data['title'],
             cost=data['cost'],
             is_enabled=data['is_enabled'],
-            background_color=data['background_color'],
+            background_color=data.get('background_color'),
             image_url_1x=image_url,
             prompt=data.get('prompt'),
             is_user_input_required=data.get('is_user_input_required', False),
@@ -95,7 +113,17 @@ class RewardManager:
             obs_actions = []
             if reward_id in self.reward_configs:
                 obs_actions = self.reward_configs[reward_id].obs_actions
-            self.rewards[reward_id] = RewardData.from_twitch_data(reward_data, obs_actions)
+            reward = RewardData.from_twitch_data(reward_data, obs_actions)
+            # Log reward lacking a thumbnail to help debugging why some don't show
+            if not reward.image_url_1x:
+                bot_logger.info(f"Reward {reward_id} ('{reward.title}') has no thumbnail URL in Twitch response")
+            else:
+                bot_logger.info(f"Reward {reward_id} ('{reward.title}') thumbnail: {reward.image_url_1x}")
+            self.rewards[reward_id] = reward
+        # Summary log
+        has_images = sum(1 for r in self.rewards.values() if r.image_url_1x)
+        total = len(self.rewards)
+        bot_logger.info(f"Loaded {total} rewards; {has_images} have thumbnails")
         return list(self.rewards.values())
 
     def create_reward(self, title: str, cost: int, obs_actions: List[Dict] = None, **kwargs):

@@ -11,7 +11,11 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QTimer
+import requests
 from constants import bot_logger
+
+# Simple in-memory thumbnail cache to avoid re-fetching the same images
+_thumbnail_cache = {}
 
 class ModernButton(QPushButton):
     # Reusing style from ui.py or duplicating for self-containment
@@ -64,16 +68,41 @@ class RewardCard(QFrame):
         
         # Icon / Color Box
         self.icon_label = QLabel()
-        self.icon_label.setFixedSize(48, 48)
-        if hasattr(self.reward_data, 'background_color'):
-            color = self.reward_data.background_color or "#9147FF"
-            self.icon_label.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
-            
-            # If image exists, we could load it here (async ideally)
-            # For now just showing color box with optional text icon
+        # Slightly larger to accommodate thumbnail previews
+        self.icon_label.setFixedSize(56, 56)
+        self.icon_label.setStyleSheet("border-radius: 6px;")
+
+        # If a reward has a thumbnail URL, load it (async + cached). Otherwise use color box
+        image_url = getattr(self.reward_data, 'image_url_1x', None)
+        if image_url:
+            # Use cached pixmap if available
+            cached = _thumbnail_cache.get(image_url)
+            if cached:
+                pix = cached.scaled(self.icon_label.width(), self.icon_label.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                self.icon_label.setPixmap(pix)
+            else:
+                # Set temporary color/background while loading
+                color = getattr(self.reward_data, 'background_color', '#9147FF') or '#9147FF'
+                self.icon_label.setStyleSheet(f"background-color: {color}; border-radius: 6px;")
+
+                def _fetch():
+                    try:
+                        r = requests.get(image_url, timeout=8)
+                        if r.status_code == 200:
+                            data = r.content
+                            pixmap = QPixmap()
+                            if pixmap.loadFromData(data):
+                                _thumbnail_cache[image_url] = pixmap
+                                # Update UI on main thread
+                                QTimer.singleShot(0, lambda p=pixmap: self._apply_pixmap(p))
+                    except Exception as e:
+                        bot_logger.info(f"Thumbnail load failed for {image_url}: {e}")
+                t = threading.Thread(target=_fetch, daemon=True)
+                t.start()
         else:
-             self.icon_label.setStyleSheet("background-color: #9147FF; border-radius: 4px;")
-        
+            color = getattr(self.reward_data, 'background_color', '#9147FF') or '#9147FF'
+            self.icon_label.setStyleSheet(f"background-color: {color}; border-radius: 6px;")
+
         layout.addWidget(self.icon_label)
         
         # Info
@@ -139,6 +168,17 @@ class RewardCard(QFrame):
         controls_layout.addLayout(bottom_row)
         
         layout.addLayout(controls_layout)
+
+    def _apply_pixmap(self, pixmap: QPixmap):
+        try:
+            if not pixmap or pixmap.isNull():
+                return
+            # Clear any background style so the pixmap shows cleanly
+            self.icon_label.setStyleSheet("")
+            scaled = pixmap.scaled(self.icon_label.width(), self.icon_label.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self.icon_label.setPixmap(scaled)
+        except Exception as e:
+            bot_logger.debug(f"Failed to apply pixmap to reward card: {e}")
 
     def on_toggle(self):
         new_state = not self.reward_data.is_enabled
@@ -248,11 +288,19 @@ class ChannelPointsTab(QWidget):
 
     def refresh_rewards(self):
         """Reload rewards from manager"""
+        bot_logger.info("ChannelPoints: refresh requested")
         try:
             rewards = self.reward_manager.refresh_rewards()
             self.update_grid(rewards)
             # Defer reflow to viewport resize handling
             self._reflow_timer.start(50)
+            # Log a summary so user can check the main app log for thumbnail stats
+            try:
+                total = len(rewards)
+                with_images = sum(1 for r in rewards if getattr(r, 'image_url_1x', None))
+                bot_logger.info(f"ChannelPoints: loaded {total} rewards, {with_images} have thumbnails")
+            except Exception as e:
+                bot_logger.debug(f"Failed to summarize rewards: {e}")
         except Exception as e:
             bot_logger.error(f"Error refreshing rewards: {e}")
             QMessageBox.critical(self, "Error", f"Failed to sync with Twitch: {e}")

@@ -99,17 +99,21 @@ class TwitchAPI:
 
     def get_custom_rewards(self):
         """Fetch all custom rewards for the channel"""
-    def get_custom_rewards(self):
-        """Fetch all custom rewards for the channel"""
-        # Let exceptions propagate to caller for UI handling
-        response = requests.get(
-            f"{TWITCH_API_BASE}/channel_points/custom_rewards",
-            headers=self._get_headers(),
-            params={'broadcaster_id': self.broadcaster_id},
-            timeout=10
-        )
-        response.raise_for_status()
-        return response.json().get('data', [])
+        bot_logger.info("TwitchAPI: fetching custom rewards for broadcaster_id=%s", self.broadcaster_id)
+        try:
+            response = requests.get(
+                f"{TWITCH_API_BASE}/channel_points/custom_rewards",
+                headers=self._get_headers(),
+                params={'broadcaster_id': self.broadcaster_id},
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json().get('data', [])
+            bot_logger.info("TwitchAPI: fetched %d rewards from Twitch", len(data))
+            return data
+        except Exception as e:
+            bot_logger.error(f"TwitchAPI: error fetching custom rewards: {e}")
+            raise
 
     def create_custom_reward(self, title, cost, **kwargs):
         """Create a new custom reward"""

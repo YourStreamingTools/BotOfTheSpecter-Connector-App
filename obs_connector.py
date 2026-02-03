@@ -44,6 +44,14 @@ class OBSConnector(QThread):
         self.prev_stream_duration_ms = 0
         self.prev_record_bytes = 0
         self.prev_record_duration_ms = 0
+        # Pre-cache control: avoid repeated heavy precache calls when many OBS events arrive
+        self._needs_precache = False
+        self._precaching = False
+        self._last_precache_time = 0
+        self._precache_min_interval = 3  # seconds between precache attempts to avoid overload
+        self._stats_failure_count = 0
+        self._max_stats_failures_before_backoff = 3
+        self._stats_backoff_seconds = 5
 
     def get_source_name(self, scene_name, item_id):
         cache_key = f"{scene_name}:{item_id}"
@@ -194,11 +202,12 @@ class OBSConnector(QThread):
         # If important scene/source changes happened, refresh our cache and notify UI
         try:
             if event_type in ('SceneCreated', 'SceneRemoved', 'SourceCreated', 'SourceRemoved', 'SceneItemEnableStateChanged', 'SourceEnableStateChanged'):
-                websocket_logger.info(f"Event {event_type} can change scene/source layout; refreshing cache")
-                try:
-                    self.precache_source_names()
-                except Exception as precache_err:
-                    websocket_logger.debug(f"Failed to update scene cache on event {event_type}: {precache_err}")
+                    websocket_logger.info(f"Event {event_type} can change scene/source layout; scheduling cache refresh")
+                    # Don't call precache directly for every event; schedule a debounced refresh
+                    try:
+                        self._needs_precache = True
+                    except Exception as precache_err:
+                        websocket_logger.debug(f"Failed to schedule scene cache refresh on event {event_type}: {precache_err}")
         except Exception:
             pass
 
@@ -210,10 +219,15 @@ class OBSConnector(QThread):
             self.event_received.emit(f"Error handling specter event '{event_name}': {e}")
 
     def precache_source_names(self):
+        # Avoid overlapping precaches
+        if self._precaching:
+            websocket_logger.debug("Precache already in progress; skipping concurrent request")
+            return
+        if not self.connected:
+            websocket_logger.debug("Cannot precache source names - OBS client not connected yet")
+            return
+        self._precaching = True
         try:
-            if not self.connected:
-                websocket_logger.debug("Cannot precache source names - OBS client not connected yet")
-                return
             websocket_logger.info("Pre-caching source names from all scenes...")
             scenes_response = self.client.call(obs_requests.GetSceneList())
             scenes = scenes_response.datain.get('scenes', [])
@@ -238,10 +252,13 @@ class OBSConnector(QThread):
             # Emit the scenes->sources mapping for UI consumption
             try:
                 self.scenes_updated.emit(scene_sources)
-            except Exception as e:
-                websocket_logger.debug(f"Failed to emit scenes_updated signal: {e}")
+            except Exception as emit_err:
+                websocket_logger.debug(f"Failed to emit scenes_updated signal: {emit_err}")
         except Exception as e:
             websocket_logger.error(f"Failed to precache source names: {e}", exc_info=True)
+        finally:
+            self._precaching = False
+            self._last_precache_time = time.time()
 
     def _enqueue_action(self, action):
         try:
@@ -305,9 +322,10 @@ class OBSConnector(QThread):
                             action = self._action_queue.get_nowait()
                             if isinstance(action, dict) and action.get('_action') == 'refresh':
                                 try:
-                                    self.precache_source_names()
+                                    # schedule a precache rather than running synchronously
+                                    self._needs_precache = True
                                 except Exception as e:
-                                    websocket_logger.error(f"Failed to refresh scenes on queue: {e}", exc_info=True)
+                                    websocket_logger.error(f"Failed to schedule scenes refresh on queue: {e}", exc_info=True)
                             else:
                                 try:
                                     self.perform_action(action)
@@ -315,6 +333,18 @@ class OBSConnector(QThread):
                                     websocket_logger.error(f"Failed to execute queued action: {e}", exc_info=True)
                     except Exception as e:
                         websocket_logger.debug(f"Error processing action queue: {e}")
+                    # If a precache is requested, run it with simple rate limiting from inside the worker loop
+                    now = time.time()
+                    try:
+                        if self._needs_precache and not self._precaching and (now - self._last_precache_time) >= self._precache_min_interval:
+                            websocket_logger.info("Worker loop: executing scheduled precache")
+                            try:
+                                self._needs_precache = False
+                                self.precache_source_names()
+                            except Exception as e:
+                                websocket_logger.error(f"Error executing scheduled precache: {e}", exc_info=True)
+                    except Exception as e:
+                        websocket_logger.debug(f"Precache scheduling check failed: {e}")
                     time.sleep(1)
                 except Exception as e:
                     if not self.should_stop:

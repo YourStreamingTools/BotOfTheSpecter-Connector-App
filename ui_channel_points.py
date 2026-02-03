@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QTimer
+import time
 import requests
 from constants import bot_logger
 
@@ -211,6 +212,12 @@ class ChannelPointsTab(QWidget):
         self.redemption_handler = redemption_handler
         self.redemption_handler.redemption_queued.connect(self.on_redemption_queued)
         self.redemption_handler.redemption_completed.connect(self.on_redemption_completed)
+        # Debounce timer for refreshes to avoid repeated Twitch API calls
+        self._refresh_debounce_timer = QTimer(self)
+        self._refresh_debounce_timer.setSingleShot(True)
+        self._refresh_debounce_timer.timeout.connect(self.refresh_rewards)
+        self._refresh_min_interval = 2000  # ms
+        self._last_refresh_time = 0
         self.init_ui()
         
     def init_ui(self):
@@ -283,12 +290,12 @@ class ChannelPointsTab(QWidget):
         
         main_layout.addLayout(content_layout)
         
-        # Load rewards
-        QTimer.singleShot(500, self.refresh_rewards)
+        # Load rewards (debounced)
+        self.schedule_refresh(500)
 
     def refresh_rewards(self):
         """Reload rewards from manager"""
-        bot_logger.info("ChannelPoints: refresh requested")
+        bot_logger.info("ChannelPoints: performing refresh now")
         try:
             rewards = self.reward_manager.refresh_rewards()
             self.update_grid(rewards)
@@ -301,9 +308,34 @@ class ChannelPointsTab(QWidget):
                 bot_logger.info(f"ChannelPoints: loaded {total} rewards, {with_images} have thumbnails")
             except Exception as e:
                 bot_logger.debug(f"Failed to summarize rewards: {e}")
+            # track last run time
+            try:
+                self._last_refresh_time = int(time.time() * 1000)
+            except Exception:
+                pass
         except Exception as e:
             bot_logger.error(f"Error refreshing rewards: {e}")
             QMessageBox.critical(self, "Error", f"Failed to sync with Twitch: {e}")
+
+    def schedule_refresh(self, delay_ms: int = 0):
+        """Schedule a debounced refresh; multiple calls within debounce window will coalesce."""
+        try:
+            # If a refresh happened very recently, schedule for min interval after last run
+            now_ms = int(time.time() * 1000)
+            since = now_ms - getattr(self, '_last_refresh_time', 0)
+            min_interval = getattr(self, '_refresh_min_interval', 2000)
+            if since < min_interval:
+                # schedule to run after remaining time
+                remaining = min_interval - since
+                bot_logger.debug(f"ChannelPoints: refresh called too quickly, scheduling after {remaining}ms")
+                self._refresh_debounce_timer.start(remaining)
+            else:
+                # schedule with provided delay
+                self._refresh_debounce_timer.start(delay_ms or 0)
+            bot_logger.info("ChannelPoints: refresh requested (debounced)")
+        except Exception as e:
+            bot_logger.error(f"Failed to schedule ChannelPoints refresh: {e}")
+
 
     def eventFilter(self, obj, event):
         # Listen for resize events on the scroll viewport to reflow grid

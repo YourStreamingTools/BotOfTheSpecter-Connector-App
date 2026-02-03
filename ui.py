@@ -447,17 +447,6 @@ class MainWindow(QWidget):
             for bi, b in enumerate(self.nav_buttons):
                 b.setChecked(bi == i)
             self.pages.setCurrentIndex(i)
-            # If the Channel Points page is selected, refresh rewards automatically
-            try:
-                page = self.pages.widget(i)
-                if page is self.cp_tab:
-                    bot_logger.info("ChannelPoints: navigating to tab - auto-refreshing rewards")
-                    try:
-                        self.cp_tab.refresh_rewards()
-                    except Exception as e:
-                        bot_logger.error(f"ChannelPoints: auto-refresh failed: {e}")
-            except Exception:
-                pass
 
         for idx, (label, page_widget) in enumerate(nav_items):
             btn = QPushButton(label)
@@ -864,14 +853,7 @@ class MainWindow(QWidget):
                 self.twitch_api.set_api_key(api_key)
             except Exception:
                 pass
-        # Also trigger a channel points refresh so thumbnails are pulled without manual Sync
-        try:
-            if hasattr(self, 'cp_tab') and self.cp_tab:
-                bot_logger.info("ChannelPoints: API key saved - auto-refreshing rewards")
-                self.cp_tab.refresh_rewards()
-        except Exception as e:
-            bot_logger.debug(f"ChannelPoints: auto refresh after save failed: {e}")
-
+        # Note: Channel Points are loaded on application launch. Use 'Sync from Twitch' to update rewards manually.
     def toggle_lock(self):
         self.is_locked = not self.is_locked
         if self.is_locked:
@@ -1038,7 +1020,7 @@ class MainWindow(QWidget):
             self.connect_obs()
         # Attempt an initial Channel Points refresh shortly after startup
         try:
-            QTimer.singleShot(1500, lambda: self.cp_tab.refresh_rewards())
+            QTimer.singleShot(1500, lambda: self.cp_tab.schedule_refresh())
         except Exception as e:
             bot_logger.debug(f"ChannelPoints: scheduled initial refresh failed: {e}")
 

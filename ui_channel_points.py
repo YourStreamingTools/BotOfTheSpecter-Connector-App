@@ -56,8 +56,9 @@ class RewardCard(QFrame):
                 border: 1px solid #0078d4;
             }
         """)
-        self.setFixedSize(280, 80)
-        
+        # Flexible width to allow responsive grid scaling
+        self.setMinimumHeight(80)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         
@@ -194,7 +195,7 @@ class ChannelPointsTab(QWidget):
         content_layout = QHBoxLayout()
         
         # Left: Reward Grid
-        # Using ScrollArea with Flow Layout or GridLayout
+        # Using ScrollArea with GridLayout that adapts to width
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setStyleSheet("background-color: transparent; border: none;")
@@ -206,6 +207,15 @@ class ChannelPointsTab(QWidget):
         
         self.scroll_area.setWidget(self.grid_widget)
         content_layout.addWidget(self.scroll_area, 2) # 66% width
+        # Track current reward cards for reflowing
+        self._reward_cards = []
+        self._card_min_width = 260  # preferred minimum card width including spacing
+        self._card_spacing = 12
+        # Recalculate columns when the scroll area's viewport changes size
+        self.scroll_area.viewport().installEventFilter(self)
+        self._reflow_timer = QTimer(self)
+        self._reflow_timer.setSingleShot(True)
+        self._reflow_timer.timeout.connect(self._reflow_grid)
         
         # Right: Queue & Actions
         right_panel = QVBoxLayout()
@@ -241,30 +251,84 @@ class ChannelPointsTab(QWidget):
         try:
             rewards = self.reward_manager.refresh_rewards()
             self.update_grid(rewards)
+            # Defer reflow to viewport resize handling
+            self._reflow_timer.start(50)
         except Exception as e:
             bot_logger.error(f"Error refreshing rewards: {e}")
             QMessageBox.critical(self, "Error", f"Failed to sync with Twitch: {e}")
 
-    def update_grid(self, rewards):
-        # Clear existing
-        for i in reversed(range(self.grid_layout.count())): 
-            self.grid_layout.itemAt(i).widget().setParent(None)
-            
+    def eventFilter(self, obj, event):
+        # Listen for resize events on the scroll viewport to reflow grid
+        try:
+            from PyQt6.QtCore import QEvent
+            if obj is self.scroll_area.viewport() and event.type() == QEvent.Type.Resize:
+                # debounce rapid resizes
+                self._reflow_timer.start(50)
+        except Exception:
+            pass
+        return super().eventFilter(obj, event)
+
+    def _calculate_columns(self):
+        avail_width = self.scroll_area.viewport().width()
+        # account for left/right margins from the grid layout
+        # approximate effective width
+        effective = max(100, avail_width)
+        # Use min card width with spacing
+        per_unit = self._card_min_width + self._card_spacing
+        cols = max(1, effective // per_unit)
+        # Also cap columns reasonably
+        cols = min(cols, 6)
+        return int(cols)
+
+    def _reflow_grid(self):
+        if not self._reward_cards:
+            return
+        cols = self._calculate_columns()
+        # clear layout positions without deleting widgets
+        for i in range(self.grid_layout.count()):
+            item = self.grid_layout.itemAt(i)
+            if item:
+                w = item.widget()
+                if w:
+                    self.grid_layout.removeWidget(w)
+        # place widgets with new column count and resize them proportionally
         row = 0
         col = 0
-        max_cols = 2 
-        
+        total_spacing = (cols + 1) * self._card_spacing
+        avail = max(0, self.scroll_area.viewport().width() - total_spacing)
+        col_width = max(150, avail // cols) if cols > 0 else self._card_min_width
+        for w in self._reward_cards:
+            # set a preferred width for the card
+            try:
+                w.setMaximumWidth(col_width)
+                w.setMinimumWidth(col_width)
+            except Exception:
+                pass
+            self.grid_layout.addWidget(w, row, col)
+            col += 1
+            if col >= cols:
+                col = 0
+                row += 1
+
+    def update_grid(self, rewards):
+        # Clear existing
+        for i in reversed(range(self.grid_layout.count())):
+            item = self.grid_layout.itemAt(i)
+            if item:
+                w = item.widget()
+                if w:
+                    w.setParent(None)
+        self._reward_cards = []
+
         for reward in rewards:
             card = RewardCard(reward)
             card.edit_clicked.connect(self.edit_reward)
             card.delete_clicked.connect(self.delete_reward)
             card.toggle_clicked.connect(self.toggle_reward)
-            
-            self.grid_layout.addWidget(card, row, col)
-            col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
+            self._reward_cards.append(card)
+
+        # Perform layout pass
+        self._reflow_grid()
 
 class ActionMappingPanel(QWidget):
     def __init__(self, actions=None, parent=None):

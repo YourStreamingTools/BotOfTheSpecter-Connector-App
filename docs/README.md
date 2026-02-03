@@ -22,14 +22,14 @@
 
 ## System Requirements
 
-- **Python**: 3.7 or higher
+- **Python**: 3.8 or higher (PyQt6 requires Python 3.8+)
 - **OBS Studio**: 28.0 or higher (with WebSocket Server plugin enabled)
 - **BotOfTheSpecter**: Active account with valid API key
-- **Operating System**: Windows
+- **Operating System**: Windows (tested). macOS/Linux may work but are not officially tested.
 
 ## Installation & Usage
 
-See the [main README](../README.md) for installation and usage instructions.
+See the [main README](https://raw.githubusercontent.com/YourStreamingTools/BotOfTheSpecter-OBS-Connector/refs/heads/main/README.md) for installation and usage instructions.
 
 ## Version History
 

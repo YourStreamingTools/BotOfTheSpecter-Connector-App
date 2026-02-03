@@ -503,10 +503,11 @@ class MainWindow(QWidget):
         api_key = self.config.get('api_key', '')
         self.api_key_input.setText(api_key)
         api_layout.addWidget(self.api_key_input, 1)
-        self.validate_btn = ModernButton("Validate")
-        self.validate_btn.setMaximumWidth(100)
-        self.validate_btn.clicked.connect(self.validate_api_key)
-        api_layout.addWidget(self.validate_btn)
+        # Save button for API Key
+        self.save_api_btn = ModernButton("Save")
+        self.save_api_btn.setMaximumWidth(100)
+        self.save_api_btn.clicked.connect(self.save_api_key)
+        api_layout.addWidget(self.save_api_btn)
         bot_layout.addLayout(api_layout)
         # Status Label
         self.bot_status = QLabel("Status: ⚫ Not connected")
@@ -833,13 +834,25 @@ class MainWindow(QWidget):
             item.setHidden(not visible)
 
     def validate_api_key(self):
+        # Backwards compatibility: keep existing method name for any external calls
+        # Delegate to the new save_api_key implementation
+        self.save_api_key()
+
+    def save_api_key(self):
         api_key = self.api_key_input.text()
         if not api_key:
-            QMessageBox.warning(self, "Validation", "Please enter an API key.")
+            QMessageBox.warning(self, "Save API Key", "Please enter an API key before saving.")
             return
-        QMessageBox.information(self, "Validation", "API Key accepted. Connection will be validated when connecting.")
+        # Persist the key and enable connection controls
         self.config.set('api_key', api_key)
+        QMessageBox.information(self, "Save API Key", "API Key saved. Click Connect to start the Bot connection.")
         self.bot_connect_btn.setEnabled(True)
+        # Update Twitch API if present
+        if self.twitch_api:
+            try:
+                self.twitch_api.set_api_key(api_key)
+            except Exception:
+                pass
 
     def toggle_lock(self):
         self.is_locked = not self.is_locked
@@ -1015,46 +1028,50 @@ class MainWindow(QWidget):
     def disconnect_obs(self):
         try:
             if self.obs_connector:
+                # Request a non-blocking graceful disconnect
                 self.obs_connector.disconnect()
-                if self.obs_connector.isRunning():
-                    self.obs_connector.wait(5000)
-                self.obs_connect_btn.setText("Connect")
-                # Disable streaming control buttons
-                if hasattr(self, 'start_stream_btn'):
-                    self.start_stream_btn.setEnabled(False)
-                    self.start_stream_btn.setText("▶ Start Stream")
-                if hasattr(self, 'start_recording_btn'):
-                    self.start_recording_btn.setEnabled(False)
-                    self.start_recording_btn.setText("⏺ Start Recording")
-                if hasattr(self, 'save_replay_btn'):
-                    self.save_replay_btn.setEnabled(False)
-                if hasattr(self, 'toggle_vcam_btn'):
-                    self.toggle_vcam_btn.setEnabled(False)
-                    self.toggle_vcam_btn.setText("📹 Virtual Cam: OFF")
-                # Stop status refresh timer
-                self.status_timer.stop()
-                # Update status to show disconnected
-                self.update_obs_status("Disconnected from OBS")
-                # Clear scenes tree since we are disconnected
+
+                # Connect a one-shot handler to finalize UI when the thread finishes
                 try:
-                    if hasattr(self, 'scene_tree'):
-                        self.scene_tree.clear()
+                    self.obs_connector.finished.connect(self._on_obs_disconnected_cleanup)
                 except Exception:
                     pass
+
+                # Fallback: ensure cleanup happens after 5s even if finished isn't emitted
+                QTimer.singleShot(5000, self._on_obs_disconnected_cleanup)
         except Exception as e:
             bot_logger.error(f"Error disconnecting OBS: {e}")
+            # Ensure UI state still reflects disconnected
+            self._on_obs_disconnected_cleanup()
+
+    def _on_obs_disconnected_cleanup(self):
+        # This may be called multiple times; guard against partial state
+        try:
             self.obs_connect_btn.setText("Connect")
-            # Disable buttons on error too
+            # Disable streaming control buttons
             if hasattr(self, 'start_stream_btn'):
                 self.start_stream_btn.setEnabled(False)
+                self.start_stream_btn.setText("▶ Start Stream")
             if hasattr(self, 'start_recording_btn'):
                 self.start_recording_btn.setEnabled(False)
+                self.start_recording_btn.setText("⏺ Start Recording")
             if hasattr(self, 'save_replay_btn'):
                 self.save_replay_btn.setEnabled(False)
             if hasattr(self, 'toggle_vcam_btn'):
                 self.toggle_vcam_btn.setEnabled(False)
+                self.toggle_vcam_btn.setText("📹 Virtual Cam: OFF")
+            # Stop status refresh timer
             self.status_timer.stop()
+            # Update status to show disconnected
             self.update_obs_status("Disconnected from OBS")
+            # Clear scenes tree since we are disconnected
+            try:
+                if hasattr(self, 'scene_tree'):
+                    self.scene_tree.clear()
+            except Exception:
+                pass
+        except Exception as e:
+            bot_logger.error(f"Error during OBS disconnect cleanup: {e}")
 
     def refresh_status(self):
         # Periodic UI status refresh is now handled by the OBSConnector.stats_update signal.

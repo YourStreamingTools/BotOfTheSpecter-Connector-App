@@ -328,15 +328,32 @@ class OBSConnector(QThread):
                 user_msg = "Failed to connect to OBS."
             self.status_update.emit(user_msg)
             bot_logger.error(f"OBS connection error: {err_str}")
+        finally:
+            # Ensure websocket client is disconnected from the worker thread
+            try:
+                if hasattr(self, 'client') and self.client and getattr(self.client, 'connected', False):
+                    try:
+                        self.client.disconnect()
+                        websocket_logger.info("OBS client disconnected cleanly from worker thread")
+                    except Exception as e:
+                        websocket_logger.warning(f"Error while disconnecting client in worker thread: {e}")
+            except Exception as e:
+                websocket_logger.warning(f"Unexpected error in cleanup: {e}")
+            # Mark as disconnected and notify UI
+            if self.connected:
+                self.connected = False
+            try:
+                self.status_update.emit("Disconnected from OBS")
+            except Exception:
+                pass
 
     def disconnect(self):
         self.should_stop = True
+        # If we are connected, emit a friendly status while the worker
+        # thread performs the actual network disconnect.
         if self.connected:
-            try:
-                self.client.disconnect()
-            except Exception as e:
-                websocket_logger.warning(f"Error disconnecting OBS client: {e}")
-            self.connected = False
+            self.status_update.emit("Disconnecting from OBS")
+        else:
             self.status_update.emit("Disconnected from OBS")
 
     def perform_action(self, action):

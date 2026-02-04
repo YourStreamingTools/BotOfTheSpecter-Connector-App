@@ -2,7 +2,7 @@ import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QHeaderView,
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
-    QScrollArea, QTreeWidget, QTreeWidgetItem, QStackedWidget
+    QScrollArea, QTreeWidget, QTreeWidgetItem, QStackedWidget, QSizePolicy
 )
 from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QAction
 from PyQt6.QtCore import Qt, QTimer, QSize
@@ -300,12 +300,6 @@ class MainWindow(QWidget):
         left_section = QVBoxLayout()
         left_section.setContentsMargins(0, 0, 0, 0)
         left_section.setSpacing(2)
-        version_label = QLabel(f'v{VERSION}')
-        version_font = QFont()
-        version_font.setPointSize(8)
-        version_label.setFont(version_font)
-        version_label.setStyleSheet("color: #666666; background-color: transparent;")
-        left_section.addWidget(version_label)
         header_label = QLabel('BotOfTheSpecter - OBS Connector')
         header_font = QFont()
         header_font.setPointSize(16)
@@ -434,7 +428,6 @@ class MainWindow(QWidget):
         v_label.setProperty('class', 'small')
         sidebar_layout.addWidget(v_label)
         sidebar_layout.addSpacing(6)
-
         # Navigation buttons
         self.nav_buttons = []
         nav_items = [("⚙️ Connection", connection_tab),
@@ -447,7 +440,10 @@ class MainWindow(QWidget):
             for bi, b in enumerate(self.nav_buttons):
                 b.setChecked(bi == i)
             self.pages.setCurrentIndex(i)
-
+            # If switching to Variables page, schedule a short delayed update so the UI
+            # can finish the page switch and remain responsive while the tree repopulates.
+            if i == 2:
+                QTimer.singleShot(10, self.update_variables_display)
         for idx, (label, page_widget) in enumerate(nav_items):
             btn = QPushButton(label)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -456,10 +452,8 @@ class MainWindow(QWidget):
             btn.clicked.connect(lambda checked, i=idx: _on_nav_clicked(i))
             sidebar_layout.addWidget(btn)
             self.nav_buttons.append(btn)
-
         sidebar_layout.addStretch()
         sidebar.setLayout(sidebar_layout)
-
         # Pages area
         self.pages = QStackedWidget()
         self.pages.addWidget(connection_tab)
@@ -467,17 +461,14 @@ class MainWindow(QWidget):
         self.pages.addWidget(variables_tab)
         self.pages.addWidget(self.cp_tab)
         self.pages.addWidget(log_tab)
-
         # Default page
         self.pages.setCurrentIndex(0)
         if self.nav_buttons:
             self.nav_buttons[0].setChecked(True)
-
         content_layout.addWidget(sidebar)
         content_layout.addWidget(self.pages, 1)
         main_layout.addLayout(content_layout)
         self.setLayout(main_layout)
-        
         # Auto-connect if API key exists
         # Defer heavy operations (icon download, auto-connect) to after the UI has shown
         QTimer.singleShot(100, self.post_init_connects)
@@ -780,7 +771,9 @@ class MainWindow(QWidget):
             QTreeWidget::item:selected { background: #3d3d3d; color: #ffffff; }
             QTreeWidget::item:hover { background: #333333; }
         """)
-        self.variables_tree.setMinimumHeight(200)
+        # Make the variables viewer taller by default and allow it to expand
+        self.variables_tree.setMinimumHeight(400)
+        self.variables_tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.variables_tree.setAlternatingRowColors(True)
         self.variables_tree.header().setFixedHeight(28)
         self.variables_tree.setColumnWidth(0, 200)
@@ -797,35 +790,80 @@ class MainWindow(QWidget):
         return variables_group
     
     def on_variable_changed(self, action, name, new_value, old_value):
-        self.update_variables_display()
+        # Coalesce rapid updates to avoid blocking the UI when many events arrive.
+        try:
+            if not hasattr(self, '_variables_update_timer'):
+                self._variables_update_timer = QTimer(self)
+                self._variables_update_timer.setSingleShot(True)
+                self._variables_update_timer.timeout.connect(self.update_variables_display)
+            # Restart timer; short delay allows multiple changes to be grouped
+            self._variables_update_timer.start(50)
+        except Exception:
+            # Fallback - update immediately if timer creation fails
+            self.update_variables_display()
     
     def update_variables_display(self):
         if not hasattr(self, 'variables_tree'):
             return
-        self.variables_tree.clear()
-        # Get all variables
-        all_vars = self.variable_manager.get_all_variables()
-        var_count = len(self.variable_manager.variables)
-        counter_count = len(self.variable_manager.counters)
-        # Update count label
-        if hasattr(self, 'variables_count_label'):
-            self.variables_count_label.setText(f"Variables: {var_count} | Counters: {counter_count}")
-        # Sort variables by name
-        for name in sorted(all_vars.keys()):
-            value = all_vars[name]
-            item = QTreeWidgetItem(self.variables_tree)
-            item.setText(0, name)
-            item.setText(1, str(value))
-            # Different icons for regular vars vs counters
-            is_counter = name in self.variable_manager.counters
-            if is_counter:
-                font = item.font(0)
-                font.setBold(True)
-                item.setFont(0, font)
-                item.setToolTip(0, "Counter variable")
-            else:
-                item.setToolTip(0, "Regular variable")
-    
+        # Populate the tree efficiently to avoid UI freezes when many variables exist.
+        try:
+            self.variables_tree.setSortingEnabled(False)
+        except Exception:
+            pass
+        try:
+            self.variables_tree.setUpdatesEnabled(False)
+        except Exception:
+            pass
+        try:
+            self.variables_tree.blockSignals(True)
+        except Exception:
+            pass
+        try:
+            self.variables_tree.clear()
+            # Get all variables
+            all_vars = self.variable_manager.get_all_variables()
+            counter_count = len(self.variable_manager.counters)
+            # Variables shown in the list include defaults and counters; compute
+            # the displayed variables count as total displayed items minus counters
+            total_displayed = len(all_vars)
+            var_count = max(0, total_displayed - counter_count)
+            # Update count label to reflect what's actually visible
+            if hasattr(self, 'variables_count_label'):
+                self.variables_count_label.setText(f"Variables: {var_count} | Counters: {counter_count}")
+            # Add items without using the constructor that takes parent on every item (faster)
+            names = sorted(all_vars.keys())
+            for name in names:
+                value = all_vars[name]
+                item = QTreeWidgetItem()
+                item.setText(0, name)
+                item.setText(1, str(value))
+                # Different styling for counters
+                if name in self.variable_manager.counters:
+                    try:
+                        font = item.font(0)
+                        font.setBold(True)
+                        item.setFont(0, font)
+                        item.setToolTip(0, "Counter variable")
+                    except Exception:
+                        pass
+                else:
+                    item.setToolTip(0, "Regular variable")
+                self.variables_tree.addTopLevelItem(item)
+        finally:
+            # Restore UI state
+            try:
+                self.variables_tree.blockSignals(False)
+            except Exception:
+                pass
+            try:
+                self.variables_tree.setUpdatesEnabled(True)
+            except Exception:
+                pass
+            try:
+                self.variables_tree.setSortingEnabled(True)
+            except Exception:
+                pass
+
     def filter_variables_table(self):
         filter_text = self.variables_filter.text().lower()
         for i in range(self.variables_tree.topLevelItemCount()):

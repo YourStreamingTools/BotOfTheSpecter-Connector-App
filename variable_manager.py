@@ -4,8 +4,13 @@ from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 from constants import bot_logger
 
-class VariableManager:
+from PyQt6.QtCore import QObject, pyqtSignal, Qt
+
+class VariableManager(QObject):
+    variable_changed = pyqtSignal(str, str, object, object)  # action, name, new, old
+
     def __init__(self, config):
+        super().__init__()
         self.config = config
         self.variables = {}
         self.counters = {}
@@ -76,24 +81,59 @@ class VariableManager:
     def add_listener(self, callback: Callable):
         if callback not in self.listeners:
             self.listeners.append(callback)
-    
+            try:
+                # Use a queued connection to ensure cross-thread safety
+                self.variable_changed.connect(callback, Qt.ConnectionType.QueuedConnection)
+            except Exception:
+                # Fall back to local storage if signal connection fails
+                pass
+
     def remove_listener(self, callback: Callable):
         if callback in self.listeners:
             self.listeners.remove(callback)
-    
-    def notify_listeners(self, action: str, name: str, new_value: Any, old_value: Any):
-        for listener in self.listeners:
             try:
-                listener(action, name, new_value, old_value)
-            except Exception as e:
-                bot_logger.error(f"Error in variable listener: {e}")
+                self.variable_changed.disconnect(callback)
+            except Exception:
+                pass
+
+    def notify_listeners(self, action: str, name: str, new_value: Any, old_value: Any):
+        # Emit via Qt signal so listeners attached to QObject methods are
+        # invoked in their owning thread (avoids creating Qt children from
+        # the wrong thread).
+        try:
+            self.variable_changed.emit(action, name, new_value, old_value)
+        except Exception as e:
+            bot_logger.error(f"Error emitting variable change signal: {e}")
+            # As a last resort, call listeners directly (best-effort)
+            for listener in list(self.listeners):
+                try:
+                    listener(action, name, new_value, old_value)
+                except Exception as e:
+                    bot_logger.error(f"Error in variable listener fallback: {e}")
     
     def handle_event(self, event_type: str, data: dict):
-        if not isinstance(data, dict):
-            return
-            
+        # Record notice metadata for Specter websocket events so they are persisted
         timestamp = datetime.now().isoformat()
-        
+        try:
+            # Avoid storing sensitive fields; use the global helper if available
+            try:
+                from constants import redact_sensitive_data
+                safe_payload = redact_sensitive_data(data) if isinstance(data, dict) else data
+            except Exception:
+                safe_payload = data
+            # Save a few small, useful variables for the UI and persistence
+            self.set('last_specter_event', event_type)
+            self.set('last_specter_event_date', timestamp)
+            payload_str = str(safe_payload) if safe_payload is not None else ''
+            if len(payload_str) > 400:
+                payload_str = payload_str[:397] + '...'
+            self.set('last_specter_payload', payload_str)
+        except Exception as e:
+            bot_logger.debug(f"Failed to save specter notice to variables: {e}")
+        # Normalize non-dict payloads for downstream handlers
+        if not isinstance(data, dict):
+            data = {}
+        timestamp = datetime.now().isoformat()
         if event_type == "TWITCH_FOLLOW":
             username = data.get('username') or data.get('user') or data.get('user_name')
             if username:
@@ -101,7 +141,6 @@ class VariableManager:
                 self.set('last_follower_date', timestamp)
                 self.increment('session_followers')
                 self.increment('total_followers')
-                
         elif event_type == "TWITCH_CHEER":
             username = data.get('username') or data.get('user') or data.get('user_name')
             bits = data.get('bits') or data.get('amount')
@@ -115,7 +154,6 @@ class VariableManager:
                     self.increment('total_bits', bits_int)
                 except ValueError:
                     pass
-                    
         elif event_type == "TWITCH_RAID":
             username = data.get('username') or data.get('user') or data.get('from_broadcaster_user_name')
             viewers = data.get('viewers') or data.get('viewer_count')
@@ -126,13 +164,11 @@ class VariableManager:
                     self.set('raid_viewer_count', int(viewers))
                 except ValueError:
                     pass
-                    
         elif event_type == "TWITCH_SUB":
             username = data.get('username') or data.get('user') or data.get('user_name')
             tier = data.get('tier') or data.get('sub_tier')
             months = data.get('months') or data.get('cumulative_months')
             is_gift = data.get('is_gift', False)
-            
             if username:
                 self.set('last_subscriber', username)
                 self.set('last_sub_date', timestamp)
@@ -146,12 +182,10 @@ class VariableManager:
             self.set('last_sub_is_gift', is_gift)
             self.increment('session_subs')
             self.increment('total_subs')
-            
         elif event_type == "TWITCH_CHANNELPOINTS":
             username = data.get('username') or data.get('user') or data.get('user_name')
             reward = data.get('reward') or data.get('reward_title') or data.get('title')
             cost = data.get('cost') or data.get('reward_cost')
-            
             if username:
                 self.set('last_redemption_user', username)
             if reward:
@@ -162,11 +196,9 @@ class VariableManager:
                 except ValueError:
                     pass
             self.increment('session_redemptions')
-            
         elif event_type in ["FOURTHWALL", "KOFI", "PATREON"]:
             username = data.get('username') or data.get('supporter_name') or data.get('from_name')
             amount = data.get('amount') or data.get('donation_amount')
-            
             if username:
                 self.set('last_donor', username)
                 self.set('last_donation_platform', event_type)
@@ -179,7 +211,6 @@ class VariableManager:
                 except ValueError:
                     pass
             self.increment('session_donation_count')
-            
         elif event_type == "DEATHS":
             game = data.get('game')
             if game:
@@ -189,7 +220,6 @@ class VariableManager:
                 self.set('last_death_game', game)
                 self.set('last_death_date', timestamp)
             self.increment('session_deaths')
-            
         elif event_type == "STREAM_ONLINE":
             self.set('stream_status', 'online')
             self.set('stream_start_time', timestamp)
@@ -200,33 +230,46 @@ class VariableManager:
             self.reset_counter('session_deaths')
             self.reset_counter('session_donation_count')
             self.set('session_donations', 0)
-            
         elif event_type == "STREAM_OFFLINE":
             self.set('stream_status', 'offline')
             self.set('stream_end_time', timestamp)
     
     def parse_template(self, template: str) -> str:
         result = template
-        
         for name, value in self.variables.items():
             placeholder = f"{{{name}}}"
             if placeholder in result:
                 result = result.replace(placeholder, str(value))
-        
         for name, value in self.counters.items():
             placeholder = f"{{{name}}}"
             if placeholder in result:
                 result = result.replace(placeholder, str(value))
-        
         now = datetime.now()
         result = result.replace('{date}', now.strftime('%Y-%m-%d'))
         result = result.replace('{time}', now.strftime('%H:%M:%S'))
         result = result.replace('{datetime}', now.strftime('%Y-%m-%d %H:%M:%S'))
-        
         return result
     
     def get_all_variables(self) -> Dict[str, Any]:
+        # Default keys we want shown in the UI even when empty
+        defaults = {
+            'last_follower': '—',
+            'last_follower_date': '',
+            'last_cheer_user': '—',
+            'last_cheer_amount': 0,
+            'last_subscriber': '—',
+            'last_sub_date': '',
+            'last_raider': '—',
+            'raid_viewer_count': 0,
+            # Specter websocket notice defaults
+            'last_specter_event': '—',
+            'last_specter_event_date': '',
+            'last_specter_payload': '—'
+        }
         all_vars = {}
+        # Start with defaults so real values override them if present
+        all_vars.update(defaults)
         all_vars.update(self.variables)
-        all_vars.update({f"{k}": v for k, v in self.counters.items()})
+        # Add counters (session/total counters)
+        all_vars.update({k: v for k, v in self.counters.items()})
         return all_vars

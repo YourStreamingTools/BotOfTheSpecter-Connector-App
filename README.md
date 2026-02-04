@@ -1,6 +1,6 @@
-# BotOfTheSpecter - OBS Connector
+# BotOfTheSpecter
 
-This application connects BotOfTheSpecter to OBS via WebSockets, enabling you to automate OBS actions based on events from BotOfTheSpecter.
+BotOfTheSpecter is an application that connects to external services (including OBS via WebSockets) to automate actions and react to events from the BotOfTheSpecter platform.
 
 ## Features
 

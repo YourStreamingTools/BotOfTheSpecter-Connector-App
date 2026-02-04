@@ -39,17 +39,17 @@ class RewardData:
         # If there's an explicitly provided 'image_url_1x' use it
         if data.get('image_url_1x'):
             image_url = data.get('image_url_1x')
-        # Common Twitch payloads include 'default_image' with url_1x/url_2x/url_4x
+        # Prefer 'image' (the custom image) over 'default_image' when available
         if not image_url:
-            default_image = data.get('default_image') or data.get('image') or data.get('images')
-            if isinstance(default_image, dict):
-                # Prefer url_1x then url_2x then url_4x, then generic keys
-                for key in ('url_1x', 'url', 'url_2x', 'url_4x', '1x', '2x', '4x'):
-                    image_url = default_image.get(key)
+            image_block = data.get('image') or data.get('default_image') or data.get('images')
+            if isinstance(image_block, dict):
+                # Prefer the largest available image first (url_4x preferred), then fall back
+                for key in ('url_4x', 'url_2x', 'url_1x', 'url', '4x', '2x', '1x'):
+                    image_url = image_block.get(key)
                     if image_url:
                         break
-            elif isinstance(default_image, str):
-                image_url = default_image
+            elif isinstance(image_block, str):
+                image_url = image_block
         # Some API variants may include 'thumbnail' or nested structures - search shallowly
         if not image_url:
             for k in ('thumbnail', 'image_url', 'imageUrl'):

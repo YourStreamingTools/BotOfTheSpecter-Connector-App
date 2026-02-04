@@ -641,10 +641,45 @@ def _edit_reward(self, reward_id):
 ChannelPointsTab.open_new_reward_dialog = _open_new_reward_dialog
 ChannelPointsTab.edit_reward = _edit_reward
 
+def format_redemption_display(redemption, reward_manager=None):
+    # User name fallbacks
+    user_obj = redemption.get('user') or {}
+    if isinstance(user_obj, dict):
+        user = user_obj.get('display_name') or user_obj.get('login') or user_obj.get('name')
+    else:
+        user = None
+    user = user or redemption.get('user_name') or redemption.get('user_login') or redemption.get('user_id') or 'Unknown'
+    # Reward title fallbacks
+    reward_obj = redemption.get('reward') or {}
+    title = None
+    if isinstance(reward_obj, dict):
+        title = reward_obj.get('title')
+        rid = reward_obj.get('id')
+    else:
+        title = None
+        rid = redemption.get('reward_id') or redemption.get('rewardId')
+    # Try reward manager if title missing
+    if not title and rid and reward_manager:
+        try:
+            r = reward_manager.get_reward_by_id(rid)
+            if r:
+                title = r.title
+        except Exception:
+            pass
+    title = title or 'Unknown'
+    return f"{user} redeemed {title}"
+
+
 def _on_redemption_queued(self, redemption):
-    user = redemption.get('user', {}).get('display_name', 'Unknown')
-    reward = redemption.get('reward', {}).get('title', 'Unknown')
-    self.queue_list.addItem(f"{user} redeemed {reward}")
+    try:
+        text = format_redemption_display(redemption, getattr(self, 'reward_manager', None))
+        self.queue_list.addItem(text)
+    except Exception as e:
+        bot_logger.error(f"Error formatting queued redemption for UI: {e}")
+        try:
+            self.queue_list.addItem("Unknown redeemed Unknown")
+        except Exception:
+            pass
 
 def _on_redemption_completed(self, redemption_id, success):
     # Could potentially update queue item visual state here

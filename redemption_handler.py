@@ -24,7 +24,13 @@ class RedemptionHandler(QThread):
         self.twitch_api = twitch_api
         self.redemption_queue = queue.Queue()
         self.should_stop = False
-        self.auto_fulfill = True # Configurable setting?
+        # Auto-fulfill should be opt-in. Read from config if available; default to False
+        try:
+            cfg = getattr(self.reward_manager, 'config', None)
+            self.auto_fulfill = bool(cfg.get('auto_fulfill_redemptions', False)) if cfg else False
+        except Exception:
+            self.auto_fulfill = False
+        bot_logger.info(f"RedemptionHandler: auto_fulfill set to {self.auto_fulfill}")
         # Poll interval in seconds for fetching redemptions
         self._poll_interval = 60
         self._last_poll = 0
@@ -38,10 +44,51 @@ class RedemptionHandler(QThread):
         except Exception as e:
             bot_logger.error(f"Failed to load cached redemptions: {e}")
     def add_redemption(self, redemption_data: Dict[str, Any]):
-        """Add a redemption to the processing queue and persist to cache"""
+        """Add a redemption to the processing queue and persist to cache.
+        Normalize incoming redemption payloads so UI formatting has a consistent
+        shape (ensure `user.display_name` and `reward.title` whenever possible).
+        """
+        # Defensive normalization
+        try:
+            # Ensure we have a dict copy so callers won't mutate shared objects
+            red = dict(redemption_data)
+            # Normalize user into a dict with display_name if only top-level fields exist
+            user = red.get('user')
+            if not user or not isinstance(user, dict):
+                uname = red.get('user_name') or red.get('user_login') or None
+                uid = red.get('user_id') or red.get('userId') or None
+                if uname or uid:
+                    red['user'] = {'display_name': uname or uid}
+            else:
+                # If user object exists but lacks display_name, try other keys
+                if not user.get('display_name'):
+                    user['display_name'] = user.get('login') or user.get('name') or red.get('user_name')
+                    red['user'] = user
+            # Normalize reward into dict with title when possible
+            reward = red.get('reward')
+            if not reward or not isinstance(reward, dict):
+                # Some payloads might use reward_id or rewardId
+                rid = red.get('reward_id') or red.get('rewardId')
+                if rid:
+                    red['reward'] = {'id': rid}
+            else:
+                if not reward.get('title'):
+                    # Try to fill from reward_manager cache
+                    rid = reward.get('id')
+                    if rid and getattr(self, 'reward_manager', None):
+                        try:
+                            r = self.reward_manager.get_reward_by_id(rid)
+                            if r:
+                                reward['title'] = r.title
+                                red['reward'] = reward
+                        except Exception:
+                            pass
+            redemption_data = red
+        except Exception as e:
+            bot_logger.debug(f"Failed to normalize redemption payload: {e}")
         redemption_id = redemption_data.get('id')
         if not redemption_id:
-            # Nothing to track
+            # Nothing to track; still put into queue so user can see it
             self.redemption_queue.put(redemption_data)
             self.redemption_queued.emit(redemption_data)
             return
@@ -95,11 +142,28 @@ class RedemptionHandler(QThread):
 
     def _process_redemption(self, redemption):
         """Process a single redemption"""
+        if not isinstance(redemption, dict):
+            bot_logger.warning("Received invalid redemption object; skipping processing")
+            return
         redemption_id = redemption.get('id')
-        reward_data = redemption.get('reward', {})
+        reward_data = redemption.get('reward', {}) or {}
         reward_id = reward_data.get('id')
         user_name = redemption.get('user', {}).get('display_name') or redemption.get('user_name')
         bot_logger.info(f"Processing redemption {redemption_id} for reward {reward_id} by {user_name}")
+        # If identifiers are missing, don't attempt to auto-fulfill or update Twitch.
+        if not redemption_id or not reward_id:
+            bot_logger.warning(f"Skipping redemption processing due to missing id(s): redemption_id={redemption_id}, reward_id={reward_id}")
+            # Still emit started/completed to allow UI to reflect state but do not modify remote state
+            try:
+                if redemption_id:
+                    self.redemption_started.emit(redemption_id)
+            except Exception:
+                pass
+            try:
+                self.redemption_completed.emit(redemption_id, False)
+            except Exception:
+                pass
+            return
         self.redemption_started.emit(redemption_id)
         # Get actions for this reward
         actions = self.reward_manager.get_actions_for_reward(reward_id)
@@ -112,10 +176,11 @@ class RedemptionHandler(QThread):
                 success = False
         else:
             bot_logger.info(f"No actions mapped for reward {reward_id}")
-        # Update status on Twitch if auto-fulfill is enabled
+        # Update status on Twitch if auto-fulfill is enabled and data is valid
         if self.auto_fulfill:
             try:
                 status = 'FULFILLED' if success else 'CANCELED'
+                bot_logger.info(f"Auto-fulfill enabled, attempting to update redemption {redemption_id} to {status}")
                 self.twitch_api.update_redemption_status(reward_id, redemption_id, status)
                 bot_logger.info(f"Marked redemption {redemption_id} as {status}")
                 # Remove from seen set and cache so it no longer appears in UI
@@ -209,7 +274,6 @@ class RedemptionHandler(QThread):
                                 bot_logger.info(f"New redemption detected for reward {reward_id}: {rid}")
                         self.add_redemption(r)
                         # Cache was updated in add_redemption
-                    
                     # Persist cache state periodically to avoid excessive writes
                     try:
                         self._save_cached_redemptions()

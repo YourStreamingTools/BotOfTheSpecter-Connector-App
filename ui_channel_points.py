@@ -43,6 +43,7 @@ class RewardCard(QFrame):
     edit_clicked = pyqtSignal(str) # reward_id
     delete_clicked = pyqtSignal(str) # reward_id
     toggle_clicked = pyqtSignal(str, bool) # reward_id, new_state
+    pause_clicked = pyqtSignal(str, bool) # reward_id, new_state (paused)
     def __init__(self, reward_data):
         super().__init__()
         self.reward_data = reward_data
@@ -121,30 +122,79 @@ class RewardCard(QFrame):
         # Controls
         controls_layout = QVBoxLayout()
         controls_layout.setSpacing(4)
-        # Toggle Switch (using CheckBox for simplicity styled as switch ?) or just standard button
-        self.toggle_btn = QPushButton("⬤" if self.reward_data.is_enabled else "◯")
-        self.toggle_btn.setFixedSize(24, 24)
-        self.toggle_btn.setStyleSheet("border:none; color: " + ("#4ec745" if self.reward_data.is_enabled else "#aaaaaa"))
-        self.toggle_btn.setToolTip("Toggle Enable/Disable")
-        self.toggle_btn.clicked.connect(self.on_toggle)
+        # Power Button (enable/disable quick action)
+        self.power_btn = QPushButton("")
+        self.power_btn.setFixedSize(34, 34)
+        power_color = "#4ec745" if self.reward_data.is_enabled else "#f55047"
+        # Make the power button visually prominent with a colored circular background
+        self.power_btn.setStyleSheet(f"background-color: {power_color}; color: white; border-radius: 17px; border: none; font-weight: bold;")
+        self.power_btn.setToolTip("Enable/Disable Reward")
+        self.power_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Set bundled SVG icon if available
+        try:
+            from pathlib import Path
+            assets_dir = Path(__file__).resolve().parent / 'assets' / 'icons'
+            icon_path = assets_dir / 'power.svg'
+            if icon_path.exists():
+                self.power_btn.setIcon(QIcon(str(icon_path)))
+                self.power_btn.setIconSize(QSize(22, 22))
+        except Exception:
+            pass
+        self.power_btn.clicked.connect(self.on_toggle)
+        # Pause/Resume Button (quick action)
+        self.pause_btn = QPushButton("")
+        self.pause_btn.setFixedSize(34, 34)
+        pause_bg = "#ffa500" if getattr(self.reward_data, 'is_paused', False) else "#3d3d3d"
+        self.pause_btn.setStyleSheet(f"background-color: {pause_bg}; color: white; border-radius: 17px; border: none; font-weight: bold;")
+        self.pause_btn.setToolTip("Pause/Resume Reward")
+        self.pause_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        try:
+            from pathlib import Path
+            assets_dir = Path(__file__).resolve().parent / 'assets' / 'icons'
+            icon_path = assets_dir / ('play.svg' if getattr(self.reward_data, 'is_paused', False) else 'pause.svg')
+            if icon_path.exists():
+                self.pause_btn.setIcon(QIcon(str(icon_path)))
+                self.pause_btn.setIconSize(QSize(20, 20))
+        except Exception:
+            pass
+        self.pause_btn.clicked.connect(self.on_pause)
         # Edit Button
         self.edit_btn = QPushButton("✎")
         self.edit_btn.setFixedSize(24, 24)
         self.edit_btn.setStyleSheet("border:none; color: #0078d4;")
         self.edit_btn.setToolTip("Edit Reward")
         self.edit_btn.clicked.connect(lambda: self.edit_clicked.emit(self.reward_data.id))
-        # Delete Button
-        self.delete_btn = QPushButton("🗑")
-        self.delete_btn.setFixedSize(24, 24)
-        self.delete_btn.setStyleSheet("border:none; color: #f55047;")
+        # Delete Button (uses bundled trash icon)
+        self.delete_btn = QPushButton("")
+        self.delete_btn.setFixedSize(34, 34)
         self.delete_btn.setToolTip("Delete Reward")
+        self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Load bundled trash icon if available
+        try:
+            from pathlib import Path
+            assets_dir = Path(__file__).resolve().parent / 'assets' / 'icons'
+            trash_icon = assets_dir / 'trash.svg'
+            if trash_icon.exists():
+                self.delete_btn.setIcon(QIcon(str(trash_icon)))
+                self.delete_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            pass
+        # Match other quick action buttons: circular dark background with white icon
+        self.delete_btn.setStyleSheet("background-color: #3d3d3d; color: white; border-radius: 17px; border: none;")
+        self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.delete_btn.clicked.connect(self.on_delete)
+        # Arrange controls: primary quick-actions in a single row (Power, Pause, Delete)
         top_row = QHBoxLayout()
         top_row.addStretch()
-        top_row.addWidget(self.toggle_btn)
+        top_row.addWidget(self.power_btn)
+        top_row.addSpacing(6)
+        top_row.addWidget(self.pause_btn)
+        top_row.addSpacing(6)
+        top_row.addWidget(self.delete_btn)
+        # Secondary action (edit) below, left-aligned
         bottom_row = QHBoxLayout()
         bottom_row.addWidget(self.edit_btn)
-        bottom_row.addWidget(self.delete_btn)
+        bottom_row.addStretch()
         controls_layout.addLayout(top_row)
         controls_layout.addLayout(bottom_row)
         layout.addLayout(controls_layout)
@@ -161,8 +211,51 @@ class RewardCard(QFrame):
             bot_logger.debug(f"Failed to apply pixmap to reward card: {e}")
 
     def on_toggle(self):
-        new_state = not self.reward_data.is_enabled
-        self.toggle_clicked.emit(self.reward_data.id, new_state)
+        try:
+            new_state = not self.reward_data.is_enabled
+            # Immediate visual feedback
+            self.reward_data.is_enabled = new_state
+            color = "#4ec745" if new_state else "#f55047"
+            try:
+                # Update to use colored circular background for better visibility
+                self.power_btn.setStyleSheet(f"background-color: {color}; color: white; border-radius: 17px; border: none; font-weight: bold;")
+                # Update icon (in case it remains static color/needs refreshing)
+                try:
+                    from pathlib import Path
+                    assets_dir = Path(__file__).resolve().parent / 'assets' / 'icons'
+                    icon_path = assets_dir / 'power.svg'
+                    if icon_path.exists():
+                        self.power_btn.setIcon(QIcon(str(icon_path)))
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            self.toggle_clicked.emit(self.reward_data.id, new_state)
+        except Exception as e:
+            bot_logger.debug(f"Error toggling reward: {e}")
+
+    def on_pause(self):
+        try:
+            new_state = not getattr(self.reward_data, 'is_paused', False)
+            # Immediate visual feedback
+            self.reward_data.is_paused = new_state
+            try:
+                # Update icon and background accordingly
+                bg = '#ffa500' if new_state else '#3d3d3d'
+                self.pause_btn.setStyleSheet(f"background-color: {bg}; color: white; border-radius: 17px; border: none; font-weight: bold;")
+                try:
+                    from pathlib import Path
+                    assets_dir = Path(__file__).resolve().parent / 'assets' / 'icons'
+                    icon_path = assets_dir / ('play.svg' if new_state else 'pause.svg')
+                    if icon_path.exists():
+                        self.pause_btn.setIcon(QIcon(str(icon_path)))
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            self.pause_clicked.emit(self.reward_data.id, new_state)
+        except Exception as e:
+            bot_logger.debug(f"Error toggling pause on reward: {e}")
 
     def on_delete(self):
         msg = QMessageBox(self)
@@ -180,6 +273,11 @@ class RewardCard(QFrame):
         try:
             # Emit the edit signal when the user clicks anywhere on the card with left button
             if event.button() == Qt.MouseButton.LeftButton:
+                # Don't open the editor if a child button was clicked
+                child = self.childAt(event.pos())
+                from PyQt6.QtWidgets import QPushButton
+                if child and isinstance(child, QPushButton):
+                    return super().mousePressEvent(event)
                 self.edit_clicked.emit(self.reward_data.id)
         except Exception as e:
             bot_logger.debug(f"Error handling RewardCard click: {e}")
@@ -446,6 +544,7 @@ class ChannelPointsTab(QWidget):
             card.edit_clicked.connect(self.edit_reward)
             card.delete_clicked.connect(self.delete_reward)
             card.toggle_clicked.connect(self.toggle_reward)
+            card.pause_clicked.connect(self.pause_reward)
             self._reward_cards.append(card)
         # Perform layout pass
         self._reflow_grid()
@@ -841,5 +940,13 @@ def _toggle_reward(self, reward_id, new_state):
     except Exception as e:
         QMessageBox.critical(self, "Error", f"Failed to toggle reward: {e}")
 
+def _pause_reward(self, reward_id, new_state):
+    try:
+        self.reward_manager.update_reward(reward_id, is_paused=new_state)
+        self.refresh_rewards()
+    except Exception as e:
+        QMessageBox.critical(self, "Error", f"Failed to set pause state on reward: {e}")
+
 ChannelPointsTab.delete_reward = _delete_reward
 ChannelPointsTab.toggle_reward = _toggle_reward
+ChannelPointsTab.pause_reward = _pause_reward

@@ -134,11 +134,23 @@ foreach ($module in $moduleFiles) {
     }
 }
 
-# If an icon file exists in repo root, include it
-if (Test-Path ".\botofthespecter.png") {
+# Prefer a bundled app icon in assets/icons if present; otherwise, include repo-root icon if present
+if (Test-Path ".\assets\icons\app.png") {
+    Write-Host "Found assets/icons/app.png - including as application icon"
+    $pyinstallerArgs += "--icon"
+    $pyinstallerArgs += ".\assets\icons\app.png"
+} elseif (Test-Path ".\botofthespecter.png") {
     Write-Host "Found botofthespecter.png - including as application icon"
     $pyinstallerArgs += "--icon"
     $pyinstallerArgs += ".\botofthespecter.png"
+}
+
+# Include assets/icons directory (all files) so bundled icons and SVGs are available at runtime
+if (Test-Path ".\assets\icons") {
+    Write-Host "Including assets/icons/ in build data"
+    $pyinstallerArgs += "--add-data"
+    # PyInstaller expects the format: SOURCE;DEST (on Windows)
+    $pyinstallerArgs += ".\assets\icons;assets/icons"
 }
 
 # Add the entry point

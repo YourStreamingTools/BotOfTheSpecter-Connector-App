@@ -281,8 +281,17 @@ class MainWindow(QWidget):
 
         # Prepare UI first, then do background tasks like icon download and auto-connections
         self.init_ui()
-        if os.path.exists(ICON_FILE):
-            self.setWindowIcon(QIcon(ICON_FILE))
+        # Prefer bundled icon (assets/icons/app.png) if present, otherwise fall back to downloaded ICON_FILE
+        try:
+            from pathlib import Path
+            assets_icon = Path(__file__).resolve().parent / 'assets' / 'icons' / 'app.png'
+            if assets_icon.exists():
+                self.setWindowIcon(QIcon(str(assets_icon)))
+            elif os.path.exists(ICON_FILE):
+                self.setWindowIcon(QIcon(ICON_FILE))
+        except Exception:
+            if os.path.exists(ICON_FILE):
+                self.setWindowIcon(QIcon(ICON_FILE))
         self.apply_global_style()
 
     def init_ui(self):

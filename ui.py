@@ -655,6 +655,7 @@ class MainWindow(QWidget):
         scenes_group = ModernGroupBox("Scenes")
         scenes_layout = QVBoxLayout()
         scenes_layout.setSpacing(8)
+        scenes_layout.setContentsMargins(8, 8, 8, 8)
         # Header with refresh icon, filter, and last-updated timestamp
         header_layout = QHBoxLayout()
         header_layout.setSpacing(8)
@@ -687,16 +688,21 @@ class MainWindow(QWidget):
         header_layout.addStretch()
         # Last updated timestamp (small, subtle)
         self.scenes_last_updated_label = QLabel("Last updated: Never")
-        self.scenes_last_updated_label.setStyleSheet("color: #aaaaaa; font-size:10px; padding-right:6px;")
+        # Slightly less prominent timestamp so it doesn't compete with the filter
+        self.scenes_last_updated_label.setStyleSheet("color: #9a9a9a; font-size:9px; padding-right:4px;")
         header_layout.addWidget(self.scenes_last_updated_label)
         scenes_layout.addLayout(header_layout)
         info_label = QLabel("Double-click a source to toggle visibility")
         info_label.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px; margin-top:4px;")
         scenes_layout.addWidget(info_label)
-        # Tree view for scenes and sources
+        # Tree view for scenes and sources (now with Status column)
         self.scene_tree = QTreeWidget()
-        self.scene_tree.setHeaderLabels(["Scenes and Sources"])
+        self.scene_tree.setColumnCount(2)
+        self.scene_tree.setHeaderLabels(["Scenes and Sources", "Status"])
         self.scene_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.scene_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        # Narrow the status column so controls remain compact
+        self.scene_tree.header().resizeSection(1, 64)
         self.scene_tree.setStyleSheet("""
             QTreeWidget {
                 background-color: #252525;
@@ -708,7 +714,7 @@ class MainWindow(QWidget):
                 font-size: 11px;
             }
             QTreeWidget::item {
-                padding: 6px 8px;
+                padding: 10px 8px; /* vertical padding increased for breathing room */
                 background-color: transparent;
                 color: #e0e0e0;
             }
@@ -723,8 +729,26 @@ class MainWindow(QWidget):
             }
             QTreeWidget::item:selected { background: #3d3d3d; color: #ffffff; }
             QTreeWidget::item:hover { background: #333333; }
+            /* Subtle vertical scrollbar styling */
+            QScrollBar:vertical {
+                background: transparent;
+                width: 10px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(255,255,255,0.08);
+                min-height: 24px;
+                border-radius: 6px;
+            }
+            QScrollBar::add-line, QScrollBar::sub-line { height: 0; }
+            QScrollBar::add-page, QScrollBar::sub-page { background: none; }
         """)
-        self.scene_tree.setMinimumHeight(200)
+        # Make the scenes box taller to better use available space
+        self.scene_tree.setMinimumHeight(480)
+        # Allow the tree to expand to a larger height (use layout space)
+        try:
+            self.scene_tree.setMaximumHeight(900)
+        except Exception:
+            pass
         self.scene_tree.setAlternatingRowColors(True)
         # Make header a bit shorter and ensure consistent header styling to avoid layout artifacts
         self.scene_tree.header().setFixedHeight(28)
@@ -1161,29 +1185,62 @@ class MainWindow(QWidget):
                 scene_item.setFont(0, font)
                 for src in scenes_dict.get(scene_name, []):
                     child = QTreeWidgetItem(scene_item)
-                    child.setText(0, src.get('name', f"Item {src.get('id')}") + (" ✅" if src.get('enabled') else ""))
-                    child.setToolTip(0, f"ID: {src.get('id')} | Enabled: {src.get('enabled')}")
-                    # Store the scene name and item id for actions
-                    child.setData(0, Qt.ItemDataRole.UserRole, (scene_name, src.get('id'), src.get('enabled')))
-                    # Use a smaller font for source items
-                    child_font = child.font(0)
-                    child_font.setPointSize(10)
-                    child.setFont(0, child_font)
+                    # Build a left-cell widget containing a compact indicator and the source name
                     try:
-                        child.setIcon(0, self._build_status_dot(src.get('enabled')))
+                        cell = QWidget()
+                        # Make the embedded cell transparent so the tree's row background shows through
+                        cell.setStyleSheet("background-color: transparent;")
+                        cl = QHBoxLayout(cell)
+                        cl.setContentsMargins(6, 0, 6, 0)
+                        cl.setSpacing(8)
+                        cl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+                        # compact clickable indicator
+                        ind_btn = QPushButton()
+                        ind_btn.setFixedSize(12, 12)
+                        color = '#4ec745' if src.get('enabled') else '#777777'
+                        ind_btn.setStyleSheet(f"""QPushButton {{ background-color: {color}; border-radius: 6px; border: 1px solid rgba(0,0,0,0.12); padding: 0; }} QPushButton:hover {{ outline: 2px solid rgba(255,255,255,0.06); }}""")
+                        ind_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                        ind_btn.setToolTip('Visible' if src.get('enabled') else 'Hidden')
+                        ind_btn._scene_name = scene_name
+                        ind_btn._item_id = src.get('id')
+                        ind_btn._enabled = src.get('enabled')
+                        ind_btn.clicked.connect(lambda _, b=ind_btn: self._toggle_source_from_button(b))
+                        cl.addWidget(ind_btn)
+                        # name label next to the indicator (transparent background)
+                        name_lbl = QLabel(src.get('name', f"Item {src.get('id')}"))
+                        name_lbl.setStyleSheet("color: #e0e0e0; background-color: transparent;")
+                        name_font = name_lbl.font()
+                        name_font.setPointSize(10)
+                        name_lbl.setFont(name_font)
+                        name_lbl.setToolTip(f"ID: {src.get('id')} | Enabled: {src.get('enabled')}")
+                        cl.addWidget(name_lbl)
+                        cl.addStretch()
+                        # Set the user data on the item (used for toggles)
+                        child.setData(0, Qt.ItemDataRole.UserRole, (scene_name, src.get('id'), src.get('enabled')))
+                        child.setText(1, '')
+                        # Place the composite widget in column 0 (left)
+                        self.scene_tree.setItemWidget(child, 0, cell)
                     except Exception:
-                        pass
+                        # fallback to a simple text status in the right column
+                        child.setText(0, src.get('name', f"Item {src.get('id')}"))
+                        child.setText(1, 'Visible' if src.get('enabled') else 'Hidden')
             # Expand top-level nodes by default
             for i in range(self.scene_tree.topLevelItemCount()):
                 self.scene_tree.topLevelItem(i).setExpanded(True)
+                # Update top-level count in second column
+                try:
+                    top = self.scene_tree.topLevelItem(i)
+                    count = top.childCount()
+                    top.setText(1, f"{count} sources")
+                except Exception:
+                    pass
             try:
                 import datetime
-                if hasattr(self, 'scenes_last_updated'):
-                    ts = 'Last updated: ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    try:
-                        self.scenes_last_updated_label.setText(ts)
-                    except Exception:
-                        pass
+                ts = 'Last updated: ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                try:
+                    self.scenes_last_updated_label.setText(ts)
+                except Exception:
+                    pass
             except Exception:
                 pass
         except Exception as e:
@@ -1210,6 +1267,11 @@ class MainWindow(QWidget):
             QMessageBox.warning(self, "Refresh Scenes", "OBS is not connected.")
             return
         try:
+            # Provide immediate feedback by showing a small loading style on the refresh label
+            try:
+                self.scenes_last_updated_label.setText('Refreshing...')
+            except Exception:
+                pass
             self.obs_connector.refresh_requested.emit()
         except Exception as e:
             websocket_logger.error(f"Failed to request scenes refresh: {e}")
@@ -1226,6 +1288,12 @@ class MainWindow(QWidget):
             radius = 5
             center_x = size.width() // 2
             center_y = size.height() // 2
+            p.drawEllipse(center_x - radius//2, center_y - radius//2, radius, radius)
+            p.end()
+            return pix
+        except Exception as e:
+            bot_logger.debug(f"Failed to build status dot: {e}")
+            return QPixmap()
             p.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
             p.end()
             return QIcon(pix)
@@ -1305,6 +1373,28 @@ class MainWindow(QWidget):
         if not self.obs_connector or not self.obs_connector.connected:
             QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
             return
+
+    def _toggle_source_from_button(self, button):
+        """Handle toggle requests from inline status buttons in the scene tree."""
+        try:
+            scene_name = getattr(button, '_scene_name', None)
+            item_id = getattr(button, '_item_id', None)
+            if scene_name is None or item_id is None:
+                return
+            # Find the corresponding tree item to read current state
+            enabled = None
+            for i in range(self.scene_tree.topLevelItemCount()):
+                top = self.scene_tree.topLevelItem(i)
+                for j in range(top.childCount()):
+                    child = top.child(j)
+                    data = child.data(0, Qt.ItemDataRole.UserRole)
+                    if data and data[0] == scene_name and data[1] == item_id:
+                        enabled = data[2]
+                        # Use the existing context toggle flow which also handles thread checks
+                        self._context_toggle_source(scene_name, item_id, enabled)
+                        return
+        except Exception as e:
+            bot_logger.error(f"Error toggling source from button: {e}")
         if not self.obs_connector.isRunning():
             websocket_logger.warning("OBS connector thread not running; attempting to start it...")
             try:
@@ -1356,13 +1446,32 @@ class MainWindow(QWidget):
             }
             try:
                 self.obs_connector.action_requested.emit(action)
-                # Optimistic UI update: reflect toggled state immediately
+                # Optimistic UI update: reflect toggled state immediately (text + widget)
                 try:
-                    current_text = item.text(0)
-                    base_name = current_text.replace(' ✅', '').replace(' ❌', '')
+                    # If the name is rendered inside a widget (column 0), use that label; otherwise fall back to the item text
                     new_enabled = not enabled
-                    item.setText(0, base_name + (' ✅' if new_enabled else ''))
+                    w = self.scene_tree.itemWidget(item, 0)
+                    if w:
+                        name_lbl = w.findChild(QLabel)
+                        base_name = name_lbl.text() if name_lbl else item.text(0)
+                    else:
+                        base_name = item.text(0)
                     item.setData(0, Qt.ItemDataRole.UserRole, (scene_name, item_id, new_enabled))
+                    # Update widget if present
+                    try:
+                        w = self.scene_tree.itemWidget(item, 0)
+                        if w:
+                            btn = w.findChild(QPushButton)
+                            if btn:
+                                bg = '#4ec745' if new_enabled else '#777777'
+                                try:
+                                    btn.setFixedSize(12, 12)
+                                    btn.setStyleSheet(f"""QPushButton {{ background-color: {bg}; border-radius: 6px; border: 1px solid rgba(0,0,0,0.12); padding: 0; }} QPushButton:hover {{ outline: 2px solid rgba(255,255,255,0.06); }}""")
+                                    btn.setToolTip('Visible' if new_enabled else 'Hidden')
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 self.log_event(f"Requested action: {action}")

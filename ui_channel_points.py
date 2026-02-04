@@ -62,6 +62,7 @@ class RewardCard(QFrame):
         # Flexible width to allow responsive grid scaling
         self.setMinimumHeight(80)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         # Icon / Color Box
@@ -174,6 +175,15 @@ class RewardCard(QFrame):
         resp = msg.exec()
         if resp == QMessageBox.StandardButton.Yes:
            self.delete_clicked.emit(self.reward_data.id)
+
+    def mousePressEvent(self, event):
+        try:
+            # Emit the edit signal when the user clicks anywhere on the card with left button
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.edit_clicked.emit(self.reward_data.id)
+        except Exception as e:
+            bot_logger.debug(f"Error handling RewardCard click: {e}")
+        return super().mousePressEvent(event)
 
 class ChannelPointsTab(QWidget):
     # Signal emitted when a startup refresh completes (used to trigger dependent tasks like redemption polling)
@@ -570,9 +580,6 @@ class RewardEditDialog(QDialog):
         self.init_ui()
     def init_ui(self):
         layout = QVBoxLayout(self)
-        # Scroll area for form
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
         form_widget = QWidget()
         form_layout = QVBoxLayout(form_widget)
         # --- Twitch Settings ---
@@ -604,9 +611,55 @@ class RewardEditDialog(QDialog):
         self.input_req_chk = QCheckBox("User Input Required")
         if self.reward_data: self.input_req_chk.setChecked(self.reward_data.is_user_input_required)
         g_layout.addWidget(self.input_req_chk, 5, 0, 1, 2)
+        # Limit per-stream
+        self.max_per_stream_chk = QCheckBox("Limit per stream")
+        self.max_per_stream_spin = QSpinBox()
+        self.max_per_stream_spin.setRange(1, 1000000)
+        if self.reward_data:
+            self.max_per_stream_chk.setChecked(self.reward_data.is_max_per_stream_enabled)
+            self.max_per_stream_spin.setValue(getattr(self.reward_data, 'max_per_stream', 0) or 1)
+        else:
+            self.max_per_stream_chk.setChecked(False)
+            self.max_per_stream_spin.setValue(1)
+        self.max_per_stream_spin.setEnabled(self.max_per_stream_chk.isChecked())
+        self.max_per_stream_chk.stateChanged.connect(lambda s: self.max_per_stream_spin.setEnabled(bool(s)))
+        g_layout.addWidget(self.max_per_stream_chk, 6, 0)
+        g_layout.addWidget(self.max_per_stream_spin, 6, 1)
+        # Limit per-user per-stream
+        self.max_per_user_chk = QCheckBox("Limit per user per stream")
+        self.max_per_user_spin = QSpinBox()
+        self.max_per_user_spin.setRange(1, 1000000)
+        if self.reward_data:
+            self.max_per_user_chk.setChecked(self.reward_data.is_max_per_user_per_stream_enabled)
+            self.max_per_user_spin.setValue(getattr(self.reward_data, 'max_per_user_per_stream', 0) or 1)
+        else:
+            self.max_per_user_chk.setChecked(False)
+            self.max_per_user_spin.setValue(1)
+        self.max_per_user_spin.setEnabled(self.max_per_user_chk.isChecked())
+        self.max_per_user_chk.stateChanged.connect(lambda s: self.max_per_user_spin.setEnabled(bool(s)))
+        g_layout.addWidget(self.max_per_user_chk, 7, 0)
+        g_layout.addWidget(self.max_per_user_spin, 7, 1)
+        # Global cooldown
+        self.global_cooldown_chk = QCheckBox("Enable global cooldown")
+        self.global_cooldown_spin = QSpinBox()
+        self.global_cooldown_spin.setRange(1, 604800)  # Twitch max: 604800
+        if self.reward_data:
+            self.global_cooldown_chk.setChecked(self.reward_data.is_global_cooldown_enabled)
+            self.global_cooldown_spin.setValue(getattr(self.reward_data, 'global_cooldown_seconds', 0) or 60)
+        else:
+            self.global_cooldown_chk.setChecked(False)
+            self.global_cooldown_spin.setValue(60)
+        self.global_cooldown_spin.setEnabled(self.global_cooldown_chk.isChecked())
+        self.global_cooldown_chk.stateChanged.connect(lambda s: self.global_cooldown_spin.setEnabled(bool(s)))
+        g_layout.addWidget(self.global_cooldown_chk, 8, 0)
+        g_layout.addWidget(self.global_cooldown_spin, 8, 1)
+        # Pause and auto-fulfill
+        self.is_paused_chk = QCheckBox("Is Paused")
+        if self.reward_data: self.is_paused_chk.setChecked(getattr(self.reward_data, 'is_paused', False))
+        g_layout.addWidget(self.is_paused_chk, 9, 0, 1, 2)
         self.skip_queue_chk = QCheckBox("Skip Request Queue (Auto-fulfill)")
         if self.reward_data: self.skip_queue_chk.setChecked(self.reward_data.should_redemptions_skip_request_queue)
-        g_layout.addWidget(self.skip_queue_chk, 6, 0, 1, 2)
+        g_layout.addWidget(self.skip_queue_chk, 10, 0, 1, 2)
         form_layout.addWidget(QLabel("<b>Twitch Settings</b>"))
         form_layout.addWidget(group)
         # --- OBS Actions ---
@@ -614,8 +667,18 @@ class RewardEditDialog(QDialog):
         initial_actions = self.reward_data.obs_actions if self.reward_data else []
         self.action_panel = ActionMappingPanel(actions=list(initial_actions)) # copy list
         form_layout.addWidget(self.action_panel)
-        scroll.setWidget(form_widget)
-        layout.addWidget(scroll)
+        layout.addWidget(form_widget)
+        # Try to size dialog to fit content if screen space allows
+        try:
+            from PyQt6.QtGui import QGuiApplication
+            screen_geom = QGuiApplication.primaryScreen().availableGeometry()
+            desired_h = min(screen_geom.height() - 100, form_widget.sizeHint().height() + 180)
+            desired_w = min(screen_geom.width() - 100, 800)
+            self.resize(desired_w, desired_h)
+            self.setMinimumSize(500, 420)
+            self.setSizeGripEnabled(True)
+        except Exception as e:
+            bot_logger.debug(f"Could not auto-resize RewardEditDialog: {e}")
         # Buttons
         btns = QHBoxLayout()
         save_btn = QPushButton("Save")
@@ -636,6 +699,13 @@ class RewardEditDialog(QDialog):
             'background_color': self.color_edit.text(),
             'is_enabled': self.enabled_chk.isChecked(),
             'is_user_input_required': self.input_req_chk.isChecked(),
+            'is_max_per_stream_enabled': self.max_per_stream_chk.isChecked(),
+            'max_per_stream': self.max_per_stream_spin.value(),
+            'is_max_per_user_per_stream_enabled': self.max_per_user_chk.isChecked(),
+            'max_per_user_per_stream': self.max_per_user_spin.value(),
+            'is_global_cooldown_enabled': self.global_cooldown_chk.isChecked(),
+            'global_cooldown_seconds': self.global_cooldown_spin.value(),
+            'is_paused': self.is_paused_chk.isChecked(),
             'should_redemptions_skip_request_queue': self.skip_queue_chk.isChecked(),
             'obs_actions': self.action_panel.get_actions()
         }
@@ -673,6 +743,25 @@ def _edit_reward(self, reward_id):
             if rid != reward_id and getattr(r, 'title', '').strip().lower() == title.lower():
                 QMessageBox.warning(self, "Validation Error", "Another reward already uses that title. Please choose a unique title.")
                 return
+        # Additional validation for constraints
+        if data.get('is_max_per_stream_enabled') and (data.get('max_per_stream', 0) < 1):
+            QMessageBox.warning(self, "Validation Error", "Max per stream must be at least 1 when enabled.")
+            return
+        if data.get('is_max_per_user_per_stream_enabled') and (data.get('max_per_user_per_stream', 0) < 1):
+            QMessageBox.warning(self, "Validation Error", "Max per user per stream must be at least 1 when enabled.")
+            return
+        if data.get('is_global_cooldown_enabled'):
+            g = data.get('global_cooldown_seconds', 0)
+            if g < 1 or g > 604800:
+                QMessageBox.warning(self, "Validation Error", "Global cooldown must be between 1 and 604800 seconds.")
+                return
+        # Prompt length check if user input required
+        if data.get('is_user_input_required') and len((data.get('prompt') or '').strip()) == 0:
+            QMessageBox.warning(self, "Validation Error", "Prompt is required when user input is enabled.")
+            return
+        if len((data.get('prompt') or '')) > 200:
+            QMessageBox.warning(self, "Validation Error", "Prompt must be 200 characters or fewer.")
+            return
         try:
             obs_actions = data.pop('obs_actions', [])
             # Only send changed fields - build payload with explicit fields

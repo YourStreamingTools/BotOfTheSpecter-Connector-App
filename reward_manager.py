@@ -31,6 +31,7 @@ class RewardData:
     is_max_per_user_per_stream_enabled: bool
     max_per_user_per_stream: int
     should_redemptions_skip_request_queue: bool
+    is_paused: bool
     obs_actions: List[Dict[str, Any]] = field(default_factory=list)
 
     @classmethod
@@ -73,6 +74,7 @@ class RewardData:
             is_max_per_user_per_stream_enabled=data.get('max_per_user_per_stream_setting', {}).get('is_enabled', False),
             max_per_user_per_stream=data.get('max_per_user_per_stream_setting', {}).get('max_per_user_per_stream', 0),
             should_redemptions_skip_request_queue=data.get('should_redemptions_skip_request_queue', False),
+            is_paused=data.get('is_paused', False),
             obs_actions=obs_actions or []
         )
 
@@ -88,7 +90,6 @@ class RewardManager:
             self._load_cached_rewards()
         except Exception as e:
             bot_logger.debug(f"Failed to load cached rewards: {e}")
-
 
     def load_local_mappings(self):
         try:
@@ -200,6 +201,7 @@ class RewardManager:
                         is_max_per_user_per_stream_enabled=False,
                         max_per_user_per_stream=0,
                         should_redemptions_skip_request_queue=False,
+                        is_paused=rd.get('is_paused', False),
                         obs_actions=self.reward_configs.get(rd.get('id'), RewardConfig(rd.get('id'))).obs_actions
                     )
                     self.rewards[r.id] = r

@@ -286,7 +286,8 @@ class MainWindow(QWidget):
         self.apply_global_style()
 
     def init_ui(self):
-        self.setWindowTitle('BotOfTheSpecter - OBS Connector')
+        # Application title: simplified to the product name
+        self.setWindowTitle('BotOfTheSpecter')
         self.setGeometry(100, 100, 800, 900)
         self.setMinimumSize(700, 800)
         main_layout = QVBoxLayout()
@@ -300,7 +301,7 @@ class MainWindow(QWidget):
         left_section = QVBoxLayout()
         left_section.setContentsMargins(0, 0, 0, 0)
         left_section.setSpacing(2)
-        header_label = QLabel('BotOfTheSpecter - OBS Connector')
+        header_label = QLabel('BotOfTheSpecter')
         header_font = QFont()
         header_font.setPointSize(16)
         header_font.setBold(True)

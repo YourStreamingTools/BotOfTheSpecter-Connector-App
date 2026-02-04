@@ -83,6 +83,12 @@ class RewardManager:
         self.rewards: Dict[str, RewardData] = {}
         self.reward_configs: Dict[str, RewardConfig] = {}
         self.load_local_mappings()
+        # Load cached rewards so the UI can show them immediately without waiting for Twitch
+        try:
+            self._load_cached_rewards()
+        except Exception as e:
+            bot_logger.debug(f"Failed to load cached rewards: {e}")
+
 
     def load_local_mappings(self):
         try:
@@ -124,6 +130,23 @@ class RewardManager:
         has_images = sum(1 for r in self.rewards.values() if r.image_url_1x)
         total = len(self.rewards)
         bot_logger.info(f"Loaded {total} rewards; {has_images} have thumbnails")
+        # Cache rewards to config so UI can show them instantly on next launch
+        try:
+            cached = []
+            for r in self.rewards.values():
+                cached.append({
+                    'id': r.id,
+                    'title': r.title,
+                    'cost': r.cost,
+                    'is_enabled': r.is_enabled,
+                    'background_color': r.background_color,
+                    'image_url_1x': r.image_url_1x,
+                    'prompt': r.prompt
+                })
+            self.config.set('cached_rewards', cached)
+            bot_logger.debug(f"Saved {len(cached)} cached rewards to config")
+        except Exception as e:
+            bot_logger.error(f"Failed to save cached rewards to config: {e}")
         return list(self.rewards.values())
 
     def create_reward(self, title: str, cost: int, obs_actions: List[Dict] = None, **kwargs):
@@ -156,6 +179,35 @@ class RewardManager:
     def get_reward_by_id(self, reward_id: str) -> Optional[RewardData]:
         return self.rewards.get(reward_id)
 
+    def _load_cached_rewards(self):
+        try:
+            cached = self.config.get('cached_rewards', []) or []
+            for rd in cached:
+                try:
+                    r = RewardData(
+                        id=rd.get('id'),
+                        title=rd.get('title', ''),
+                        cost=rd.get('cost', 0),
+                        is_enabled=rd.get('is_enabled', True),
+                        background_color=rd.get('background_color'),
+                        image_url_1x=rd.get('image_url_1x'),
+                        prompt=rd.get('prompt'),
+                        is_user_input_required=False,
+                        is_global_cooldown_enabled=False,
+                        global_cooldown_seconds=0,
+                        is_max_per_stream_enabled=False,
+                        max_per_stream=0,
+                        is_max_per_user_per_stream_enabled=False,
+                        max_per_user_per_stream=0,
+                        should_redemptions_skip_request_queue=False,
+                        obs_actions=self.reward_configs.get(rd.get('id'), RewardConfig(rd.get('id'))).obs_actions
+                    )
+                    self.rewards[r.id] = r
+                except Exception:
+                    continue
+            bot_logger.info(f"Loaded {len(self.rewards)} cached rewards from config")
+        except Exception as e:
+            bot_logger.error(f"Failed to load cached rewards from config: {e}")
     def get_actions_for_reward(self, reward_id: str) -> List[Dict]:
         if reward_id in self.reward_configs:
             return self.reward_configs[reward_id].obs_actions

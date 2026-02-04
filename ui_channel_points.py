@@ -176,6 +176,9 @@ class RewardCard(QFrame):
            self.delete_clicked.emit(self.reward_data.id)
 
 class ChannelPointsTab(QWidget):
+    # Signal emitted when a startup refresh completes (used to trigger dependent tasks like redemption polling)
+    startup_refresh_completed = pyqtSignal()
+
     def __init__(self, reward_manager, redemption_handler, parent=None):
         super().__init__(parent)
         self.reward_manager = reward_manager
@@ -189,6 +192,25 @@ class ChannelPointsTab(QWidget):
         self._refresh_min_interval = 2000  # ms
         self._last_refresh_time = 0
         self.init_ui()
+        # Immediately show cached redemptions from persistent store so UI is populated without waiting
+        try:
+            cached = self.redemption_handler.get_cached_redemptions()
+            for r in cached:
+                try:
+                    self.on_redemption_queued(r)
+                except Exception:
+                    pass
+        except Exception as e:
+            bot_logger.debug(f"Failed to populate cached redemptions into UI: {e}")
+        # Show cached rewards (if any) immediately so user does not wait for Twitch API
+        try:
+            rewards = list(self.reward_manager.rewards.values())
+            if rewards:
+                self.update_grid(rewards)
+                # Defer reflow to viewport resize handling
+                self._reflow_timer.start(50)
+        except Exception as e:
+            bot_logger.debug(f"Failed to populate cached rewards into UI: {e}")
     def init_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(16, 16, 16, 16)
@@ -265,10 +287,19 @@ class ChannelPointsTab(QWidget):
                 if getattr(self, '_startup_requested', False):
                     self._startup_requested = False
                     self._startup_completed = True
+                    # Emit signal indicating startup refresh finished so dependent tasks can proceed
+                    try:
+                        self.startup_refresh_completed.emit()
+                    except Exception:
+                        pass
                 else:
                     # If this is the first-ever refresh, mark startup_completed to prevent accidental duplicate startup calls
                     if not getattr(self, '_startup_completed', False):
                         self._startup_completed = True
+                        try:
+                            self.startup_refresh_completed.emit()
+                        except Exception:
+                            pass
             except Exception:
                 pass
         except Exception as e:

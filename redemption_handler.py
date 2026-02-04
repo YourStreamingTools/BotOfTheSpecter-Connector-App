@@ -30,12 +30,33 @@ class RedemptionHandler(QThread):
         self._last_poll = 0
         # Track redemptions we've already queued to avoid duplicates
         self._seen_redemptions = set()
+        # Local in-memory cache of pending redemptions (id -> redemption dict)
+        self._cached_redemptions = {}
+        # Load persisted cache from config (if available)
+        try:
+            self._load_cached_redemptions()
+        except Exception as e:
+            bot_logger.error(f"Failed to load cached redemptions: {e}")
     def add_redemption(self, redemption_data: Dict[str, Any]):
-        """Add a redemption to the processing queue"""
+        """Add a redemption to the processing queue and persist to cache"""
         redemption_id = redemption_data.get('id')
-        if redemption_id:
-            # Mark as seen to avoid duplicate enqueueing
-            self._seen_redemptions.add(redemption_id)
+        if not redemption_id:
+            # Nothing to track
+            self.redemption_queue.put(redemption_data)
+            self.redemption_queued.emit(redemption_data)
+            return
+        if redemption_id in self._seen_redemptions:
+            bot_logger.debug(f"Redemption {redemption_id} already seen; skipping enqueue")
+            return
+        # Mark as seen to avoid duplicate enqueueing
+        self._seen_redemptions.add(redemption_id)
+        # Cache the redemption for UI persistence across restarts
+        try:
+            self._cached_redemptions[redemption_id] = redemption_data
+            self._save_cached_redemptions()
+        except Exception as e:
+            bot_logger.error(f"Failed to save redemption to cache: {e}")
+        # Enqueue for processing and notify UI
         self.redemption_queue.put(redemption_data)
         self.redemption_queued.emit(redemption_data)
         bot_logger.info(f"Queued redemption for reward: {redemption_data.get('reward', {}).get('title')}")
@@ -97,11 +118,17 @@ class RedemptionHandler(QThread):
                 status = 'FULFILLED' if success else 'CANCELED'
                 self.twitch_api.update_redemption_status(reward_id, redemption_id, status)
                 bot_logger.info(f"Marked redemption {redemption_id} as {status}")
-                # Once updated, remove from seen set so future polls may re-query if needed
+                # Remove from seen set and cache so it no longer appears in UI
                 try:
                     self._seen_redemptions.discard(redemption_id)
                 except Exception:
                     pass
+                try:
+                    if redemption_id in self._cached_redemptions:
+                        del self._cached_redemptions[redemption_id]
+                        self._save_cached_redemptions()
+                except Exception as e:
+                    bot_logger.error(f"Failed to remove redemption from cache: {e}")
             except Exception as e:
                 bot_logger.error(f"Failed to update redemption status on Twitch: {e}")
         self.redemption_completed.emit(redemption_id, success)
@@ -146,20 +173,106 @@ class RedemptionHandler(QThread):
     def _poll_for_new_redemptions(self):
         """Poll Twitch for unfulfilled redemptions for managed rewards and enqueue them."""
         if not self.twitch_api or not self.reward_manager:
+            bot_logger.debug("Redemption poll skipped: missing twitch_api or reward_manager")
             return
         try:
-            for reward_id in list(self.reward_manager.rewards.keys()):
+            reward_ids = list(self.reward_manager.rewards.keys())
+            bot_logger.info(f"Redemption poll: checking {len(reward_ids)} rewards")
+            # If we have no cached rewards, attempt to refresh once so we can map titles
+            if not reward_ids:
+                try:
+                    bot_logger.info("Redemption poll: no cached rewards, attempting Channel Points refresh via RewardManager")
+                    new_rewards = self.reward_manager.refresh_rewards()
+                    reward_ids = list(self.reward_manager.rewards.keys())
+                    bot_logger.info(f"Redemption poll: refresh returned {len(new_rewards)} rewards")
+                except Exception as e:
+                    bot_logger.error(f"Redemption poll: failed to refresh rewards: {e}")
+                    return
+            for reward_id in reward_ids:
                 try:
                     redemptions = self.twitch_api.get_reward_redemptions(reward_id, status='UNFULFILLED', first=50, sort='NEWEST')
+                    bot_logger.info(f"Redemption poll: reward {reward_id} returned {len(redemptions)} redemptions")
                     for r in redemptions:
                         rid = r.get('id')
                         if not rid:
                             continue
                         if rid in self._seen_redemptions:
                             continue
-                        bot_logger.info(f"New redemption detected for reward {reward_id}: {rid}")
+                        # Ensure redemption contains basic reward metadata so UI can display title
+                        if 'reward' not in r or not r.get('reward'):
+                            r['reward'] = {'id': reward_id}
+                        if not r['reward'].get('title') and reward_id in self.reward_manager.rewards:
+                            try:
+                                r['reward']['title'] = self.reward_manager.rewards[reward_id].title
+                            except Exception:
+                                pass
+                                bot_logger.info(f"New redemption detected for reward {reward_id}: {rid}")
                         self.add_redemption(r)
+                        # Cache was updated in add_redemption
+                    
+                    # Persist cache state periodically to avoid excessive writes
+                    try:
+                        self._save_cached_redemptions()
+                    except Exception:
+                        pass
                 except Exception as e:
                     bot_logger.error(f"Failed to fetch redemptions for reward {reward_id}: {e}")
         except Exception as e:
             bot_logger.error(f"Error in _poll_for_new_redemptions: {e}")
+
+    def _save_cached_redemptions(self):
+        """Persist the in-memory cached redemptions and seen set to the app config."""
+        try:
+            cfg = None
+            if self.reward_manager and getattr(self.reward_manager, 'config', None):
+                cfg = self.reward_manager.config
+            if not cfg:
+                bot_logger.debug("No config available to save cached redemptions")
+                return
+            data = {
+                'pending': self._cached_redemptions,
+                'seen': list(self._seen_redemptions)
+            }
+            cfg.set('redemptions', data)
+            bot_logger.debug(f"Saved {len(self._cached_redemptions)} cached redemptions to config")
+        except Exception as e:
+            bot_logger.error(f"Failed to save cached redemptions to config: {e}")
+
+    def _load_cached_redemptions(self):
+        """Load cached redemptions from config into memory and enqueue them for processing."""
+        try:
+            cfg = None
+            if self.reward_manager and getattr(self.reward_manager, 'config', None):
+                cfg = self.reward_manager.config
+            if not cfg:
+                bot_logger.debug("No config available to load cached redemptions")
+                return
+            data = cfg.get('redemptions', {}) or {}
+            pending = data.get('pending', {}) or {}
+            seen = set(data.get('seen', []) or [])
+            self._seen_redemptions.update(seen)
+            # Restore cached redemptions and enqueue them for processing
+            for rid, red in pending.items():
+                # Always restore cached redemption into memory
+                self._cached_redemptions[rid] = red
+                # Ensure it is enqueued for processing
+                try:
+                    self.redemption_queue.put(red)
+                except Exception:
+                    pass
+                # Mark as seen so we don't double-process
+                self._seen_redemptions.add(rid)
+            bot_logger.info(f"Loaded {len(self._cached_redemptions)} cached redemptions from config")
+        except Exception as e:
+            bot_logger.error(f"Failed to load cached redemptions from config: {e}")
+
+    def get_cached_redemptions(self):
+        """Return a shallow list of cached pending redemptions for UI display."""
+        return list(self._cached_redemptions.values())
+
+    def trigger_poll(self):
+        """Public method to trigger an immediate poll for new redemptions."""
+        try:
+            self._poll_for_new_redemptions()
+        except Exception as e:
+            bot_logger.error(f"Error triggering immediate redemption poll: {e}")

@@ -100,7 +100,7 @@ VSVersionInfo(
          (u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
          (u'LegalCopyright', u'© 2025 YourStreamingTools'),
          (u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
-         (u'ProductName', u'BotOfTheSpecter OBS Connector'),
+         (u'ProductName', u'BotOfTheSpecter'),
          (u'ProductVersion', u'1.1.0.0')])
     ])
   ]

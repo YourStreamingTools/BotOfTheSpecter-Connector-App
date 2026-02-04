@@ -658,7 +658,8 @@ class MainWindow(QWidget):
         scenes_layout.setContentsMargins(8, 8, 8, 8)
         # Header with refresh icon, filter, and last-updated timestamp
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(8)
+        header_layout.setSpacing(10)
+        header_layout.setContentsMargins(4, 4, 4, 4)
         # Refresh icon button (compact)
         refresh_icon_btn = QPushButton("")
         refresh_icon_btn.setFixedSize(34, 34)
@@ -678,19 +679,45 @@ class MainWindow(QWidget):
         header_layout.addWidget(refresh_icon_btn)
         # Filter field for quick search
         self.scene_filter = ModernLineEdit()
-        self.scene_filter.setMinimumWidth(260)
+        self.scene_filter.setMinimumWidth(120)
+        self.scene_filter.setMaximumWidth(260)  # cap so header buttons have room on smaller windows
         self.scene_filter.setPlaceholderText('Filter scenes or sources...')
         self.scene_filter.textChanged.connect(self.filter_scene_tree)
-        # Make the placeholder text readable on dark theme
+        # Make the placeholder text readable on dark theme and allow filter to expand/shrink
         base_style = self.scene_filter.styleSheet() or ''
         self.scene_filter.setStyleSheet(base_style + " QLineEdit::placeholder { color: #aaaaaa; } QLineEdit:placeholder { color: #aaaaaa; }")
-        header_layout.addWidget(self.scene_filter)
+        self.scene_filter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        header_layout.addWidget(self.scene_filter, 1)
+        # Quick action buttons: group into a compact container to avoid layout overlap
+        btn_container = QWidget()
+        btn_container.setFixedWidth(230)  # reserve fixed space so buttons never overlap the filter
+        btn_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(8)
+        self.show_scene_btn = QPushButton('Show')
+        self.show_scene_btn.setFixedSize(68, 28)
+        self.show_scene_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.show_scene_btn.setToolTip('Show all sources in the selected scene')
+        self.show_scene_btn.clicked.connect(self._on_show_scene_clicked)
+        self.show_scene_btn.setEnabled(False)
+        btn_layout.addWidget(self.show_scene_btn)
+        self.hide_scene_btn = QPushButton('Hide')
+        self.hide_scene_btn.setFixedSize(68, 28)
+        self.hide_scene_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.hide_scene_btn.setToolTip('Hide all sources in the selected scene')
+        self.hide_scene_btn.clicked.connect(self._on_hide_scene_clicked)
+        self.hide_scene_btn.setEnabled(False)
+        btn_layout.addWidget(self.hide_scene_btn)
+        self.set_scene_btn = QPushButton('Set Scene')
+        self.set_scene_btn.setFixedSize(84, 28)
+        self.set_scene_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.set_scene_btn.setToolTip('Set the selected scene as the current scene in OBS')
+        self.set_scene_btn.clicked.connect(self._on_set_scene_clicked)
+        self.set_scene_btn.setEnabled(False)
+        btn_layout.addWidget(self.set_scene_btn)
+        header_layout.addWidget(btn_container)
         header_layout.addStretch()
-        # Last updated timestamp (small, subtle)
-        self.scenes_last_updated_label = QLabel("Last updated: Never")
-        # Slightly less prominent timestamp so it doesn't compete with the filter
-        self.scenes_last_updated_label.setStyleSheet("color: #9a9a9a; font-size:9px; padding-right:4px;")
-        header_layout.addWidget(self.scenes_last_updated_label)
         scenes_layout.addLayout(header_layout)
         info_label = QLabel("Double-click a source to toggle visibility")
         info_label.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px; margin-top:4px;")
@@ -764,7 +791,18 @@ class MainWindow(QWidget):
         self.scene_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.scene_tree.customContextMenuRequested.connect(self.scene_tree_context_menu)
         self.scene_tree.itemDoubleClicked.connect(self.on_scene_item_double_clicked)
+        # Selection changes enable/disable the header action buttons
+        self.scene_tree.itemSelectionChanged.connect(self._on_scene_selection_changed)
         scenes_layout.addWidget(self.scene_tree)
+        # Bottom bar with timestamp (right-aligned)
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setContentsMargins(8, 6, 8, 0)
+        bottom_layout.addStretch()
+        self.scenes_last_updated_label = QLabel("Last updated: Never")
+        self.scenes_last_updated_label.setStyleSheet("color: #9a9a9a; font-size:9px;")
+        self.scenes_last_updated_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        bottom_layout.addWidget(self.scenes_last_updated_label)
+        scenes_layout.addLayout(bottom_layout)
         scenes_group.setLayout(scenes_layout)
         return scenes_group
     
@@ -1172,6 +1210,33 @@ class MainWindow(QWidget):
 
     def update_scene_tree(self, scenes_dict):
         try:
+            # Preserve UI state so updates don't disrupt scrolling or selection
+            prev_scroll = None
+            expanded_scenes = set()
+            selected_item_data = None
+            try:
+                vbar = self.scene_tree.verticalScrollBar()
+                prev_scroll = vbar.value()
+            except Exception:
+                prev_scroll = None
+            try:
+                for i in range(self.scene_tree.topLevelItemCount()):
+                    top = self.scene_tree.topLevelItem(i)
+                    if top.isExpanded():
+                        expanded_scenes.add(top.text(0))
+            except Exception:
+                pass
+            try:
+                sel = self.scene_tree.selectedItems()
+                if sel:
+                    s = sel[0]
+                    d = s.data(0, Qt.ItemDataRole.UserRole)
+                    if d:
+                        selected_item_data = (d[0], d[1])
+            except Exception:
+                selected_item_data = None
+
+            # Rebuild the tree
             self.scene_tree.clear()
             if not scenes_dict:
                 return
@@ -1220,20 +1285,64 @@ class MainWindow(QWidget):
                         child.setText(1, '')
                         # Place the composite widget in column 0 (left)
                         self.scene_tree.setItemWidget(child, 0, cell)
+                        # Forward right-clicks on the embedded widgets to the tree context menu
+                        try:
+                            cell.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                            cell.customContextMenuRequested.connect(lambda p, w=cell: self._forward_context_menu_from_widget(w, p))
+                            ind_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                            ind_btn.customContextMenuRequested.connect(lambda p, w=ind_btn: self._forward_context_menu_from_widget(w, p))
+                            name_lbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                            name_lbl.customContextMenuRequested.connect(lambda p, w=name_lbl: self._forward_context_menu_from_widget(w, p))
+                        except Exception:
+                            pass
                     except Exception:
                         # fallback to a simple text status in the right column
                         child.setText(0, src.get('name', f"Item {src.get('id')}"))
                         child.setText(1, 'Visible' if src.get('enabled') else 'Hidden')
-            # Expand top-level nodes by default
+            # Restore expansion state (or expand by default) and update counts
             for i in range(self.scene_tree.topLevelItemCount()):
-                self.scene_tree.topLevelItem(i).setExpanded(True)
-                # Update top-level count in second column
                 try:
                     top = self.scene_tree.topLevelItem(i)
+                    # Restore expansion if we recorded one, otherwise expand
+                    if expanded_scenes:
+                        top.setExpanded(top.text(0) in expanded_scenes)
+                    else:
+                        top.setExpanded(True)
                     count = top.childCount()
                     top.setText(1, f"{count} sources")
                 except Exception:
                     pass
+
+            # Restore scroll position and selection if possible
+            try:
+                vbar = self.scene_tree.verticalScrollBar()
+                if prev_scroll is not None:
+                    vbar.setValue(min(prev_scroll, vbar.maximum()))
+            except Exception:
+                pass
+            try:
+                if selected_item_data:
+                    s_scene, s_id = selected_item_data
+                    found = False
+                    for i in range(self.scene_tree.topLevelItemCount()):
+                        top = self.scene_tree.topLevelItem(i)
+                        for j in range(top.childCount()):
+                            child = top.child(j)
+                            d = child.data(0, Qt.ItemDataRole.UserRole)
+                            if d and d[0] == s_scene and d[1] == s_id:
+                                child.setSelected(True)
+                                self.scene_tree.scrollToItem(child, QTreeWidget.PositionAtCenter)
+                                found = True
+                                break
+                        if found:
+                            break
+            except Exception:
+                pass
+            # Update header action button availability after tree rebuild
+            try:
+                self._on_scene_selection_changed()
+            except Exception:
+                pass
             try:
                 import datetime
                 ts = 'Last updated: ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -1336,12 +1445,31 @@ class MainWindow(QWidget):
                 set_scene_action = QAction('Set as Current Scene', self.scene_tree)
                 set_scene_action.triggered.connect(lambda: self._context_set_current_scene(item.text(0)))
                 menu.addAction(set_scene_action)
+                # Bulk actions for scenes
+                show_all = QAction('Show All Sources', self.scene_tree)
+                show_all.triggered.connect(lambda: self._context_set_scene_sources(item.text(0), True))
+                hide_all = QAction('Hide All Sources', self.scene_tree)
+                hide_all.triggered.connect(lambda: self._context_set_scene_sources(item.text(0), False))
+                menu.addAction(show_all)
+                menu.addAction(hide_all)
             else:
                 data = item.data(0, Qt.ItemDataRole.UserRole)
                 if data:
                     scene_name, item_id, enabled = data
+                    # Provide explicit Show/Hide in addition to Toggle
+                    show_action = QAction('Show Source', self.scene_tree)
+                    show_action.triggered.connect(lambda: self._context_set_source_enabled(scene_name, item_id, True))
+                    hide_action = QAction('Hide Source', self.scene_tree)
+                    hide_action.triggered.connect(lambda: self._context_set_source_enabled(scene_name, item_id, False))
                     toggle_action = QAction('Toggle Visibility', self.scene_tree)
                     toggle_action.triggered.connect(lambda: self._context_toggle_source(scene_name, item_id, enabled))
+                    # Add actions, disabling the redundant one
+                    if enabled:
+                        show_action.setEnabled(False)
+                    else:
+                        hide_action.setEnabled(False)
+                    menu.addAction(show_action)
+                    menu.addAction(hide_action)
                     menu.addAction(toggle_action)
             menu.addAction(QAction('Refresh Scenes', self.scene_tree, triggered=self.request_scene_refresh))
             menu.exec(self.scene_tree.viewport().mapToGlobal(pos))
@@ -1360,19 +1488,154 @@ class MainWindow(QWidget):
                 websocket_logger.error(f"Failed to start OBS connector thread: {e}")
                 QMessageBox.warning(self, "Set Scene", "OBS connector thread was not running and failed to start.")
                 return
-        action = {'action': 'set_current_program_scene', 'scene': scene_name}
+        try:
+            action = {'action': 'set_current_scene', 'scene': scene_name}
+            self.obs_connector.action_requested.emit(action)
+            self.log_event(f"Requested set current scene: {scene_name}")
+        except Exception as e:
+            websocket_logger.error(f"Failed to set current scene: {e}")
+            QMessageBox.warning(self, "Set Scene", "Failed to request set-scene action; please try again.")
+
+    def _on_scene_selection_changed(self):
+        try:
+            sel = self.scene_tree.selectedItems()
+            if not sel:
+                self.show_scene_btn.setEnabled(False)
+                self.hide_scene_btn.setEnabled(False)
+                self.set_scene_btn.setEnabled(False)
+                return
+            item = sel[0]
+            if item.parent() is None:
+                # top-level scene selected
+                self.show_scene_btn.setEnabled(True)
+                self.hide_scene_btn.setEnabled(True)
+                self.set_scene_btn.setEnabled(True)
+            else:
+                # child source selected - enable per-source show/hide via context menu
+                self.show_scene_btn.setEnabled(False)
+                self.hide_scene_btn.setEnabled(False)
+                self.set_scene_btn.setEnabled(False)
+        except Exception as e:
+            bot_logger.error(f"Error updating scene selection buttons: {e}")
+
+
+    def _context_toggle_source(self, scene_name, item_id, enabled):
+        # Toggle the source's enabled state (convenience wrapper)
+        self._context_set_source_enabled(scene_name, item_id, not enabled)
+
+    def _context_set_source_enabled(self, scene_name, item_id, enabled):
+        if not self.obs_connector or not self.obs_connector.connected:
+            QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
+            return
+        if not self.obs_connector.isRunning():
+            websocket_logger.warning("OBS connector thread not running; attempting to start it...")
+            try:
+                self.obs_connector.start()
+            except Exception as e:
+                websocket_logger.error(f"Failed to start OBS connector thread: {e}")
+                QMessageBox.warning(self, "Toggle Source", "OBS connector thread was not running and failed to start.")
+                return
+        # Send the action to OBS connector
+        action = {
+            'action': 'set_scene_item_enabled',
+            'scene': scene_name,
+            'item_id': item_id,
+            'enabled': enabled
+        }
         try:
             self.obs_connector.action_requested.emit(action)
-            # Immediate UI feedback
+            # Optimistic UI update: update item data and indicator immediately
+            try:
+                for i in range(self.scene_tree.topLevelItemCount()):
+                    top = self.scene_tree.topLevelItem(i)
+                    if top.text(0) != scene_name:
+                        continue
+                    for j in range(top.childCount()):
+                        child = top.child(j)
+                        data = child.data(0, Qt.ItemDataRole.UserRole)
+                        if data and data[1] == item_id:
+                            # update cached flag
+                            child.setData(0, Qt.ItemDataRole.UserRole, (data[0], data[1], enabled))
+                            # Update widget in column 0 if present
+                            w = self.scene_tree.itemWidget(child, 0)
+                            if w:
+                                btn = w.findChild(QPushButton)
+                                if btn:
+                                    bg = '#4ec745' if enabled else '#777777'
+                                    try:
+                                        btn.setStyleSheet(f"""QPushButton {{ background-color: {bg}; border-radius: 6px; border: 1px solid rgba(0,0,0,0.12); padding: 0; }} QPushButton:hover {{ outline: 2px solid rgba(255,255,255,0.06); }}""")
+                                        btn.setToolTip('Visible' if enabled else 'Hidden')
+                                    except Exception:
+                                        pass
+                            # ensure text label adjusted (no emoji/markers)
+                            try:
+                                # If label exists in widget, keep its text; no adornment needed
+                                pass
+                            except Exception:
+                                pass
+                            break
+            except Exception:
+                pass
             self.log_event(f"Requested action: {action}")
         except Exception as e:
             websocket_logger.error(f"Failed to request action via signal: {e}")
             QMessageBox.warning(self, "Action Error", "Failed to request OBS action; please try again.")
+        # Refresh scenes to reflect change by signaling the connector thread
+        try:
+            self.obs_connector.refresh_requested.emit()
+        except Exception as e:
+            websocket_logger.error(f"Failed to request scenes refresh via signal: {e}")
 
-    def _context_toggle_source(self, scene_name, item_id, enabled):
-        if not self.obs_connector or not self.obs_connector.connected:
-            QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
-            return
+    def _context_set_scene_sources(self, scene_name, enabled):
+        """Set enabled state for all sources in a given scene."""
+        try:
+            for i in range(self.scene_tree.topLevelItemCount()):
+                top = self.scene_tree.topLevelItem(i)
+                if top.text(0) != scene_name:
+                    continue
+                for j in range(top.childCount()):
+                    child = top.child(j)
+                    data = child.data(0, Qt.ItemDataRole.UserRole)
+                    if data:
+                        _, item_id, _ = data
+                        # Reuse the existing setter to preserve checks and optimistic UI updates
+                        self._context_set_source_enabled(scene_name, item_id, enabled)
+            self.log_event(f"Requested {'Show' if enabled else 'Hide'} all sources in scene {scene_name}")
+        except Exception as e:
+            websocket_logger.error(f"Failed to set scene sources: {e}")
+
+    def _on_show_scene_clicked(self):
+        try:
+            sel = self.scene_tree.selectedItems()
+            if not sel:
+                return
+            item = sel[0]
+            if item.parent() is None:
+                self._context_set_scene_sources(item.text(0), True)
+        except Exception as e:
+            bot_logger.error(f"Error in show scene clicked: {e}")
+
+    def _on_hide_scene_clicked(self):
+        try:
+            sel = self.scene_tree.selectedItems()
+            if not sel:
+                return
+            item = sel[0]
+            if item.parent() is None:
+                self._context_set_scene_sources(item.text(0), False)
+        except Exception as e:
+            bot_logger.error(f"Error in hide scene clicked: {e}")
+
+    def _on_set_scene_clicked(self):
+        try:
+            sel = self.scene_tree.selectedItems()
+            if not sel:
+                return
+            item = sel[0]
+            if item.parent() is None:
+                self._context_set_current_scene(item.text(0))
+        except Exception as e:
+            bot_logger.error(f"Error in set scene clicked: {e}")
 
     def _toggle_source_from_button(self, button):
         """Handle toggle requests from inline status buttons in the scene tree."""
@@ -1391,18 +1654,20 @@ class MainWindow(QWidget):
                     if data and data[0] == scene_name and data[1] == item_id:
                         enabled = data[2]
                         # Use the existing context toggle flow which also handles thread checks
-                        self._context_toggle_source(scene_name, item_id, enabled)
+                        self._context_set_source_enabled(scene_name, item_id, not enabled)
                         return
         except Exception as e:
             bot_logger.error(f"Error toggling source from button: {e}")
-        if not self.obs_connector.isRunning():
-            websocket_logger.warning("OBS connector thread not running; attempting to start it...")
-            try:
+        # If we get here it means the OBS connector thread may not be running; try to start it
+        try:
+            if not self.obs_connector.isRunning():
+                websocket_logger.warning("OBS connector thread not running; attempting to start it...")
                 self.obs_connector.start()
-            except Exception as e:
-                websocket_logger.error(f"Failed to start OBS connector thread: {e}")
-                QMessageBox.warning(self, "Toggle Source", "OBS connector thread was not running and failed to start.")
-                return
+        except Exception as e:
+            websocket_logger.error(f"Failed to start OBS connector thread: {e}")
+            QMessageBox.warning(self, "Toggle Source", "OBS connector thread was not running and failed to start.")
+            return
+
         action = {'action': 'set_scene_item_enabled', 'scene': scene_name, 'item_id': item_id, 'enabled': not enabled}
         try:
             self.obs_connector.action_requested.emit(action)
@@ -1530,8 +1795,15 @@ class MainWindow(QWidget):
                     return
         except Exception:
             pass
+
+    def _forward_context_menu_from_widget(self, widget, pos):
+        """Translate a right-click from an embedded widget into the scene tree's context menu."""
+        try:
+            global_pos = widget.mapToGlobal(pos)
+            tree_pos = self.scene_tree.viewport().mapFromGlobal(global_pos)
+            self.scene_tree_context_menu(tree_pos)
         except Exception as e:
-            websocket_logger.error(f"Failed to toggle source enabled state: {e}")
+            bot_logger.error(f"Error forwarding context menu from widget: {e}")
 
     def update_bot_status(self, status):
         status_text = f"Status: {status}"

@@ -177,11 +177,12 @@ class TwitchAPI:
             bot_logger.error(f"Error deleting custom reward {reward_id}: {e}")
             raise
 
-    def get_reward_redemptions(self, reward_id, status=None, ids=None):
+    def get_reward_redemptions(self, reward_id, status=None, ids=None, first=50, sort=None):
         """Get redemptions for a reward"""
         params = {
             'broadcaster_id': self.broadcaster_id,
-            'reward_id': reward_id
+            'reward_id': reward_id,
+            'first': int(first)
         }
         if ids:
             params['id'] = ids
@@ -189,16 +190,30 @@ class TwitchAPI:
             params['status'] = status
         else:
             params['status'] = 'UNFULFILLED' # Default
-
+        if sort:
+            params['sort'] = sort
+        results = []
         try:
-            response = requests.get(
-                f"{TWITCH_API_BASE}/channel_points/custom_rewards/redemptions",
-                headers=self._get_headers(),
-                params=params,
-                timeout=10
-            )
-            response.raise_for_status()
-            return response.json().get('data', [])
+            cursor = None
+            while True:
+                if cursor:
+                    params['after'] = cursor
+                response = requests.get(
+                    f"{TWITCH_API_BASE}/channel_points/custom_rewards/redemptions",
+                    headers=self._get_headers(),
+                    params=params,
+                    timeout=10
+                )
+                response.raise_for_status()
+                body = response.json()
+                data = body.get('data', [])
+                results.extend(data)
+                pagination = body.get('pagination', {}) or {}
+                cursor = pagination.get('cursor')
+                # Stop if no cursor (last page) or we received less than requested
+                if not cursor or len(data) < int(first):
+                    break
+            return results
         except Exception as e:
             bot_logger.error(f"Error fetching redemptions: {e}")
             return []

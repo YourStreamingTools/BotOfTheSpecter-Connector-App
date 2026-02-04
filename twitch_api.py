@@ -104,7 +104,11 @@ class TwitchAPI:
             response = requests.get(
                 f"{TWITCH_API_BASE}/channel_points/custom_rewards",
                 headers=self._get_headers(),
-                params={'broadcaster_id': self.broadcaster_id},
+                params={
+                    'broadcaster_id': self.broadcaster_id,
+                    # Only request rewards that are manageable by this client/application
+                    'only_manageable_rewards': 'true'
+                },
                 timeout=10
             )
             response.raise_for_status()

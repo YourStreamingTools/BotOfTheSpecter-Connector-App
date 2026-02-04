@@ -222,6 +222,16 @@ class ChannelPointsTab(QWidget):
         self.refresh_btn.clicked.connect(self.refresh_rewards)
         toolbar.addWidget(self.new_reward_btn)
         toolbar.addWidget(self.refresh_btn)
+        # Auto-fulfill toggle (saved in config: 'auto_fulfill_redemptions')
+        self.auto_fulfill_chk = QCheckBox("Auto-fulfill redemptions")
+        try:
+            init_state = bool(self.reward_manager.config.get('auto_fulfill_redemptions', False))
+        except Exception:
+            init_state = False
+        self.auto_fulfill_chk.setChecked(init_state)
+        self.auto_fulfill_chk.setToolTip("When enabled, processed redemptions are automatically marked FULFILLED. Use with caution.")
+        self.auto_fulfill_chk.stateChanged.connect(self.on_auto_fulfill_toggled)
+        toolbar.addWidget(self.auto_fulfill_chk)
         toolbar.addStretch()
         main_layout.addLayout(toolbar)
         # Note about manageable rewards
@@ -338,6 +348,26 @@ class ChannelPointsTab(QWidget):
             bot_logger.info("ChannelPoints: refresh requested (debounced)")
         except Exception as e:
             bot_logger.error(f"Failed to schedule ChannelPoints refresh: {e}")
+
+    def on_auto_fulfill_toggled(self, state):
+        try:
+            # state may be an int or Qt.CheckState; treat truthy as enabled
+            enabled = bool(state)
+            # Persist to config
+            try:
+                if getattr(self, 'reward_manager', None) and getattr(self.reward_manager, 'config', None):
+                    self.reward_manager.config.set('auto_fulfill_redemptions', bool(enabled))
+            except Exception as e:
+                bot_logger.error(f"Failed to save auto_fulfill setting: {e}")
+            # Update the handler immediately
+            try:
+                if getattr(self, 'redemption_handler', None):
+                    self.redemption_handler.auto_fulfill = bool(enabled)
+            except Exception as e:
+                bot_logger.error(f"Failed to update redemption handler auto_fulfill: {e}")
+            bot_logger.info(f"Auto-fulfill toggled: {enabled}")
+        except Exception as e:
+            bot_logger.error(f"Error handling auto-fulfill toggle: {e}")
 
     def eventFilter(self, obj, event):
         # Listen for resize events on the scroll viewport to reflow grid
@@ -630,9 +660,29 @@ def _edit_reward(self, reward_id):
     dialog = RewardEditDialog(reward, parent=self)
     if dialog.exec():
         data = dialog.get_data()
+        # Basic validation
+        title = (data.get('title') or '').strip()
+        if not title:
+            QMessageBox.warning(self, "Validation Error", "Title must not be empty.")
+            return
+        if len(title) > 45:
+            QMessageBox.warning(self, "Validation Error", "Title must be 45 characters or fewer.")
+            return
+        # Ensure title uniqueness among other rewards
+        for rid, r in self.reward_manager.rewards.items():
+            if rid != reward_id and getattr(r, 'title', '').strip().lower() == title.lower():
+                QMessageBox.warning(self, "Validation Error", "Another reward already uses that title. Please choose a unique title.")
+                return
         try:
             obs_actions = data.pop('obs_actions', [])
-            self.reward_manager.update_reward(reward_id, obs_actions=obs_actions, **data)
+            # Only send changed fields - build payload with explicit fields
+            payload = {}
+            for k in ['title', 'prompt', 'cost', 'background_color', 'is_enabled', 'is_user_input_required',
+                      'is_max_per_stream_enabled', 'max_per_stream', 'is_max_per_user_per_stream_enabled', 'max_per_user_per_stream',
+                      'is_global_cooldown_enabled', 'global_cooldown_seconds', 'is_paused', 'should_redemptions_skip_request_queue']:
+                if k in data:
+                    payload[k] = data[k]
+            self.reward_manager.update_reward(reward_id, obs_actions=obs_actions, **payload)
             self.refresh_rewards()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to update reward: {e}")

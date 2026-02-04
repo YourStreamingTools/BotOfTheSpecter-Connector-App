@@ -224,6 +224,11 @@ class ChannelPointsTab(QWidget):
         toolbar.addWidget(self.refresh_btn)
         toolbar.addStretch()
         main_layout.addLayout(toolbar)
+        # Note about manageable rewards
+        note_label = QLabel("Showing only Channel Points managed by BotOfTheSpecter")
+        note_label.setStyleSheet("color: #aaaaaa; font-size: 10px; padding-left: 6px;")
+        note_label.setToolTip("Only rewards created or managed by BotOfTheSpecter are displayed here; use 'Sync from Twitch' to refresh the list.")
+        main_layout.addWidget(note_label)
         # Split View
         content_layout = QHBoxLayout()
         # Left: Reward Grid

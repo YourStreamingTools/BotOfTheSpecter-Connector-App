@@ -72,10 +72,11 @@ class BotOfTheSpecterConnector(QThread):
             websocket_logger.info("WebSocket connection established, attempting registration...")
             websocket_logger.info(f"Session ID: {specterSocket.sid}")
             websocket_logger.info(f"Transport: {specterSocket.transport()}")
+            # Register with a clear, product-level name so Specter identifies the app
             registration_data = {
                 'code': API_TOKEN,
                 'channel': CHANNEL_NAME,
-                'name': f'Connector V{VERSION}'
+                'name': f'BotOfTheSpecter V{VERSION}'
             }
             safe_reg_data = registration_data.copy()
             safe_reg_data['code'] = '***REDACTED***'

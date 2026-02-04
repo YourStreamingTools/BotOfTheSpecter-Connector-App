@@ -1,6 +1,6 @@
 # Overview
 
-**BotOfTheSpecter OBS Connector** is a powerful integration tool that bridges BotOfTheSpecter and OBS Studio through real-time WebSocket connections. It enables seamless automation by allowing BotOfTheSpecter to trigger OBS actions and monitor streaming events, creating a unified control experience for content creators.
+**BotOfTheSpecter** is a powerful integration tool that bridges BotOfTheSpecter and external services (including OBS Studio) through real-time WebSocket connections. It enables seamless automation by allowing BotOfTheSpecter to trigger actions and monitor streaming events, creating a unified control experience for content creators.
 
 ## Key Features
 

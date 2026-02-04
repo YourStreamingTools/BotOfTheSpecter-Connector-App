@@ -655,16 +655,29 @@ class MainWindow(QWidget):
         scenes_group = ModernGroupBox("Scenes")
         scenes_layout = QVBoxLayout()
         scenes_layout.setSpacing(8)
-        # Header with refresh button
+        # Header with refresh icon, filter, and last-updated timestamp
         header_layout = QHBoxLayout()
         header_layout.setSpacing(8)
-        refresh_btn = ModernButton("Refresh Scenes")
-        refresh_btn.setMaximumWidth(140)
-        refresh_btn.clicked.connect(self.request_scene_refresh)
-        header_layout.addWidget(refresh_btn)
+        # Refresh icon button (compact)
+        refresh_icon_btn = QPushButton("")
+        refresh_icon_btn.setFixedSize(34, 34)
+        try:
+            from pathlib import Path
+            assets_dir = Path(__file__).resolve().parent / 'assets' / 'icons'
+            rpath = assets_dir / 'refresh.svg'
+            if rpath.exists():
+                refresh_icon_btn.setIcon(QIcon(str(rpath)))
+                refresh_icon_btn.setIconSize(QSize(18, 18))
+        except Exception:
+            pass
+        refresh_icon_btn.setStyleSheet("background-color: #2d2d2d; color: white; border-radius: 17px; border: none;")
+        refresh_icon_btn.setToolTip("Refresh Scenes")
+        refresh_icon_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        refresh_icon_btn.clicked.connect(self.request_scene_refresh)
+        header_layout.addWidget(refresh_icon_btn)
         # Filter field for quick search
         self.scene_filter = ModernLineEdit()
-        self.scene_filter.setMaximumWidth(220)
+        self.scene_filter.setMinimumWidth(260)
         self.scene_filter.setPlaceholderText('Filter scenes or sources...')
         self.scene_filter.textChanged.connect(self.filter_scene_tree)
         # Make the placeholder text readable on dark theme
@@ -672,9 +685,13 @@ class MainWindow(QWidget):
         self.scene_filter.setStyleSheet(base_style + " QLineEdit::placeholder { color: #aaaaaa; } QLineEdit:placeholder { color: #aaaaaa; }")
         header_layout.addWidget(self.scene_filter)
         header_layout.addStretch()
+        # Last updated timestamp (small, subtle)
+        self.scenes_last_updated_label = QLabel("Last updated: Never")
+        self.scenes_last_updated_label.setStyleSheet("color: #aaaaaa; font-size:10px; padding-right:6px;")
+        header_layout.addWidget(self.scenes_last_updated_label)
         scenes_layout.addLayout(header_layout)
         info_label = QLabel("Double-click a source to toggle visibility")
-        info_label.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px;")
+        info_label.setStyleSheet("color:#aaaaaa; font-size:10px; padding-left:6px; margin-top:4px;")
         scenes_layout.addWidget(info_label)
         # Tree view for scenes and sources
         self.scene_tree = QTreeWidget()
@@ -686,12 +703,12 @@ class MainWindow(QWidget):
                 color: #e0e0e0;
                 alternate-background-color: #2b2b2b;
                 border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                padding: 8px;
+                border-radius: 8px;
+                padding: 12px;
                 font-size: 11px;
             }
             QTreeWidget::item {
-                padding: 4px 8px;
+                padding: 6px 8px;
                 background-color: transparent;
                 color: #e0e0e0;
             }
@@ -724,9 +741,6 @@ class MainWindow(QWidget):
         self.scene_tree.customContextMenuRequested.connect(self.scene_tree_context_menu)
         self.scene_tree.itemDoubleClicked.connect(self.on_scene_item_double_clicked)
         scenes_layout.addWidget(self.scene_tree)
-        # Last updated label
-        self.scenes_last_updated = QLabel("Last updated: Never")
-        scenes_layout.addWidget(self.scenes_last_updated)
         scenes_group.setLayout(scenes_layout)
         return scenes_group
     
@@ -1165,7 +1179,11 @@ class MainWindow(QWidget):
             try:
                 import datetime
                 if hasattr(self, 'scenes_last_updated'):
-                    self.scenes_last_updated.setText('Last updated: ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                    ts = 'Last updated: ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    try:
+                        self.scenes_last_updated_label.setText(ts)
+                    except Exception:
+                        pass
             except Exception:
                 pass
         except Exception as e:

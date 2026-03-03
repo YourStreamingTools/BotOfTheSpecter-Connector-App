@@ -19,7 +19,6 @@ class TwitchAPI:
         self.broadcaster_id = None
         self.display_name = None
         self.broadcaster_login = None
-        
         # Initial token fetch attempt
         try:
             if self.api_key:
@@ -37,18 +36,42 @@ class TwitchAPI:
         except Exception as e:
             bot_logger.error(f"Failed to refresh token with new key: {e}")
 
+    def validate_api_key(self, api_key=None):
+        key_to_check = api_key or self.api_key
+        if not key_to_check:
+            return False, None, "API key is empty"
+        try:
+            response = requests.get(
+                f"{BOTOFTHESPECTER_API_BASE}/v2/checkkey",
+                headers={
+                    'accept': 'application/json',
+                    'X-API-KEY': key_to_check
+                },
+                timeout=10
+            )
+            if response.status_code != 200:
+                return False, None, f"Validation request failed (HTTP {response.status_code})"
+            data = response.json() if response.content else {}
+            status = str(data.get('status', '')).strip()
+            username = data.get('username')
+            is_valid = status.lower() == 'valid api key' and bool(username)
+            if is_valid:
+                return True, username, status
+            if status:
+                return False, username, status
+            return False, username, "Invalid API key"
+        except Exception as e:
+            bot_logger.error(f"API key validation failed: {e}")
+            return False, None, f"API key validation failed: {e}"
 
     def _get_valid_token(self):
-        """Get valid useable_access_token, fetching new one via BotOfTheSpecter API if expired"""
         now = datetime.now()
-        
         # Check if we have a valid cached token
         if self._cached_token and self._cached_token_timestamp:
             # Check if token is within the valid window (less than 4 hours old)
             token_age = now - self._cached_token_timestamp
             if token_age < timedelta(hours=TOKEN_EXPIRATION_HOURS):
                 return self._cached_token
-
         # Fetch new token from BotOfTheSpecter
         try:
             bot_logger.info("Fetching new Twitch credentials from BotOfTheSpecter API...")
@@ -59,11 +82,9 @@ class TwitchAPI:
             ) 
             response.raise_for_status()
             data = response.json()
-            
             # Critical: Use useable_access_token as this is the delegated token
             self._cached_token = data.get('useable_access_token')
             updated_str = data.get('useable_access_token_updated')
-            
             # Parse timestamp or fallback to now
             try:
                 if updated_str:
@@ -74,17 +95,13 @@ class TwitchAPI:
             except ValueError:
                 self._cached_token_timestamp = now
                 bot_logger.warning(f"Could not parse token timestamp {updated_str}, assuming fresh")
-
             self.broadcaster_id = str(data.get('twitch_user_id'))
             self.display_name = data.get('twitch_display_name')
             self.broadcaster_login = data.get('twitch_display_name', '').lower() # approximated
-            
             if not self._cached_token:
                 raise ValueError("No useable_access_token found in response")
-                
             bot_logger.info(f"Successfully refreshed Twitch credentials for {self.display_name}")
             return self._cached_token
-            
         except Exception as e:
             bot_logger.error(f"Failed to fetch Twitch credentials: {e}")
             raise
@@ -98,7 +115,6 @@ class TwitchAPI:
         }
 
     def get_custom_rewards(self):
-        """Fetch all custom rewards for the channel"""
         bot_logger.info("TwitchAPI: fetching custom rewards for broadcaster_id=%s", self.broadcaster_id)
         try:
             response = requests.get(
@@ -120,7 +136,6 @@ class TwitchAPI:
             raise
 
     def create_custom_reward(self, title, cost, **kwargs):
-        """Create a new custom reward"""
         data = {
             'title': title,
             'cost': cost,
@@ -141,7 +156,6 @@ class TwitchAPI:
             raise
 
     def update_custom_reward(self, reward_id, **kwargs):
-        """Update an existing custom reward"""
         try:
             response = requests.patch(
                 f"{TWITCH_API_BASE}/channel_points/custom_rewards",
@@ -160,7 +174,6 @@ class TwitchAPI:
             raise
 
     def delete_custom_reward(self, reward_id):
-        """Delete a custom reward"""
         try:
             response = requests.delete(
                 f"{TWITCH_API_BASE}/channel_points/custom_rewards",
@@ -178,7 +191,6 @@ class TwitchAPI:
             raise
 
     def get_reward_redemptions(self, reward_id, status=None, ids=None, first=50, sort=None):
-        """Get redemptions for a reward"""
         params = {
             'broadcaster_id': self.broadcaster_id,
             'reward_id': reward_id,
@@ -219,7 +231,6 @@ class TwitchAPI:
             return []
 
     def update_redemption_status(self, reward_id, redemption_id, status):
-        """Update redemption status (FULFILLED or CANCELED)"""
         try:
             response = requests.patch(
                 f"{TWITCH_API_BASE}/channel_points/custom_rewards/redemptions",

@@ -963,13 +963,31 @@ class MainWindow(QWidget):
         self.save_api_key()
 
     def save_api_key(self):
-        api_key = self.api_key_input.text()
+        api_key = self.api_key_input.text().strip()
         if not api_key:
             QMessageBox.warning(self, "Save API Key", "Please enter an API key before saving.")
             return
+        # Validate key before persisting
+        is_valid = False
+        username = None
+        message = "Invalid API key"
+        if self.twitch_api:
+            try:
+                is_valid, username, message = self.twitch_api.validate_api_key(api_key)
+            except Exception:
+                is_valid, username, message = False, None, "Unable to validate API key"
+        if not is_valid:
+            QMessageBox.warning(self, "Save API Key", f"API Key validation failed: {message}")
+            self.bot_connect_btn.setEnabled(False)
+            return
         # Persist the key and enable connection controls
         self.config.set('api_key', api_key)
-        QMessageBox.information(self, "Save API Key", "API Key saved. Click Connect to start the Bot connection.")
+        channel_text = username or "Unknown"
+        QMessageBox.information(
+            self,
+            "Save API Key",
+            f"API Key is valid for channel: {channel_text}.\nAPI Key saved. Click Connect to start the Bot connection."
+        )
         self.bot_connect_btn.setEnabled(True)
         # Update Twitch API if present
         if self.twitch_api:
@@ -1033,13 +1051,24 @@ class MainWindow(QWidget):
             self.bot_connect_btn.setText("Disconnect")
             bot_logger.info("Resume connection requested")
             return
-        api_key = self.api_key_input.text()
+        api_key = self.api_key_input.text().strip()
         if not api_key:
             QMessageBox.warning(self, "Connection Error", "Please enter an API key first.")
             return
-        if not api_key:
-            QMessageBox.warning(self, "Connection Error", "Please enter an API key first.")
+        # Validate key before connecting websocket
+        is_valid = False
+        username = None
+        message = "Invalid API key"
+        if self.twitch_api:
+            try:
+                is_valid, username, message = self.twitch_api.validate_api_key(api_key)
+            except Exception:
+                is_valid, username, message = False, None, "Unable to validate API key"
+        if not is_valid:
+            QMessageBox.warning(self, "Connection Error", f"API Key validation failed: {message}")
             return
+        if username:
+            bot_logger.info(f"API key validated for channel: {username}")
             
         # Update Twitch API Key just in case it changed
         if self.twitch_api:

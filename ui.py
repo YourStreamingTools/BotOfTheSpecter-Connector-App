@@ -1815,10 +1815,19 @@ class MainWindow(QWidget):
         is_connected = "Connected" in status
         self.obs_connect_btn.set_connected(is_connected)
     def log_event(self, event):
+        vbar = self.log_area.verticalScrollBar()
+        old_value = vbar.value()
+        old_maximum = vbar.maximum()
+        was_at_top = old_value <= vbar.minimum() + 1
         cursor = self.log_area.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.Start)
         cursor.insertText(f"{event}\n")
         self.log_area.setTextCursor(cursor)
+        if was_at_top:
+            vbar.setValue(vbar.minimum())
+        else:
+            growth = vbar.maximum() - old_maximum
+            vbar.setValue(old_value + max(0, growth))
     def toggle_log_visibility(self):
         self.log_expanded = not self.log_expanded
         self.set_log_visibility(self.log_expanded)

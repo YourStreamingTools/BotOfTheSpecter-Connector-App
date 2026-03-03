@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QGroupBox, QMessageBox,
     QScrollArea, QTreeWidget, QTreeWidgetItem, QStackedWidget, QSizePolicy
 )
-from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QAction
+from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QAction, QTextCursor
 from PyQt6.QtCore import Qt, QTimer, QSize
 from PyQt6.QtWidgets import QMenu
 from config import Config
@@ -156,7 +156,7 @@ class StatusPanel(QWidget):
             }
         """)
         self.init_ui()
-    
+
     def init_ui(self):
         layout = QHBoxLayout()
         layout.setSpacing(24)
@@ -269,7 +269,6 @@ class MainWindow(QWidget):
         # Initialize status refresh timer
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.refresh_status)
-        
         # Initialize Channel Points Managers
         api_key = self.config.get('api_key', '')
         # Only init TwitchAPI if we have a key, or init with empty? 
@@ -278,7 +277,6 @@ class MainWindow(QWidget):
         self.reward_manager = RewardManager(self.config, self.twitch_api)
         self.redemption_handler = RedemptionHandler(self.reward_manager, self.obs_connector, self.twitch_api)
         self.redemption_handler.start() # Start background thread for queue processing
-
         # Prepare UI first, then do background tasks like icon download and auto-connections
         self.init_ui()
         # Prefer bundled icon (assets/icons/app.png) if present, otherwise fall back to downloaded ICON_FILE
@@ -345,12 +343,10 @@ class MainWindow(QWidget):
         self.lock_btn.clicked.connect(self.toggle_lock)
         header_layout.addWidget(self.lock_btn)
         main_layout.addLayout(header_layout)
-        
         # Create left sidebar + stacked pages layout
         content_layout = QHBoxLayout()
         content_layout.setSpacing(12)
         content_layout.setContentsMargins(0, 0, 0, 0)
-
         # Tab 1: Connection Settings
         connection_tab = QWidget()
         connection_layout = QVBoxLayout()
@@ -364,7 +360,6 @@ class MainWindow(QWidget):
         connection_layout.addWidget(obs_group)
         connection_layout.addStretch()
         connection_tab.setLayout(connection_layout)
-
         # Tab 2: Controls
         controls_tab = QWidget()
         controls_layout = QVBoxLayout()
@@ -375,7 +370,6 @@ class MainWindow(QWidget):
         controls_layout.addWidget(scenes_group)
         controls_layout.addStretch()
         controls_tab.setLayout(controls_layout)
-
         # Tab 3: Variables
         variables_tab = QWidget()
         variables_layout = QVBoxLayout()
@@ -386,10 +380,8 @@ class MainWindow(QWidget):
         variables_layout.addWidget(variables_group)
         variables_layout.addStretch()
         variables_tab.setLayout(variables_layout)
-
         # Tab 5: Twitch Channel Points (New)
         self.cp_tab = ChannelPointsTab(self.reward_manager, self.redemption_handler)
-
         # Tab 4: Event Log
         log_tab = QWidget()
         log_layout = QVBoxLayout()
@@ -408,7 +400,7 @@ class MainWindow(QWidget):
                 border-radius: 4px;
                 padding: 8px;
                 font-family: 'Courier New', monospace;
-                font-size: 10px;
+                font-size: 16px;
             }
         """)
         self.log_area.setMinimumHeight(400)
@@ -416,7 +408,6 @@ class MainWindow(QWidget):
         log_group.setLayout(log_inner_layout)
         log_layout.addWidget(log_group)
         log_tab.setLayout(log_layout)
-
         # Sidebar
         sidebar = QWidget()
         sidebar.setObjectName('sidebar')
@@ -424,7 +415,6 @@ class MainWindow(QWidget):
         sidebar_layout = QVBoxLayout()
         sidebar_layout.setContentsMargins(8, 8, 8, 8)
         sidebar_layout.setSpacing(8)
-
         logo_label = QLabel()
         logo_label.setObjectName('sidebarLogo')
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -805,7 +795,7 @@ class MainWindow(QWidget):
         scenes_layout.addLayout(bottom_layout)
         scenes_group.setLayout(scenes_layout)
         return scenes_group
-    
+
     def _create_variables_group(self):
         variables_group = ModernGroupBox("Variables")
         variables_layout = QVBoxLayout()
@@ -874,7 +864,7 @@ class MainWindow(QWidget):
         # Initial population
         self.update_variables_display()
         return variables_group
-    
+
     def on_variable_changed(self, action, name, new_value, old_value):
         # Coalesce rapid updates to avoid blocking the UI when many events arrive.
         try:
@@ -887,7 +877,7 @@ class MainWindow(QWidget):
         except Exception:
             # Fallback - update immediately if timer creation fails
             self.update_variables_display()
-    
+
     def update_variables_display(self):
         if not hasattr(self, 'variables_tree'):
             return
@@ -1038,13 +1028,11 @@ class MainWindow(QWidget):
                 }
             """)
             self.log_event("🔓 Control Panel UNLOCKED - OBS commands will now work")
-
     def toggle_bot_connection(self):
         if self.bot_connect_btn.text() == "Connect":
             self.connect_bot()
         else:
             self.disconnect_bot()
-
     def connect_bot(self):
         if self.bot_connector and self.bot_connector.isRunning():
             self.bot_connector.should_stop = False
@@ -1085,7 +1073,6 @@ class MainWindow(QWidget):
         self.bot_connector.event_received.connect(self.log_event)
         self.bot_connector.start()
         self.bot_connect_btn.setText("Disconnect")
-
     def disconnect_bot(self):
         try:
             if self.bot_connector:
@@ -1102,7 +1089,6 @@ class MainWindow(QWidget):
             self.bot_connect_btn.setText("Connect")
             self.status_timer.stop()
             self.update_bot_status("Disconnected from BotOfTheSpecter")
-
     def connect_obs(self):
         if self.obs_connector and self.obs_connector.isRunning():
             self.obs_connector.should_stop = False
@@ -1129,7 +1115,6 @@ class MainWindow(QWidget):
         # Update handler with new connector
         if self.redemption_handler:
             self.redemption_handler.set_obs_connector(self.obs_connector)
-
         self.obs_connector.status_update.connect(self.update_obs_status)
         self.obs_connector.event_received.connect(self.log_event)
         self.obs_connector.stats_update.connect(self.handle_stats_update)
@@ -1150,7 +1135,6 @@ class MainWindow(QWidget):
             self.status_timer.start(1000)  # Refresh every 1000ms
         # Don't call prerequest precache here; the OBS connector will precache on successful connect.
         # No blocking UI polling - OBSConnector emits status updates via stats_update
-
     def post_init_connects(self):
         # Download icon in a background thread if missing to avoid UI freeze
         try:
@@ -1177,32 +1161,27 @@ class MainWindow(QWidget):
         except Exception:
             pass
         QTimer.singleShot(1500, lambda: self.cp_tab.schedule_refresh(startup=True))
-
     def toggle_obs_connection(self):
         if self.obs_connect_btn.text() == "Connect":
             self.connect_obs()
         else:
             self.disconnect_obs()
-
     def disconnect_obs(self):
         try:
             if self.obs_connector:
                 # Request a non-blocking graceful disconnect
                 self.obs_connector.disconnect()
-
                 # Connect a one-shot handler to finalize UI when the thread finishes
                 try:
                     self.obs_connector.finished.connect(self._on_obs_disconnected_cleanup)
                 except Exception:
                     pass
-
                 # Fallback: ensure cleanup happens after 5s even if finished isn't emitted
                 QTimer.singleShot(5000, self._on_obs_disconnected_cleanup)
         except Exception as e:
             bot_logger.error(f"Error disconnecting OBS: {e}")
             # Ensure UI state still reflects disconnected
             self._on_obs_disconnected_cleanup()
-
     def _on_obs_disconnected_cleanup(self):
         # This may be called multiple times; guard against partial state
         try:
@@ -1231,12 +1210,10 @@ class MainWindow(QWidget):
                 pass
         except Exception as e:
             bot_logger.error(f"Error during OBS disconnect cleanup: {e}")
-
     def refresh_status(self):
         # Periodic UI status refresh is now handled by the OBSConnector.stats_update signal.
         # Keep this function as a no-op fallback for older behavior.
         return
-
     def update_scene_tree(self, scenes_dict):
         try:
             # Preserve UI state so updates don't disrupt scrolling or selection
@@ -1264,7 +1241,6 @@ class MainWindow(QWidget):
                         selected_item_data = (d[0], d[1])
             except Exception:
                 selected_item_data = None
-
             # Rebuild the tree
             self.scene_tree.clear()
             if not scenes_dict:
@@ -1341,7 +1317,6 @@ class MainWindow(QWidget):
                     top.setText(1, f"{count} sources")
                 except Exception:
                     pass
-
             # Restore scroll position and selection if possible
             try:
                 vbar = self.scene_tree.verticalScrollBar()
@@ -1383,7 +1358,6 @@ class MainWindow(QWidget):
                 pass
         except Exception as e:
             bot_logger.error(f"Failed to update scene tree: {e}")
-
     def handle_stats_update(self, status):
         try:
             combined_status = {
@@ -1396,7 +1370,6 @@ class MainWindow(QWidget):
             self.status_panel.update_status(combined_status)
         except Exception as e:
             bot_logger.error(f"Error updating status panel from stats_update: {e}")
-
     def request_scene_refresh(self):
         if not self.obs_connector:
             QMessageBox.warning(self, "Refresh Scenes", "No OBS connector available.")
@@ -1413,7 +1386,6 @@ class MainWindow(QWidget):
             self.obs_connector.refresh_requested.emit()
         except Exception as e:
             websocket_logger.error(f"Failed to request scenes refresh: {e}")
-
     def _build_status_dot(self, enabled):
         try:
             size = QSize(12, 12)
@@ -1437,7 +1409,6 @@ class MainWindow(QWidget):
             return QIcon(pix)
         except Exception:
             return QIcon()
-
     def filter_scene_tree(self, text):
         try:
             if not text:
@@ -1461,7 +1432,6 @@ class MainWindow(QWidget):
                 scene_item.setHidden(not (scene_match or any_child_visible))
         except Exception as e:
             bot_logger.error(f"Error filtering scene tree: {e}")
-
     def scene_tree_context_menu(self, pos):
         try:
             item = self.scene_tree.itemAt(pos)
@@ -1504,7 +1474,6 @@ class MainWindow(QWidget):
             menu.exec(self.scene_tree.viewport().mapToGlobal(pos))
         except Exception as e:
             bot_logger.error(f"Error building scene context menu: {e}")
-
     def _context_set_current_scene(self, scene_name):
         if not self.obs_connector or not self.obs_connector.connected:
             QMessageBox.warning(self, "Set Scene", "OBS is not connected.")
@@ -1524,7 +1493,6 @@ class MainWindow(QWidget):
         except Exception as e:
             websocket_logger.error(f"Failed to set current scene: {e}")
             QMessageBox.warning(self, "Set Scene", "Failed to request set-scene action; please try again.")
-
     def _on_scene_selection_changed(self):
         try:
             sel = self.scene_tree.selectedItems()
@@ -1546,12 +1514,9 @@ class MainWindow(QWidget):
                 self.set_scene_btn.setEnabled(False)
         except Exception as e:
             bot_logger.error(f"Error updating scene selection buttons: {e}")
-
-
     def _context_toggle_source(self, scene_name, item_id, enabled):
         # Toggle the source's enabled state (convenience wrapper)
         self._context_set_source_enabled(scene_name, item_id, not enabled)
-
     def _context_set_source_enabled(self, scene_name, item_id, enabled):
         if not self.obs_connector or not self.obs_connector.connected:
             QMessageBox.warning(self, "Toggle Source", "OBS is not connected.")
@@ -1614,9 +1579,7 @@ class MainWindow(QWidget):
             self.obs_connector.refresh_requested.emit()
         except Exception as e:
             websocket_logger.error(f"Failed to request scenes refresh via signal: {e}")
-
     def _context_set_scene_sources(self, scene_name, enabled):
-        """Set enabled state for all sources in a given scene."""
         try:
             for i in range(self.scene_tree.topLevelItemCount()):
                 top = self.scene_tree.topLevelItem(i)
@@ -1632,7 +1595,6 @@ class MainWindow(QWidget):
             self.log_event(f"Requested {'Show' if enabled else 'Hide'} all sources in scene {scene_name}")
         except Exception as e:
             websocket_logger.error(f"Failed to set scene sources: {e}")
-
     def _on_show_scene_clicked(self):
         try:
             sel = self.scene_tree.selectedItems()
@@ -1643,7 +1605,6 @@ class MainWindow(QWidget):
                 self._context_set_scene_sources(item.text(0), True)
         except Exception as e:
             bot_logger.error(f"Error in show scene clicked: {e}")
-
     def _on_hide_scene_clicked(self):
         try:
             sel = self.scene_tree.selectedItems()
@@ -1654,7 +1615,6 @@ class MainWindow(QWidget):
                 self._context_set_scene_sources(item.text(0), False)
         except Exception as e:
             bot_logger.error(f"Error in hide scene clicked: {e}")
-
     def _on_set_scene_clicked(self):
         try:
             sel = self.scene_tree.selectedItems()
@@ -1665,9 +1625,7 @@ class MainWindow(QWidget):
                 self._context_set_current_scene(item.text(0))
         except Exception as e:
             bot_logger.error(f"Error in set scene clicked: {e}")
-
     def _toggle_source_from_button(self, button):
-        """Handle toggle requests from inline status buttons in the scene tree."""
         try:
             scene_name = getattr(button, '_scene_name', None)
             item_id = getattr(button, '_item_id', None)
@@ -1696,7 +1654,6 @@ class MainWindow(QWidget):
             websocket_logger.error(f"Failed to start OBS connector thread: {e}")
             QMessageBox.warning(self, "Toggle Source", "OBS connector thread was not running and failed to start.")
             return
-
         action = {'action': 'set_scene_item_enabled', 'scene': scene_name, 'item_id': item_id, 'enabled': not enabled}
         try:
             self.obs_connector.action_requested.emit(action)
@@ -1704,7 +1661,6 @@ class MainWindow(QWidget):
         except Exception as e:
             websocket_logger.error(f"Failed to request action via signal: {e}")
             QMessageBox.warning(self, "Action Error", "Failed to request OBS action; please try again.")
-
     def on_scene_item_double_clicked(self, item, column):
         # Only handle double-clicks on child items (sources)
         parent = item.parent()
@@ -1779,7 +1735,6 @@ class MainWindow(QWidget):
                 websocket_logger.error(f"Failed to request scenes refresh via signal: {e}")
         except Exception as e:
             websocket_logger.error(f"Failed to toggle source enabled state: {e}")
-
     def _on_obs_event_for_revert(self, message):
         try:
             if not isinstance(message, str):
@@ -1824,16 +1779,13 @@ class MainWindow(QWidget):
                     return
         except Exception:
             pass
-
     def _forward_context_menu_from_widget(self, widget, pos):
-        """Translate a right-click from an embedded widget into the scene tree's context menu."""
         try:
             global_pos = widget.mapToGlobal(pos)
             tree_pos = self.scene_tree.viewport().mapFromGlobal(global_pos)
             self.scene_tree_context_menu(tree_pos)
         except Exception as e:
             bot_logger.error(f"Error forwarding context menu from widget: {e}")
-
     def update_bot_status(self, status):
         status_text = f"Status: {status}"
         color = "#4ec745" if "Connected" in status else "#f55047" if "Error" in status or "Failed" in status else "#aaaaaa"
@@ -1848,7 +1800,6 @@ class MainWindow(QWidget):
         """)
         is_connected = "Connected" in status
         self.bot_connect_btn.set_connected(is_connected)
-
     def update_obs_status(self, status):
         status_text = f"Status: {status}"
         color = "#4ec745" if "Connected" in status else "#f55047" if "Error" in status or "Failed" in status else "#aaaaaa"
@@ -1863,21 +1814,19 @@ class MainWindow(QWidget):
         """)
         is_connected = "Connected" in status
         self.obs_connect_btn.set_connected(is_connected)
-
     def log_event(self, event):
-        self.log_area.append(event)
-
+        cursor = self.log_area.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        cursor.insertText(f"{event}\n")
+        self.log_area.setTextCursor(cursor)
     def toggle_log_visibility(self):
         self.log_expanded = not self.log_expanded
         self.set_log_visibility(self.log_expanded)
         self.config.set('log_expanded', self.log_expanded)
-
     def set_log_visibility(self, visible):
         self.log_group.setVisible(visible)
         arrow = "▼ Event Log" if visible else "▶ Event Log"
         self.log_toggle_btn.setText(arrow)
-
-    
     def on_start_stream_clicked(self):
         if not self.obs_connector:
             return
@@ -1893,7 +1842,6 @@ class MainWindow(QWidget):
                 self.log_event("▶ Starting stream...")
         except Exception as e:
             self.log_event(f"Error toggling stream: {e}")
-    
     def on_start_recording_clicked(self):
         if not self.obs_connector:
             return
@@ -1909,7 +1857,6 @@ class MainWindow(QWidget):
                 self.log_event("⏺ Starting recording...")
         except Exception as e:
             self.log_event(f"Error toggling recording: {e}")
-    
     def on_save_replay_clicked(self):
         if not self.obs_connector:
             return
@@ -1918,7 +1865,6 @@ class MainWindow(QWidget):
             self.log_event("💾 Replay buffer saved")
         except Exception as e:
             self.log_event(f"Error saving replay: {e}")
-    
     def on_toggle_vcam_clicked(self):
         if not self.obs_connector:
             return
@@ -1928,7 +1874,6 @@ class MainWindow(QWidget):
             self.log_event("📹 Toggling virtual camera...")
         except Exception as e:
             self.log_event(f"Error toggling virtual camera: {e}")
-
     def apply_global_style(self):
         self.setStyleSheet("""
             QWidget {

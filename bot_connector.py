@@ -63,8 +63,37 @@ class BotOfTheSpecterConnector(QThread):
         else:
             raise ValueError(f"Unknown subcommand: {subcommand}")
 
+    def _register_obs_notification_handlers(self):
+        global specterSocket
+        obs_notification_events = [
+            "scene_change", "SceneChanged", "scene_created", "SceneCreated",
+            "scene_removed", "SceneRemoved",
+            "source_created", "SourceCreated", "source_removed", "SourceRemoved",
+            "source_visibility_changed", "SourceVisibilityChanged",
+            "source_muted", "SourceMuteStateChanged", "source_unmuted",
+            "record_state_changed", "RecordStateChanged", "recording_started", "RecordingStarted",
+            "recording_stopped", "RecordingStopped",
+            "stream_state_changed", "StreamStateChanged", "streaming_started", "StreamStarted",
+            "streaming_stopped", "StreamStopped",
+            "source_filter_created", "SourceFilterCreated", "source_filter_removed", "SourceFilterRemoved",
+            "source_filter_enabled_state_changed", "SourceFilterEnableStateChanged",
+            "virtualcam_state_changed", "VirtualcamStateChanged",
+            "transition_began", "TransitionBegan", "transition_ended", "TransitionEnded",
+        ]
+        for ev_name in obs_notification_events:
+            @specterSocket.on(ev_name)
+            async def _make_handler(data, _ev=ev_name):
+                websocket_logger.info(f"Received OBS notification '{_ev}': {data}")
+                self.event_received.emit(f"OBS Notification '{_ev}': {data}")
+                if self.obs_connector:
+                    try:
+                        self.obs_connector.handle_specter_event(_ev, data)
+                    except Exception as e:
+                        websocket_logger.error(f"Error forwarding '{_ev}' to OBSConnector: {e}")
+
     def setup_events(self):
         global specterSocket
+        self._register_obs_notification_handlers()
 
         @specterSocket.event
         async def connect():
@@ -206,32 +235,6 @@ class BotOfTheSpecterConnector(QThread):
                     except Exception as emit_error:
                         websocket_logger.error(f"Failed to emit error acknowledgment: {emit_error}")
             else:
-                obs_notification_events = [
-                    "scene_change", "SceneChanged", "scene_created", "SceneCreated",
-                    "scene_removed", "SceneRemoved",
-                    "source_created", "SourceCreated", "source_removed", "SourceRemoved",
-                    "source_visibility_changed", "SourceVisibilityChanged",
-                    "source_muted", "SourceMuteStateChanged", "source_unmuted",
-                    "record_state_changed", "RecordStateChanged", "recording_started", "RecordingStarted",
-                    "recording_stopped", "RecordingStopped",
-                    "stream_state_changed", "StreamStateChanged", "streaming_started", "StreamStarted",
-                    "streaming_stopped", "StreamStopped",
-                    "source_filter_created", "SourceFilterCreated", "source_filter_removed", "SourceFilterRemoved",
-                    "source_filter_enabled_state_changed", "SourceFilterEnableStateChanged",
-                    "virtualcam_state_changed", "VirtualcamStateChanged",
-                    "transition_began", "TransitionBegan", "transition_ended", "TransitionEnded",
-                ]
-                for ev_name in obs_notification_events:
-                    @specterSocket.on(ev_name)
-                    async def _make_handler(data, _ev=ev_name):
-                        websocket_logger.info(f"Received OBS notification '{_ev}': {data}")
-                        self.event_received.emit(f"OBS Notification '{_ev}': {data}")
-                        if self.obs_connector:
-                            try:
-                                self.obs_connector.handle_specter_event(_ev, data)
-                            except Exception as e:
-                                websocket_logger.error(f"Error forwarding '{_ev}' to OBSConnector: {e}")
-                
                  # Handle Channel Point Redemptions
                 if event == 'TWITCH_CHANNELPOINTS' and self.redemption_handler:
                     try:

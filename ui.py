@@ -295,8 +295,8 @@ class MainWindow(QWidget):
     def init_ui(self):
         # Application title: simplified to the product name
         self.setWindowTitle('BotOfTheSpecter')
-        self.setGeometry(100, 100, 800, 900)
-        self.setMinimumSize(700, 800)
+        self.setGeometry(100, 100, 980, 900)
+        self.setMinimumSize(860, 800)
         main_layout = QVBoxLayout()
         main_layout.setSpacing(16)
         main_layout.setContentsMargins(16, 16, 16, 16)

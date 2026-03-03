@@ -380,6 +380,9 @@ class ChannelPointsTab(QWidget):
         queue_layout.addWidget(queue_label)
         self.queue_list = QListWidget()
         self.queue_list.setStyleSheet("background-color: #1e1e1e; border: none; color: #ddd;")
+        self.queue_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.queue_list.setWordWrap(True)
+        self.queue_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         queue_layout.addWidget(self.queue_list)
         right_panel.addWidget(queue_group)
         # Action Mapping hint

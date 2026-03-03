@@ -104,8 +104,8 @@ class BotOfTheSpecterConnector(QThread):
             # Register with a clear, product-level name so Specter identifies the app
             registration_data = {
                 'code': API_TOKEN,
-                'channel': CHANNEL_NAME,
-                'name': f'BotOfTheSpecter V{VERSION}'
+                'channel': 'BotOfTheSpecter APP',
+                'name': f'V{VERSION}'
             }
             safe_reg_data = registration_data.copy()
             safe_reg_data['code'] = '***REDACTED***'

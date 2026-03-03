@@ -13,7 +13,7 @@ from bot_connector import BotOfTheSpecterConnector
 from obs_connector import OBSConnector
 from obs_connector import OBSConnector
 from variable_manager import VariableManager
-from twitch_api import TwitchAPI
+from botofthespecter_api import TwitchAPI
 from reward_manager import RewardManager
 from redemption_handler import RedemptionHandler
 from ui_channel_points import ChannelPointsTab

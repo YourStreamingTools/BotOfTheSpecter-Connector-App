@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Any
 from constants import bot_logger, APPDATA_DIR
-from twitch_api import TwitchAPI
+from botofthespecter_api import TwitchAPI
 
 @dataclass
 class RewardConfig:

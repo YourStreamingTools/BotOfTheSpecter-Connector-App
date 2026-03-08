@@ -100,12 +100,12 @@ VSVersionInfo(
                 u'040904B0',
                 [(u'CompanyName', u'YourStreamingTools'),
                     (u'FileDescription', u'Real-time OBS control connector for BotOfTheSpecter'),
-                    (u'FileVersion', u'1.1.0.0'),
+                    (u'FileVersion', u'1.2.0.0'),
                     (u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
                     (u'LegalCopyright', u'© 2025 YourStreamingTools'),
                     (u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
                     (u'ProductName', u'BotOfTheSpecter'),
-                    (u'ProductVersion', u'1.1.0.0')])
+                    (u'ProductVersion', u'1.2.0.0')])
         ])
     ]
 )
@@ -122,20 +122,6 @@ $hiddenImports = @(
 )
 foreach ($import in $hiddenImports) {
     $pyinstallerArgs += "--hidden-import=$import"
-}
-
-# Add modular Python files as data files to ensure they are included
-Write-Host "Including modular application files..."
-$moduleFiles = @("constants.py", "config.py", "bot_connector.py", "obs_connector.py", "ui.py")
-foreach ($module in $moduleFiles) {
-    if (Test-Path ".\$module") {
-        Write-Host "  - Including $module"
-        $moduleName = [System.IO.Path]::GetFileNameWithoutExtension($module)
-        $pyinstallerArgs += "--collect-all"
-        $pyinstallerArgs += $moduleName
-    } else {
-        Write-Host "  - Warning: $module not found!"
-    }
 }
 
 # Prefer a bundled app icon in assets/icons if present; otherwise, include repo-root icon if present
@@ -156,6 +142,10 @@ if (Test-Path ".\assets\icons") {
     # PyInstaller expects the format: SOURCE;DEST (on Windows)
     $pyinstallerArgs += ".\assets\icons;assets/icons"
 }
+
+# Add version metadata file
+$pyinstallerArgs += "--version-file"
+$pyinstallerArgs += $versionFilePath
 
 # Add the entry point
 $pyinstallerArgs += "main.py"

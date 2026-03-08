@@ -292,7 +292,9 @@ class ChannelPointsTab(QWidget):
         self.reward_manager = reward_manager
         self.redemption_handler = redemption_handler
         self.redemption_handler.redemption_queued.connect(self.on_redemption_queued)
+        self.redemption_handler.redemption_started.connect(self.on_redemption_started)
         self.redemption_handler.redemption_completed.connect(self.on_redemption_completed)
+        self._queue_items = {}  # redemption_id -> QListWidgetItem
         # Debounce timer for refreshes to avoid repeated Twitch API calls
         self._refresh_debounce_timer = QTimer(self)
         self._refresh_debounce_timer.setSingleShot(True)
@@ -914,19 +916,54 @@ def format_redemption_display(redemption, reward_manager=None):
 def _on_redemption_queued(self, redemption):
     try:
         text = format_redemption_display(redemption, getattr(self, 'reward_manager', None))
-        self.queue_list.addItem(text)
+        item = QListWidgetItem(f"⏳ {text}")
+        item.setForeground(QColor("#dddddd"))
+        redemption_id = redemption.get('id')
+        if redemption_id:
+            item.setData(Qt.ItemDataRole.UserRole, redemption_id)
+            self._queue_items[redemption_id] = item
+        self.queue_list.addItem(item)
     except Exception as e:
         bot_logger.error(f"Error formatting queued redemption for UI: {e}")
         try:
-            self.queue_list.addItem("Unknown redeemed Unknown")
+            self.queue_list.addItem(QListWidgetItem("⏳ Unknown redeemed Unknown"))
         except Exception:
             pass
 
+def _on_redemption_started(self, redemption_id):
+    try:
+        item = getattr(self, '_queue_items', {}).get(redemption_id)
+        if item:
+            text = item.text()
+            for prefix in ("⏳ ", "✅ ", "❌ ", "⚙️ "):
+                if text.startswith(prefix):
+                    text = text[len(prefix):]
+                    break
+            item.setText(f"⚙️ {text}")
+            item.setForeground(QColor("#f0c040"))
+    except Exception as e:
+        bot_logger.debug(f"Error updating started redemption in UI: {e}")
+
 def _on_redemption_completed(self, redemption_id, success):
-    # Could potentially update queue item visual state here
-    pass
+    try:
+        item = getattr(self, '_queue_items', {}).get(redemption_id)
+        if item:
+            text = item.text()
+            for prefix in ("⏳ ", "✅ ", "❌ ", "⚙️ "):
+                if text.startswith(prefix):
+                    text = text[len(prefix):]
+                    break
+            if success:
+                item.setText(f"✅ {text}")
+                item.setForeground(QColor("#4ec745"))
+            else:
+                item.setText(f"❌ {text}")
+                item.setForeground(QColor("#f55047"))
+    except Exception as e:
+        bot_logger.debug(f"Error updating completed redemption in UI: {e}")
 
 ChannelPointsTab.on_redemption_queued = _on_redemption_queued
+ChannelPointsTab.on_redemption_started = _on_redemption_started
 ChannelPointsTab.on_redemption_completed = _on_redemption_completed
 
 def _delete_reward(self, reward_id):

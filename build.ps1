@@ -1,6 +1,6 @@
 param(
     [switch]$Clean = $false,
-    [string]$Name = "BotOfTheSpecter-OBS-Connector",
+    [string]$Name = "BotOfTheSpecter",
     [switch]$OneFile,
     [switch]$Console = $false
 )
@@ -101,9 +101,9 @@ VSVersionInfo(
                 [(u'CompanyName', u'YourStreamingTools'),
                     (u'FileDescription', u'Real-time OBS control connector for BotOfTheSpecter'),
                     (u'FileVersion', u'1.2.0.0'),
-                    (u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
+                    (u'InternalName', u'BotOfTheSpecter'),
                     (u'LegalCopyright', u'© 2025 YourStreamingTools'),
-                    (u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
+                    (u'OriginalFilename', u'BotOfTheSpecter.exe'),
                     (u'ProductName', u'BotOfTheSpecter'),
                     (u'ProductVersion', u'1.2.0.0')])
         ])

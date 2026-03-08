@@ -40,13 +40,13 @@ BotOfTheSpecter is an application that connects to external services (including 
 - **Expanded OBS Control**:  Add more controls for OBS, such as switching scenes, starting/stopping streams, and controlling sources.
 - **Customizable Event Actions**: Allow users to define custom actions in OBS based on different BotOfTheSpecter events.
 
-## Building from Source (Optional)
+## Building from Source
 
-If you prefer to build the application from source, you can follow these steps:
+Running from source is required on macOS and Linux, as no compiled app is available for those platforms. Windows users may also choose to run from source if preferred.
 
 1.
     **Prerequisites**:
-        -   Python 3.7 or higher
+        -   Python 3.8 or higher
         -   PyQt6
         -   aiohttp
         -   python-socketio

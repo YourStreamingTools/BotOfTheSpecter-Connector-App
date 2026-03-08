@@ -22,10 +22,10 @@
 
 ## System Requirements
 
-- **Python**: 3.8 or higher (PyQt6 requires Python 3.8+)
+- **Python**: 3.8 or higher (required only when running from source; the compiled app does not require Python)
 - **OBS Studio**: 28.0 or higher (with WebSocket Server plugin enabled)
 - **BotOfTheSpecter**: Active account with valid API key
-- **Operating System**: Windows (tested). macOS/Linux may work but are not officially tested.
+- **Operating System**: Windows (compiled app available). macOS/Linux users must run from source, as no compiled app is available for those platforms.
 
 ## Installation & Usage
 

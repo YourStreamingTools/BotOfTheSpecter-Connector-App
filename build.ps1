@@ -1,11 +1,15 @@
 param(
     [switch]$Clean = $false,
     [string]$Name = "BotOfTheSpecter-OBS-Connector",
-    [switch]$OneFile = $true,
+    [switch]$OneFile,
     [switch]$Console = $false
 )
 
 $ErrorActionPreference = 'Stop'
+
+if (-not $PSBoundParameters.ContainsKey('OneFile')) {
+    $OneFile = $true
+}
 
 # Test for Python availability
 Write-Host "Testing Python availability..."
@@ -82,28 +86,28 @@ Write-Host "Creating version metadata file..."
 $versionFileContent = @"
 # UTF-8
 VSVersionInfo(
-  ffi=FixedFileInfo(
-    mask=0x3f,
-    mask_ex=0x0,
-    reserved=0x0,
-    serial=0x0,
-    struct=((1, 1, 0, 0), (1, 1, 0, 0))
-  ),
-  VarFileInfo=[VarFileInfo([1033, 1200])],
-  StringFileInfo=[
-    StringFileInfo([
-      StringTable(
-        u'040904B0',
-        [(u'CompanyName', u'YourStreamingTools'),
-         (u'FileDescription', u'Real-time OBS control connector for BotOfTheSpecter'),
-         (u'FileVersion', u'1.1.0.0'),
-         (u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
-         (u'LegalCopyright', u'© 2025 YourStreamingTools'),
-         (u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
-         (u'ProductName', u'BotOfTheSpecter'),
-         (u'ProductVersion', u'1.1.0.0')])
-    ])
-  ]
+    ffi=FixedFileInfo(
+        mask=0x3f,
+        mask_ex=0x0,
+        reserved=0x0,
+        serial=0x0,
+        struct=((1, 1, 0, 0), (1, 1, 0, 0))
+    ),
+    VarFileInfo=[VarFileInfo([1033, 1200])],
+    StringFileInfo=[
+        StringFileInfo([
+            StringTable(
+                u'040904B0',
+                [(u'CompanyName', u'YourStreamingTools'),
+                    (u'FileDescription', u'Real-time OBS control connector for BotOfTheSpecter'),
+                    (u'FileVersion', u'1.1.0.0'),
+                    (u'InternalName', u'BotOfTheSpecter-OBS-Connector'),
+                    (u'LegalCopyright', u'© 2025 YourStreamingTools'),
+                    (u'OriginalFilename', u'BotOfTheSpecter-OBS-Connector.exe'),
+                    (u'ProductName', u'BotOfTheSpecter'),
+                    (u'ProductVersion', u'1.1.0.0')])
+        ])
+    ]
 )
 "@
 

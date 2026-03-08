@@ -3,4 +3,3 @@ aiohttp
 python-socketio
 obs-websocket-py
 requests
-Pillow

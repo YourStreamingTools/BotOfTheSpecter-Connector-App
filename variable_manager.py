@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 from constants import bot_logger
-
 from PyQt6.QtCore import QObject, pyqtSignal, Qt
 
 class VariableManager(QObject):

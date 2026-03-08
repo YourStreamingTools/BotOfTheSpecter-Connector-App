@@ -16,6 +16,7 @@ class RedemptionHandler(QThread):
     redemption_queued = pyqtSignal(dict)
     redemption_started = pyqtSignal(str) # redemption_id
     redemption_completed = pyqtSignal(str, bool) # redemption_id, success
+    redemption_removed = pyqtSignal(str) # redemption_id — no longer unfulfilled on Twitch
 
     def __init__(self, reward_manager, obs_connector, twitch_api):
         super().__init__()
@@ -253,6 +254,7 @@ class RedemptionHandler(QThread):
                 except Exception as e:
                     bot_logger.error(f"Redemption poll: failed to refresh rewards: {e}")
                     return
+            currently_unfulfilled = set()
             for reward_id in reward_ids:
                 try:
                     redemptions = self.twitch_api.get_reward_redemptions(reward_id, status='UNFULFILLED', first=50, sort='NEWEST')
@@ -261,6 +263,7 @@ class RedemptionHandler(QThread):
                         rid = r.get('id')
                         if not rid:
                             continue
+                        currently_unfulfilled.add(rid)
                         if rid in self._seen_redemptions:
                             continue
                         # Ensure redemption contains basic reward metadata so UI can display title
@@ -281,6 +284,21 @@ class RedemptionHandler(QThread):
                         pass
                 except Exception as e:
                     bot_logger.error(f"Failed to fetch redemptions for reward {reward_id}: {e}")
+            # Remove cached redemptions that are no longer UNFULFILLED on Twitch
+            stale = [rid for rid in list(self._cached_redemptions.keys()) if rid not in currently_unfulfilled]
+            for rid in stale:
+                bot_logger.info(f"Redemption {rid} no longer unfulfilled on Twitch; removing from cache")
+                self._cached_redemptions.pop(rid, None)
+                self._seen_redemptions.discard(rid)
+                try:
+                    self.redemption_removed.emit(rid)
+                except Exception:
+                    pass
+            if stale:
+                try:
+                    self._save_cached_redemptions()
+                except Exception:
+                    pass
         except Exception as e:
             bot_logger.error(f"Error in _poll_for_new_redemptions: {e}")
 

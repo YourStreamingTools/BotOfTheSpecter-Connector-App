@@ -294,6 +294,7 @@ class ChannelPointsTab(QWidget):
         self.redemption_handler.redemption_queued.connect(self.on_redemption_queued)
         self.redemption_handler.redemption_started.connect(self.on_redemption_started)
         self.redemption_handler.redemption_completed.connect(self.on_redemption_completed)
+        self.redemption_handler.redemption_removed.connect(self.on_redemption_removed)
         self._queue_items = {}  # redemption_id -> QListWidgetItem
         # Debounce timer for refreshes to avoid repeated Twitch API calls
         self._refresh_debounce_timer = QTimer(self)
@@ -949,22 +950,38 @@ def _on_redemption_completed(self, redemption_id, success):
         item = getattr(self, '_queue_items', {}).get(redemption_id)
         if item:
             text = item.text()
-            for prefix in ("⏳ ", "✅ ", "❌ ", "⚙️ "):
+            for prefix in ("⏳ ", "✅ ", "❌ ", "⚙️ ", "📋 "):
                 if text.startswith(prefix):
                     text = text[len(prefix):]
                     break
-            if success:
+            if not success:
+                item.setText(f"❌ {text}")
+                item.setForeground(QColor("#f55047"))
+            elif getattr(self.redemption_handler, 'auto_fulfill', False):
+                # Auto-fulfill is on: redemption was marked FULFILLED on Twitch
                 item.setText(f"✅ {text}")
                 item.setForeground(QColor("#4ec745"))
             else:
-                item.setText(f"❌ {text}")
-                item.setForeground(QColor("#f55047"))
+                # Actions ran but redemption is still pending on Twitch (manual fulfillment needed)
+                item.setText(f"📋 {text}")
+                item.setForeground(QColor("#f0c040"))
     except Exception as e:
         bot_logger.debug(f"Error updating completed redemption in UI: {e}")
+
+def _on_redemption_removed(self, redemption_id):
+    try:
+        item = getattr(self, '_queue_items', {}).pop(redemption_id, None)
+        if item:
+            row = self.queue_list.row(item)
+            if row >= 0:
+                self.queue_list.takeItem(row)
+    except Exception as e:
+        bot_logger.debug(f"Error removing redemption from UI: {e}")
 
 ChannelPointsTab.on_redemption_queued = _on_redemption_queued
 ChannelPointsTab.on_redemption_started = _on_redemption_started
 ChannelPointsTab.on_redemption_completed = _on_redemption_completed
+ChannelPointsTab.on_redemption_removed = _on_redemption_removed
 
 def _delete_reward(self, reward_id):
     try:

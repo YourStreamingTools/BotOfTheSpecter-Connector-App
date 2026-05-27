@@ -7,3 +7,5 @@ log.log
 build_output.txt
 *.lnk
 test*
+/design-reference
+/docs

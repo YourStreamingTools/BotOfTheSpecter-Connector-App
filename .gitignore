@@ -9,3 +9,5 @@ build_output.txt
 test*
 /design-reference
 /docs
+node_modules/
+/out

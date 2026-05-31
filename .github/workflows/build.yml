@@ -1,0 +1,91 @@
+name: Build Installers
+
+# Manual trigger only - no push/PR builds.
+on:
+  workflow_dispatch:
+
+# Least-privilege. We only read the repo and upload artifacts (artifacts use the
+# Actions API, not contents:write). No release publishing here.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Don't cancel macOS/Linux just because Windows failed - we want every
+      # installer that CAN build to be produced and uploaded.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            artifact: installers-windows
+          - os: macos-latest
+            script: dist:mac
+            artifact: installers-macos
+          - os: ubuntu-latest
+            script: dist:linux
+            artifact: installers-linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # Caches the global npm download cache, keyed on package-lock.json.
+          cache: npm
+
+      # Deterministic install from the committed lockfile. The lockfile already
+      # contains electron-builder, so `npm ci` succeeds and is reproducible.
+      # Adding the dist:* scripts to package.json does NOT desync the lock
+      # (npm ci validates the dependency tree, not the scripts object). If a
+      # future dependency change makes `npm ci` fail with "lock file out of
+      # sync", regenerate it locally with `npm install` and commit the updated
+      # package-lock.json - do NOT swap CI to `npm install`.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Each dist:* script runs `electron-vite build` first (so out/ exists) then
+      # packs only this runner's native target via electron-builder.
+      # CSC_IDENTITY_AUTO_DISCOVERY=false stops macOS from probing the keychain
+      # for a signing identity that doesn't exist, so it produces an UNSIGNED
+      # .dmg without erroring (harmless no-op on win/linux). The scripts pass
+      # `--publish never` so electron-builder never attempts to publish even
+      # though GITHUB_TOKEN is present in the runner environment.
+      - name: Build + package installer
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          # MUST be unique per matrix job under v4 (immutable artifacts; same
+          # name across jobs => 409 conflict).
+          name: ${{ matrix.artifact }}
+          # Grab only the distributable installers + update metadata at the top
+          # of dist/, NOT the exploded win-unpacked/ / mac/ / linux-unpacked/
+          # trees. On any given runner only its OS's extensions exist; the rest
+          # match nothing. At least one pattern always matches per OS, so
+          # if-no-files-found: error is safe.
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.blockmap
+            dist/*.yml
+          if-no-files-found: error
+          retention-days: 14

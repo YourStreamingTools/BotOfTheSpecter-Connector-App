@@ -1,0 +1,81 @@
+appId: com.botofthespecter.desktop
+productName: BotOfTheSpecter Desktop
+
+# buildResources MUST be `resources` (NOT the default `build`), because /build is
+# gitignored and absent on a fresh CI checkout. electron-builder auto-detects
+# <buildResources>/icon.png (the committed 4000x4000 resources/icon.png) and
+# generates the per-OS .ico/.icns/png icon set from it.
+# output MUST be `dist` (gitignored locally, produced fresh in CI and uploaded).
+directories:
+  buildResources: resources
+  output: dist
+
+# A `files` array with any include entry switches electron-builder from its
+# default-include behavior to an explicit allowlist, so out/** AND package.json
+# must be listed. electron-vite emits the built main/preload/renderer into out/.
+# Runtime deps (obs-websocket-js, socket.io-client) are externalized by
+# electron-vite's externalizeDepsPlugin() -> they remain require()'d in
+# out/main/index.js and are packed from node_modules automatically by
+# electron-builder (the node_modules collection follows the production
+# dependency tree, independent of these globs).
+files:
+  - 'out/**'
+  - 'package.json'
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!{electron.vite.config.js,electron.vite.config.ts,electron.vite.config.mjs,electron.vite.config.cjs}'
+  - '!{vitest.config.ts,vitest.setup.ts}'
+  - '!{tsconfig.json,tsconfig.node.json}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.example,.npmrc,package-lock.json}'
+  - '!{run.bat,resources}'
+  - '!**/{__tests__,test,tests}'
+  - '!**/*.test.*'
+  - '!**/*.spec.*'
+
+# No runtime native (*.node) modules in this project (obs-websocket-js /
+# socket.io-client are pure JS; the only *.node files are rollup's build-time
+# optionalDependencies, which are devDeps and not packaged). Skip the rebuild.
+npmRebuild: false
+
+# ---- Windows ----
+win:
+  target:
+    - nsis
+  executableName: botofthespecter-desktop
+  # icon omitted on purpose - auto-derived from resources/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+
+# ---- macOS ----
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.utilities
+  hardenedRuntime: true
+  # No signing identity available in CI -> notarization must be off so the build
+  # succeeds with zero secrets. Pair with CSC_IDENTITY_AUTO_DISCOVERY=false in CI.
+  notarize: false
+
+dmg:
+  artifactName: ${name}-${version}-${arch}.${ext}
+
+# ---- Linux ----
+linux:
+  target:
+    - AppImage
+  category: Utility
+  maintainer: YourStreamingTools
+
+appImage:
+  artifactName: ${name}-${version}.${ext}

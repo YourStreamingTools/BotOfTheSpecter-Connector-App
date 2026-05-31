@@ -1,61 +1,124 @@
-# BotOfTheSpecter
+<p align="center">
+  <img src="botofthespecter.png" alt="BotOfTheSpecter" width="120" />
+</p>
 
-BotOfTheSpecter is an application that connects to external services (including OBS via WebSockets) to automate actions and react to events from the BotOfTheSpecter platform.
+<h1 align="center">BotOfTheSpecter Desktop</h1>
+
+<p align="center">
+  The desktop control room for your stream — bridge OBS Studio to BotOfTheSpecter
+  and run your whole channel from a single window.
+</p>
+
+---
+
+## What is it?
+
+BotOfTheSpecter Desktop is a cross-platform app (Windows, macOS, Linux) that connects
+**OBS Studio** and your **BotOfTheSpecter** account in real time. It mirrors what's happening
+on your stream — scenes, audio, recording, chat, redemptions, follows/subs/bits/raids — into
+one dashboard, and lets you act on it: switch scenes, toggle sources, fire commands, and build
+automations that react to events as they happen.
+
+Think of it as the bridge between OBS and your bot, plus a live control panel for the things
+you'd otherwise juggle across OBS, Twitch, and the bot dashboard.
 
 ## Features
 
-- **Connects BotOfTheSpecter to OBS**:  Establishes a connection between BotOfTheSpecter and OBS using WebSockets for seamless automation.
-- **API Key Management**:  Prompts you to enter your BotOfTheSpecter API key and stores it for future use.
-- **OBS WebSocket Configuration**: Allows you to configure the OBS WebSocket server IP, port, and password and stores it for future use.
-- **Connection Status Monitoring**: Displays the connection status of both the BotOfTheSpecter and OBS WebSocket connections.
-- **GUI for Easy Setup**: Provides a user-friendly graphical interface for managing API keys and OBS settings.
+### Live control & monitoring
+- **Dashboard** — bot status, Twitch live state (viewers, game, title) and OBS/relay health at a
+  glance, with a rolling activity feed.
+- **OBS Control** — switch scenes, toggle source visibility and filters, manage the audio mixer
+  (mute, volume, live peak meters), and start/stop streaming, recording, the replay buffer and the
+  virtual camera. Accurate LIVE timecode plus bitrate, CPU, FPS and dropped-frame stats, and a raw
+  event log.
+- **Chat & Mod** — live Twitch chat with moderation events (bans, timeouts, deletes, clears).
+- **Channel Points** — view your Twitch reward redemptions and wire them into actions.
 
-## How it Works
+### Engagement & automation
+- **Commands** — browse built-in, custom and viewer commands; enable/disable built-ins and set
+  their permission level.
+- **Automations & Actions** — a visual rules engine. Triggers (chat message/command, follow, sub,
+  bits, raid, channel-point redemption, stream go-live/end, OBS scene switch, OBS stream start/stop,
+  manual, public webhook) fire reusable **Actions**: call a webpage, set a variable, run a command,
+  play a sound, speak via TTS, toggle another automation, send a webhook, or drive Twitch directly
+  (toggle a reward, run ads, create a marker, start/stop polls and predictions, slow mode, clip).
+  Organize them in folders, gate them with checks, and serialize them with named queues.
+- **Variables** — real-time event data for your commands and checks: last follower / cheer / sub /
+  raid / redemption / donation, plus session and lifetime counters and live stream status.
 
-1.
-    **API Key Entry**: Upon launching, the application prompts you to enter your BotOfTheSpecter API key. This key is validated against the BotOfTheSpecter API.
-2.
-    **OBS WebSocket Setup**: Configure the connection details for your OBS WebSocket server, including the server IP, port, and password.
-3.
-    **WebSocket Connections**: The application establishes connections to both the BotOfTheSpecter and OBS WebSocket servers.
-4.
-    **Event Handling**: The application listens for events from the BotOfTheSpecter server. (Currently, received events are logged internally; future updates will expand on event-driven actions in OBS.)
+### System
+- **Logs** — a filterable, searchable event stream across OBS, Twitch, the relay and the bot.
+- **Settings** — API key, light/dark/system theme, density, and OBS stream-timer calibration. Your
+  key is validated before connecting.
 
-## Getting Started
+> **On the roadmap:** the Alerts, Soundboard, Song Requests, Timers and Giveaways/Polls/Predictions
+> screens are already in the app and waiting on their backend services.
 
-1.
-    **Download**:
-        - Download the latest release from [Releases](https://github.com/YourStreamingTools/BotOfTheSpecter-OBS-Connector/releases) on GitHub.
-        - Alternatively, you can download the application from the Specter Dashboard.
+## How it works
 
-2.
-    **Configuration**:
-        - Launch the application.
-        - Enter your BotOfTheSpecter API key in the settings.
-        - Configure your OBS WebSocket server settings.
+1. **Add your API key** — paste your BotOfTheSpecter API key in Settings; it's validated against the
+   BotOfTheSpecter API and then connects to the relay.
+2. **Connect OBS** — enter your OBS WebSocket host, port and password on the OBS Control screen (or
+   let it auto-connect on launch).
+3. **Go live** — the app forwards OBS events to the bot and surfaces chat, redemptions and stream
+   status in real time.
+4. **Automate** — build automations that react to triggers with reusable actions.
 
-## Future Development
+## Requirements
 
-- **Event-Driven OBS Actions**:  Implement actions in OBS triggered by specific events received from BotOfTheSpecter.
-- **Expanded OBS Control**:  Add more controls for OBS, such as switching scenes, starting/stopping streams, and controlling sources.
-- **Customizable Event Actions**: Allow users to define custom actions in OBS based on different BotOfTheSpecter events.
+- **OBS Studio 28 or newer** with **obs-websocket 5.x** enabled (OBS → *Tools → WebSocket Server
+  Settings*).
+- A **BotOfTheSpecter account** and **API key** (from your BotOfTheSpecter dashboard).
+- **Windows, macOS, or Linux.**
 
-## Building from Source
+---
 
-Running from source is required on macOS and Linux, as no compiled app is available for those platforms. Windows users may also choose to run from source if preferred.
+## Install
 
-1.
-    **Prerequisites**:
-        -   Python 3.8 or higher
-        -   PyQt6
-        -   aiohttp
-        -   python-socketio
-        -   obs-websocket-py
-        -   requests
-2.
-    **Installation**:
-        -   Clone the repository: `git clone https://github.com/YourStreamingTools/BotOfTheSpecter-OBS-Connector.git`
-        -   Install dependencies: `pip install -r requirements.txt`
-3.
-    **Run the Application**:
-        -   Execute: `python main.py`
+### Download a build
+
+Grab the latest release for your platform from the
+**[Releases page](https://github.com/YourStreamingTools/BotOfTheSpecter-Connector-App/releases)**,
+then launch it — no Python or other runtime required.
+
+### Run from source
+
+Requires **Node.js 18 or newer**.
+
+```bash
+git clone https://github.com/YourStreamingTools/BotOfTheSpecter-Connector-App.git
+cd BotOfTheSpecter-Connector-App
+npm install
+npm run dev        # launch with hot reload
+```
+
+On Windows you can instead double-click **`run.bat`** — it checks your Node version, installs
+dependencies on first run, and starts the app.
+
+## Development
+
+```bash
+npm run dev        # launch the app with hot reload
+npm test           # run unit + component tests (Vitest)
+npm run typecheck  # strict TypeScript check (renderer + node projects)
+npm run build      # production build → out/
+```
+
+### Project layout
+
+- `src/main` — Electron main process: config, window, and the OBS / relay / Twitch / commands /
+  automation services.
+- `src/preload` — the typed `window.api` contextBridge.
+- `src/renderer` — React UI (shell, screens, design tokens).
+- `src/shared` — shared constants and the IPC contract.
+- `legacy/` — the original PyQt6 connector, preserved for reference.
+- `docs/` — project site ([app.botofthespecter.com](https://app.botofthespecter.com)) and version history.
+
+### Configuration
+
+Settings persist to `<userData>/config.json`. On first launch the app imports an existing PyQt
+config from `…/BotOfTheSpecter/OBSConnector/config.json` if present. Secrets such as your API key
+are redacted from the logs and event views, and OAuth tokens never leave the main process.
+
+> **v2.0** is a full rewrite of the former PyQt6 connector (Electron + React + TypeScript). The
+> previous Python app lives under [`legacy/`](./legacy).

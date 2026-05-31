@@ -1,13 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+/out
+/build
+/dist
+release/
+
+# Logs & scratch
+*.log
+build_output.txt
+
+# Environment / local secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Test coverage
+coverage/
+
+# OS & editor cruft
+.DS_Store
+Thumbs.db
+*.lnk
+.vscode/
+.idea/
+
+# Design source & internal planning (kept out of the repo on purpose)
+/design-reference
+/docs/superpowers
+
+# Legacy PyQt connector artifacts
 /.venv
 /__pycache__
 BotOfTheSpecter-OBS-Connector.spec
-/build
-/dist
-log.log
-build_output.txt
-*.lnk
-test*
-/design-reference
-/docs
-node_modules/
-/out

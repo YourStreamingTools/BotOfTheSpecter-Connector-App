@@ -88,6 +88,9 @@ function Body({
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
               padding: '14px 14px', cursor: 'pointer', textAlign: 'left',
+              // <button> defaults to a dim inherited color; force the theme text color
+              // so the sound name is readable in both dark and light mode.
+              color: 'var(--text)',
               borderColor: f === 'ok' ? 'var(--success)' : f === 'err' ? 'var(--error)' : undefined
             }}
           >
@@ -100,7 +103,10 @@ function Body({
             <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
               {prettyName(sound)}
             </span>
-            <span className="dim mono" style={{ fontSize: 10.5 }}>
+            <span className="mono" style={{
+              fontSize: 10.5,
+              color: f === 'ok' ? 'var(--success)' : f === 'err' ? 'var(--error)' : 'var(--text-dim)'
+            }}>
               {f === 'ok' ? 'Played ✓' : f === 'err' ? 'Failed' : 'Click to play'}
             </span>
           </button>

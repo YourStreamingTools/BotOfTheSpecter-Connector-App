@@ -57,6 +57,14 @@ if (typeof window !== 'undefined') {
       refresh: vi.fn().mockResolvedValue(undefined),
       play: vi.fn().mockResolvedValue(true)
     },
+    timers: {
+      snapshot: vi.fn().mockResolvedValue({ timers: [], state: 'idle' }),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(true),
+      update: vi.fn().mockResolvedValue(true),
+      toggle: vi.fn().mockResolvedValue(true),
+      delete: vi.fn().mockResolvedValue(true)
+    },
     actions: {
       list: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue(undefined),

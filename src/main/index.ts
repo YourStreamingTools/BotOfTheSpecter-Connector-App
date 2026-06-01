@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus } from '@shared/ipc';
+import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput } from '@shared/ipc';
 import { ConfigStore } from './config-store';
 import { legacyConfigPath, migrateLegacyConfig } from './config-migration';
 import { createMainWindow, APP_ICON_PATH } from './window';
@@ -14,6 +14,7 @@ import { TwitchService } from './twitch/twitch-service';
 import { ChatService } from './chat/chat-service';
 import { CommandsService } from './commands/commands-service';
 import { SoundboardService } from './soundboard/soundboard-service';
+import { TimersService } from './timers/timers-service';
 import { ActionsService } from './automation/actions-service';
 import { AutomationsService } from './automation/automations-service';
 
@@ -29,6 +30,7 @@ let twitch: TwitchService;
 let chat: ChatService;
 let commands: CommandsService;
 let soundboard: SoundboardService;
+let timers: TimersService;
 let actions: ActionsService;
 let automations: AutomationsService;
 
@@ -150,6 +152,8 @@ function registerRelay(): void {
     void commands.refresh();
     // New key → the soundboard list is per-user, so re-fetch it too.
     void soundboard.refresh();
+    // New key → timers are per-user, re-fetch.
+    void timers.refresh();
   });
   ipcMain.handle(IPC.relayConnect, () => relay.connect());
   ipcMain.handle(IPC.relayDisconnect, () => relay.disconnect());
@@ -213,6 +217,17 @@ function registerSoundboard(): void {
   ipcMain.handle(IPC.soundboardPlay, (_e, sound: string) => soundboard.play(sound));
 }
 
+function registerTimers(): void {
+  timers = new TimersService({ getApiKey: () => store.get('api_key') ?? '' });
+  timers.on('changed', (snap) => broadcast(IPC.timersChanged, snap));
+  ipcMain.handle(IPC.timersSnapshot, () => timers.snapshot());
+  ipcMain.handle(IPC.timersRefresh, () => timers.refresh());
+  ipcMain.handle(IPC.timersCreate, (_e, input: TimerInput) => timers.create(input));
+  ipcMain.handle(IPC.timersUpdate, (_e, id: number, input: TimerInput) => timers.update(id, input));
+  ipcMain.handle(IPC.timersToggle, (_e, id: number, enabled: boolean) => timers.toggle(id, enabled));
+  ipcMain.handle(IPC.timersDelete, (_e, id: number) => timers.delete(id));
+}
+
 function registerActions(): void {
   actions = new ActionsService({ store });
   actions.on('changed', (list) => broadcast(IPC.actionsChanged, list));
@@ -265,6 +280,7 @@ async function bootstrap(): Promise<void> {
   registerTwitch();
   registerCommands();
   registerSoundboard();
+  registerTimers();
   registerActions();
   registerAutomations();
 
@@ -291,6 +307,8 @@ async function bootstrap(): Promise<void> {
   void commands.refresh();
   // Soundboard list is per-user; only meaningful with a key (no-ops to idle otherwise).
   if (apiKey) void soundboard.refresh();
+  // Timers are per-user; only fetch when there's a key.
+  if (apiKey) void timers.refresh();
 
   createMainWindow();
 }

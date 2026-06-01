@@ -73,6 +73,14 @@ const api: BridgeApi = {
     refresh: () => ipcRenderer.invoke(IPC.soundboardRefresh),
     play: (sound) => ipcRenderer.invoke(IPC.soundboardPlay, sound)
   },
+  timers: {
+    snapshot: () => ipcRenderer.invoke(IPC.timersSnapshot),
+    refresh: () => ipcRenderer.invoke(IPC.timersRefresh),
+    create: (input) => ipcRenderer.invoke(IPC.timersCreate, input),
+    update: (id, input) => ipcRenderer.invoke(IPC.timersUpdate, id, input),
+    toggle: (id, enabled) => ipcRenderer.invoke(IPC.timersToggle, id, enabled),
+    delete: (id) => ipcRenderer.invoke(IPC.timersDelete, id)
+  },
   actions: {
     list: () => ipcRenderer.invoke(IPC.actionsList),
     create: (input) => ipcRenderer.invoke(IPC.actionsCreate, input),

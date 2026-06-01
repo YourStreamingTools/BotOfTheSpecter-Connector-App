@@ -17,6 +17,7 @@ import { ScreenCommands } from '../screens/Commands';
 import { ScreenAutomation } from '../screens/Automation';
 import { ScreenActions } from '../screens/Actions';
 import { ScreenSoundboard } from '../screens/Soundboard';
+import { ScreenTimers } from '../screens/Timers';
 
 export type ScreenId =
   | 'dashboard' | 'obs' | 'chat' | 'alerts'
@@ -103,6 +104,6 @@ export const SCREENS: Record<ScreenId, { component: React.ComponentType }> = {
   alerts: { component: () => React.createElement(Placeholder, { title: 'Alerts', icon: IconAlerts, hint: 'Follow / sub / bits / raid alerts with sound and message overlays. Needs the alerts backend.' }) },
   sound: { component: ScreenSoundboard },
   music: { component: () => React.createElement(Placeholder, { title: 'Song Requests', icon: IconMusic, hint: 'Spotify queue and chat-driven !songrequest. Needs the music backend.' }) },
-  timers: { component: () => React.createElement(Placeholder, { title: 'Timers', icon: IconTimers, hint: 'Auto-messages on a cadence. Needs the bot timers API.' }) },
+  timers: { component: ScreenTimers },
   giveaways: { component: () => React.createElement(Placeholder, { title: 'Giveaways · Polls · Predictions', icon: IconGiveaway, hint: 'Run a giveaway, poll or prediction. Needs the bot engagement API.' }) }
 };

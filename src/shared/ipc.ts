@@ -572,6 +572,38 @@ export interface SoundboardSnapshot {
   fetchedAt?: string;
 }
 
+// ---- Timers (Phase 5 — bot timed messages) ----
+// The bot's timed messages, one table split by triggerType: 'timer' fires every
+// `intervalCount` minutes, 'chat_lines' fires every `chatLineTrigger` messages,
+// 'both' uses both. Backed by GET/POST/PUT/DELETE /timers on the BotOfTheSpecter API.
+export type TimerTriggerType = 'timer' | 'chat_lines' | 'both';
+export type TimersLoadState = 'idle' | 'loading' | 'ok' | 'error';
+
+export interface Timer {
+  id: number;
+  triggerType: TimerTriggerType;
+  intervalCount: number | null;   // minutes (5–480; min 60 if message uses a (shoutout.x) var). null when chat-only.
+  chatLineTrigger: number | null; // messages between posts (>=5). null when timer-only.
+  message: string;
+  enabled: boolean;
+}
+
+// Create/update payload from the renderer. id is omitted on create.
+export interface TimerInput {
+  triggerType: TimerTriggerType;
+  intervalCount?: number | null;
+  chatLineTrigger?: number | null;
+  message: string;
+  enabled?: boolean;
+}
+
+export interface TimersSnapshot {
+  timers: Timer[];
+  state: TimersLoadState;
+  error?: string;
+  fetchedAt?: string;
+}
+
 // Safe, display-only subset of the BotOfTheSpecter account (/v2/account).
 // Tokens (access/refresh/spotify/discord/api_key) are intentionally NOT exposed
 // to the renderer — the main process strips them when mapping the response.
@@ -647,6 +679,13 @@ export const IPC = {
   soundboardRefresh: 'soundboard:refresh',
   soundboardPlay: 'soundboard:play',
   soundboardChanged: 'soundboard:changed',
+  timersSnapshot: 'timers:snapshot',
+  timersRefresh: 'timers:refresh',
+  timersCreate: 'timers:create',
+  timersUpdate: 'timers:update',
+  timersToggle: 'timers:toggle',
+  timersDelete: 'timers:delete',
+  timersChanged: 'timers:changed',
   actionsList: 'actions:list',
   actionsCreate: 'actions:create',
   actionsUpdate: 'actions:update',
@@ -735,6 +774,14 @@ export interface BridgeApi {
     snapshot(): Promise<SoundboardSnapshot>;
     refresh(): Promise<void>;
     play(sound: string): Promise<boolean>;
+  };
+  timers: {
+    snapshot(): Promise<TimersSnapshot>;
+    refresh(): Promise<void>;
+    create(input: TimerInput): Promise<boolean>;
+    update(id: number, input: TimerInput): Promise<boolean>;
+    toggle(id: number, enabled: boolean): Promise<boolean>;
+    delete(id: number): Promise<boolean>;
   };
   actions: {
     list(): Promise<Action[]>;

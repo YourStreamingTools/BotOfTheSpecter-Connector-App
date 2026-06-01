@@ -31,6 +31,54 @@ describe('VariablesService', () => {
     expect(vs.all().values.last_cheer_amount).toBe(100);
   });
 
+  // The real relay wire shapes (verified in beta.py / notify_event.php): hyphenated
+  // keys, string-encoded numbers, redemptions as a `rewards` JSON string, donations
+  // as a `data` JSON string. These previously silently no-op'd.
+  describe('real relay wire shapes', () => {
+    it('reads the hyphenated follow key', () => {
+      const vs = new VariablesService(store());
+      vs.handleEvent('TWITCH_FOLLOW', { 'twitch-username': 'owl' });
+      expect(vs.all().values.last_follower).toBe('owl');
+      expect(vs.all().counters.session_followers).toBe(1);
+    });
+    it('reads cheer bits from twitch-cheer-amount (string)', () => {
+      const vs = new VariablesService(store());
+      vs.handleEvent('TWITCH_CHEER', { 'twitch-username': 'owl', 'twitch-cheer-amount': '250' });
+      expect(vs.all().values.last_cheer_amount).toBe(250);
+      expect(vs.all().counters.session_bits).toBe(250);
+    });
+    it('reads sub tier/months from hyphenated keys', () => {
+      const vs = new VariablesService(store());
+      vs.handleEvent('TWITCH_SUB', { 'twitch-username': 'owl', 'twitch-tier': 'Tier 2', 'twitch-sub-months': '6' });
+      expect(vs.all().values.last_subscriber).toBe('owl');
+      expect(vs.all().values.last_sub_tier).toBe('Tier 2');
+      expect(vs.all().values.last_sub_months).toBe(6);
+    });
+    it('reads raid viewers from twitch-raid (string)', () => {
+      const vs = new VariablesService(store());
+      vs.handleEvent('TWITCH_RAID', { 'twitch-username': 'owl', 'twitch-raid': '42' });
+      expect(vs.all().values.last_raider).toBe('owl');
+      expect(vs.all().values.raid_viewer_count).toBe(42);
+    });
+    it('parses the channel-points rewards JSON string', () => {
+      const rewards = JSON.stringify({ user_name: 'owl', user_input: 'hi', reward: { title: 'Hydrate', cost: 100 } });
+      const vs = new VariablesService(store());
+      vs.handleEvent('TWITCH_CHANNELPOINTS', { rewards });
+      expect(vs.all().values.last_redemption_user).toBe('owl');
+      expect(vs.all().values.last_redemption_title).toBe('Hydrate');
+      expect(vs.all().values.last_redemption_cost).toBe(100);
+      expect(vs.all().counters.session_redemptions).toBe(1);
+    });
+    it('parses a Ko-fi donation from the data JSON string', () => {
+      const data = JSON.stringify({ type: 'Donation', from_name: 'gen', amount: '10.00', currency: 'AUD' });
+      const vs = new VariablesService(store());
+      vs.handleEvent('KOFI', { data });
+      expect(vs.all().values.last_donor).toBe('gen');
+      expect(vs.all().values.last_donation_amount).toBe(10);
+      expect(vs.all().values.session_donations).toBe(10);
+    });
+  });
+
   it('resets session counters on STREAM_ONLINE but keeps totals', () => {
     const vs = new VariablesService(store());
     vs.handleEvent('TWITCH_SUB', { username: 'x' });

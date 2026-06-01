@@ -81,6 +81,9 @@ const api: BridgeApi = {
     toggle: (id, enabled) => ipcRenderer.invoke(IPC.timersToggle, id, enabled),
     delete: (id) => ipcRenderer.invoke(IPC.timersDelete, id)
   },
+  alerts: {
+    snapshot: () => ipcRenderer.invoke(IPC.alertsSnapshot)
+  },
   actions: {
     list: () => ipcRenderer.invoke(IPC.actionsList),
     create: (input) => ipcRenderer.invoke(IPC.actionsCreate, input),

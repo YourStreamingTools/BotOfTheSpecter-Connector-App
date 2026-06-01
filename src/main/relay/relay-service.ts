@@ -111,6 +111,9 @@ export class RelayService extends EventEmitter {
     // chat pipeline instead of spamming the variables view / event log.
     if (event === 'CHAT_MESSAGE') { this.emit('chat', obj); return; }
     if (event === 'MODERATION') { this.emit('moderation', obj); this.deps.log.add('TWITCH', 'evt', describeModeration(obj)); return; }
+    // Surface the raw (event, payload) so consumers like the Alerts feed can pick
+    // out the events they care about, alongside the variables engine + log.
+    this.emit('specterEvent', event, obj);
     this.deps.variables.handleEvent(event, obj);
     this.deps.log.add(srcFor(event), levelFor(event), describe(event, obj));
   }

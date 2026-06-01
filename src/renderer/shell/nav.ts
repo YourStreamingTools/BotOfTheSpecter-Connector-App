@@ -18,6 +18,7 @@ import { ScreenAutomation } from '../screens/Automation';
 import { ScreenActions } from '../screens/Actions';
 import { ScreenSoundboard } from '../screens/Soundboard';
 import { ScreenTimers } from '../screens/Timers';
+import { ScreenAlerts } from '../screens/Alerts';
 
 export type ScreenId =
   | 'dashboard' | 'obs' | 'chat' | 'alerts'
@@ -101,7 +102,7 @@ export const SCREENS: Record<ScreenId, { component: React.ComponentType }> = {
   commands: { component: ScreenCommands },
   automation: { component: ScreenAutomation },
   actions: { component: ScreenActions },
-  alerts: { component: () => React.createElement(Placeholder, { title: 'Alerts', icon: IconAlerts, hint: 'Follow / sub / bits / raid alerts with sound and message overlays. Needs the alerts backend.' }) },
+  alerts: { component: ScreenAlerts },
   sound: { component: ScreenSoundboard },
   music: { component: () => React.createElement(Placeholder, { title: 'Song Requests', icon: IconMusic, hint: 'Spotify queue and chat-driven !songrequest. Needs the music backend.' }) },
   timers: { component: ScreenTimers },

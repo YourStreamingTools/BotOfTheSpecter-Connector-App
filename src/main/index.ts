@@ -12,6 +12,7 @@ import { BotStatusService } from './botstatus/bot-status-service';
 import { SpecterApiService } from './api/specter-api';
 import { TwitchService } from './twitch/twitch-service';
 import { ChatService } from './chat/chat-service';
+import { AlertsService } from './alerts/alerts-service';
 import { CommandsService } from './commands/commands-service';
 import { SoundboardService } from './soundboard/soundboard-service';
 import { TimersService } from './timers/timers-service';
@@ -28,6 +29,7 @@ let botStatus: BotStatusService;
 let specterApi: SpecterApiService;
 let twitch: TwitchService;
 let chat: ChatService;
+let alerts: AlertsService;
 let commands: CommandsService;
 let soundboard: SoundboardService;
 let timers: TimersService;
@@ -163,6 +165,14 @@ function registerRelay(): void {
   ipcMain.handle(IPC.logSnapshot, () => logs.snapshot());
 }
 
+function registerAlerts(): void {
+  alerts = new AlertsService();
+  // Feed every relay event through the alert normalizer (it ignores non-alerts).
+  relay.on('specterEvent', (event: string, data: Record<string, unknown>) => alerts.handleEvent(event, data));
+  alerts.on('alert', (a) => broadcast(IPC.alert, a));
+  ipcMain.handle(IPC.alertsSnapshot, () => alerts.snapshot());
+}
+
 function registerChat(): void {
   chat = new ChatService();
   relay.on('chat', (raw: Record<string, unknown>) => chat.handleChat(raw));
@@ -274,6 +284,7 @@ async function bootstrap(): Promise<void> {
   registerIpc();
   registerObs();
   registerRelay();
+  registerAlerts();
   registerChat();
   registerBotStatus();
   registerAuth();

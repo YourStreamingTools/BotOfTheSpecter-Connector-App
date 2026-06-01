@@ -604,6 +604,34 @@ export interface TimersSnapshot {
   fetchedAt?: string;
 }
 
+// ---- Alerts (Phase 5 — live event feed) ----
+// A read-side feed of alert events received on the relay (follows, subs, cheers,
+// raids, channel-point redemptions, donations, stream on/off). The relay carries
+// no timestamp (except channel points) and no history, so each alert is stamped
+// with receivedAt on arrival and the feed is in-memory only.
+export type AlertKind =
+  | 'follow' | 'sub' | 'cheer' | 'raid' | 'redemption' | 'donation' | 'stream';
+export type AlertPlatform = 'twitch' | 'fourthwall' | 'kofi' | 'patreon';
+
+export interface Alert {
+  id: string;                 // generated 'alt_' + counter/random
+  kind: AlertKind;
+  platform: AlertPlatform;
+  who?: string;               // actor display name (absent for stream on/off)
+  amount?: number;            // bits / viewers / months / money — meaning given by `unit`
+  unit?: string;              // 'bits' | 'viewers' | 'months' | a currency code
+  tier?: string;              // sub tier label ('Tier 1' | 'Prime' | …)
+  rewardTitle?: string;       // channel-point reward title
+  message?: string;           // user_input / donation message
+  detail?: string;            // pre-formatted human summary line for the row
+  online?: boolean;           // for kind:'stream' — true=went live, false=went offline
+  receivedAt: number;         // Date.now() at arrival (the wire carries no timestamp)
+}
+
+export interface AlertsSnapshot {
+  alerts: Alert[];            // newest-first
+}
+
 // Safe, display-only subset of the BotOfTheSpecter account (/v2/account).
 // Tokens (access/refresh/spotify/discord/api_key) are intentionally NOT exposed
 // to the renderer — the main process strips them when mapping the response.
@@ -686,6 +714,8 @@ export const IPC = {
   timersToggle: 'timers:toggle',
   timersDelete: 'timers:delete',
   timersChanged: 'timers:changed',
+  alertsSnapshot: 'alerts:snapshot',
+  alert: 'alerts:alert',
   actionsList: 'actions:list',
   actionsCreate: 'actions:create',
   actionsUpdate: 'actions:update',
@@ -782,6 +812,9 @@ export interface BridgeApi {
     update(id: number, input: TimerInput): Promise<boolean>;
     toggle(id: number, enabled: boolean): Promise<boolean>;
     delete(id: number): Promise<boolean>;
+  };
+  alerts: {
+    snapshot(): Promise<AlertsSnapshot>;
   };
   actions: {
     list(): Promise<Action[]>;

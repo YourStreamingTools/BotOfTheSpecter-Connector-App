@@ -65,6 +65,9 @@ if (typeof window !== 'undefined') {
       toggle: vi.fn().mockResolvedValue(true),
       delete: vi.fn().mockResolvedValue(true)
     },
+    alerts: {
+      snapshot: vi.fn().mockResolvedValue({ alerts: [] })
+    },
     actions: {
       list: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue(undefined),

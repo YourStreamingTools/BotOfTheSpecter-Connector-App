@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput } from '@shared/ipc';
+import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput } from '@shared/ipc';
 import { ConfigStore } from './config-store';
 import { legacyConfigPath, migrateLegacyConfig } from './config-migration';
 import { createMainWindow, APP_ICON_PATH } from './window';
@@ -11,6 +11,8 @@ import { RelayService } from './relay/relay-service';
 import { BotStatusService } from './botstatus/bot-status-service';
 import { SpecterApiService } from './api/specter-api';
 import { TwitchService } from './twitch/twitch-service';
+import { ChannelPointsService } from './channelpoints/channel-points-service';
+import { RewardGroupsService } from './channelpoints/reward-groups-service';
 import { ChatService } from './chat/chat-service';
 import { AlertsService } from './alerts/alerts-service';
 import { CommandsService } from './commands/commands-service';
@@ -28,6 +30,8 @@ let relay: RelayService;
 let botStatus: BotStatusService;
 let specterApi: SpecterApiService;
 let twitch: TwitchService;
+let channelPoints: ChannelPointsService;
+let rewardGroups: RewardGroupsService;
 let chat: ChatService;
 let alerts: AlertsService;
 let commands: CommandsService;
@@ -150,6 +154,8 @@ function registerRelay(): void {
     botStatus.start();
     twitch.setApiKey(trimmed);
     twitch.start();
+    // New key → channel-point rewards are per-broadcaster, re-fetch.
+    void channelPoints.refresh();
     // New key → re-fetch custom + user commands (built-in is unchanged but harmless).
     void commands.refresh();
     // New key → the soundboard list is per-user, so re-fetch it too.
@@ -209,6 +215,32 @@ function registerTwitch(): void {
     if (s.reachable) variables.reconcileStreamStatus(s.online);
   });
   ipcMain.handle(IPC.twitchSnapshot, () => twitch.getStatus());
+}
+
+function registerChannelPoints(): void {
+  channelPoints = new ChannelPointsService({
+    getCredentials: (key) => specterApi.getCredentials(key),
+    getApiKey: () => store.get('api_key') ?? ''
+  });
+  channelPoints.on('changed', (snap) => broadcast(IPC.channelPointsChanged, snap));
+  ipcMain.handle(IPC.channelPointsSnapshot, () => channelPoints.snapshot());
+  ipcMain.handle(IPC.channelPointsRefresh, () => channelPoints.refresh());
+  ipcMain.handle(IPC.channelPointsCreateReward, (_e, input: ChannelRewardCreate) => channelPoints.createReward(input));
+  ipcMain.handle(IPC.channelPointsUpdateReward, (_e, id: string, patch: ChannelRewardUpdate) => channelPoints.updateReward(id, patch));
+  ipcMain.handle(IPC.channelPointsListRedemptions, (_e, rewardId: string) => channelPoints.listRedemptions(rewardId));
+  ipcMain.handle(IPC.channelPointsSetRedemption, (_e, rewardId: string, redemptionId: string, status: 'FULFILLED' | 'CANCELED') => channelPoints.setRedemption(rewardId, redemptionId, status));
+
+  // Reward groups: desktop-side grouping; a group toggle PATCHes is_enabled on each manageable member.
+  rewardGroups = new RewardGroupsService({
+    store,
+    toggleReward: (rewardId, enabled) => channelPoints.updateReward(rewardId, { isEnabled: enabled })
+  });
+  rewardGroups.on('changed', (list) => broadcast(IPC.rewardGroupsChanged, list));
+  ipcMain.handle(IPC.rewardGroupsList, () => rewardGroups.list());
+  ipcMain.handle(IPC.rewardGroupsCreate, (_e, input: RewardGroupInput) => rewardGroups.create(input));
+  ipcMain.handle(IPC.rewardGroupsUpdate, (_e, id: string, input: RewardGroupInput) => rewardGroups.update(id, input));
+  ipcMain.handle(IPC.rewardGroupsDelete, (_e, id: string) => rewardGroups.delete(id));
+  ipcMain.handle(IPC.rewardGroupsSetEnabled, (_e, id: string, enabled: boolean) => rewardGroups.setEnabled(id, enabled));
 }
 
 function registerCommands(): void {
@@ -289,6 +321,7 @@ async function bootstrap(): Promise<void> {
   registerBotStatus();
   registerAuth();
   registerTwitch();
+  registerChannelPoints();
   registerCommands();
   registerSoundboard();
   registerTimers();
@@ -320,6 +353,8 @@ async function bootstrap(): Promise<void> {
   if (apiKey) void soundboard.refresh();
   // Timers are per-user; only fetch when there's a key.
   if (apiKey) void timers.refresh();
+  // Channel-point rewards are per-broadcaster; only fetch when there's a key.
+  if (apiKey) void channelPoints.refresh();
 
   createMainWindow();
 }

@@ -84,6 +84,21 @@ const api: BridgeApi = {
   alerts: {
     snapshot: () => ipcRenderer.invoke(IPC.alertsSnapshot)
   },
+  channelPoints: {
+    snapshot: () => ipcRenderer.invoke(IPC.channelPointsSnapshot),
+    refresh: () => ipcRenderer.invoke(IPC.channelPointsRefresh),
+    createReward: (input) => ipcRenderer.invoke(IPC.channelPointsCreateReward, input),
+    updateReward: (id, patch) => ipcRenderer.invoke(IPC.channelPointsUpdateReward, id, patch),
+    listRedemptions: (rewardId) => ipcRenderer.invoke(IPC.channelPointsListRedemptions, rewardId),
+    setRedemption: (rewardId, redemptionId, status) => ipcRenderer.invoke(IPC.channelPointsSetRedemption, rewardId, redemptionId, status)
+  },
+  rewardGroups: {
+    list: () => ipcRenderer.invoke(IPC.rewardGroupsList),
+    create: (input) => ipcRenderer.invoke(IPC.rewardGroupsCreate, input),
+    update: (id, input) => ipcRenderer.invoke(IPC.rewardGroupsUpdate, id, input),
+    delete: (id) => ipcRenderer.invoke(IPC.rewardGroupsDelete, id),
+    setEnabled: (id, enabled) => ipcRenderer.invoke(IPC.rewardGroupsSetEnabled, id, enabled)
+  },
   actions: {
     list: () => ipcRenderer.invoke(IPC.actionsList),
     create: (input) => ipcRenderer.invoke(IPC.actionsCreate, input),

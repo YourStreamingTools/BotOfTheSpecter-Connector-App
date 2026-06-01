@@ -308,6 +308,7 @@ export interface AppConfig {
   actions?: Action[];
   folders?: Folder[];
   automations?: Automation[];
+  rewardGroups?: RewardGroup[];
   // Number of OBS stream outputs (main + multi-output destinations). Determines
   // the ratio applied to OBS's drifted stream `outputDuration` so the LIVE
   // counter matches real wall-clock time. `undefined` (or 0) = auto-detect via
@@ -632,6 +633,102 @@ export interface AlertsSnapshot {
   alerts: Alert[];            // newest-first
 }
 
+// ---- Channel Points (Phase 5 — Twitch custom rewards + redemptions) ----
+// Direct Twitch Helix (broadcaster token + Specter Client-Id, main-process only).
+// `manageable` = the reward was created by the Specter app's Client-Id, so Twitch
+// allows this app to edit it; non-manageable rewards are read-only ("manage on web").
+export type ChannelPointsLoadState = 'idle' | 'loading' | 'ok' | 'error';
+
+export interface ChannelReward {
+  id: string;
+  title: string;
+  cost: number;
+  prompt: string;
+  backgroundColor?: string;
+  isEnabled: boolean;
+  isPaused: boolean;
+  isInStock: boolean;
+  isUserInputRequired: boolean;
+  // Cooldown / per-stream caps (flattened from the Helix *_setting objects).
+  globalCooldownEnabled: boolean;
+  globalCooldownSeconds: number;
+  maxPerStreamEnabled: boolean;
+  maxPerStream: number;
+  maxPerUserPerStreamEnabled: boolean;
+  maxPerUserPerStream: number;
+  imageUrl?: string;            // image.url_2x ?? default_image.url_2x
+  manageable: boolean;          // editable by this app (Specter-created)
+}
+
+// Patch body for PATCH /channel_points/custom_rewards. Only the fields being
+// changed are sent; all optional. Mirrors the Helix update body (camelCase here).
+export interface ChannelRewardUpdate {
+  title?: string;
+  cost?: number;
+  prompt?: string;
+  backgroundColor?: string;
+  isEnabled?: boolean;
+  isPaused?: boolean;
+  isUserInputRequired?: boolean;
+  isGlobalCooldownEnabled?: boolean;
+  globalCooldownSeconds?: number;
+  isMaxPerStreamEnabled?: boolean;
+  maxPerStream?: number;
+  isMaxPerUserPerStreamEnabled?: boolean;
+  maxPerUserPerStream?: number;
+}
+
+// Create body for POST /channel_points/custom_rewards. title + cost are required.
+export interface ChannelRewardCreate {
+  title: string;
+  cost: number;
+  prompt?: string;
+  backgroundColor?: string;
+  isEnabled?: boolean;
+  isUserInputRequired?: boolean;
+  isGlobalCooldownEnabled?: boolean;
+  globalCooldownSeconds?: number;
+  isMaxPerStreamEnabled?: boolean;
+  maxPerStream?: number;
+  isMaxPerUserPerStreamEnabled?: boolean;
+  maxPerUserPerStream?: number;
+  shouldRedemptionsSkipRequestQueue?: boolean;
+}
+
+export type RedemptionStatus = 'UNFULFILLED' | 'FULFILLED' | 'CANCELED';
+
+export interface RedemptionItem {
+  id: string;
+  rewardId: string;
+  rewardTitle: string;
+  rewardCost: number;
+  userName: string;
+  userInput: string;
+  redeemedAt: string;          // RFC3339
+  status: RedemptionStatus;
+}
+
+export interface ChannelPointsSnapshot {
+  rewards: ChannelReward[];
+  state: ChannelPointsLoadState;
+  error?: string;
+  fetchedAt?: string;
+}
+
+// A desktop-side grouping of rewards (Twitch has no group concept). Enabling or
+// disabling the group applies is_enabled to every MANAGEABLE member reward.
+// Persisted to config (AppConfig.rewardGroups).
+export interface RewardGroup {
+  id: string;            // 'grp_' + 10 alphanum
+  name: string;
+  rewardIds: string[];   // Twitch reward ids
+}
+
+export interface RewardGroupInput {
+  name: string;
+  rewardIds?: string[];
+}
+
 // Safe, display-only subset of the BotOfTheSpecter account (/v2/account).
 // Tokens (access/refresh/spotify/discord/api_key) are intentionally NOT exposed
 // to the renderer — the main process strips them when mapping the response.
@@ -716,6 +813,19 @@ export const IPC = {
   timersChanged: 'timers:changed',
   alertsSnapshot: 'alerts:snapshot',
   alert: 'alerts:alert',
+  channelPointsSnapshot: 'channelPoints:snapshot',
+  channelPointsRefresh: 'channelPoints:refresh',
+  channelPointsCreateReward: 'channelPoints:createReward',
+  channelPointsUpdateReward: 'channelPoints:updateReward',
+  channelPointsListRedemptions: 'channelPoints:listRedemptions',
+  channelPointsSetRedemption: 'channelPoints:setRedemption',
+  channelPointsChanged: 'channelPoints:changed',
+  rewardGroupsList: 'rewardGroups:list',
+  rewardGroupsCreate: 'rewardGroups:create',
+  rewardGroupsUpdate: 'rewardGroups:update',
+  rewardGroupsDelete: 'rewardGroups:delete',
+  rewardGroupsSetEnabled: 'rewardGroups:setEnabled',
+  rewardGroupsChanged: 'rewardGroups:changed',
   actionsList: 'actions:list',
   actionsCreate: 'actions:create',
   actionsUpdate: 'actions:update',
@@ -815,6 +925,22 @@ export interface BridgeApi {
   };
   alerts: {
     snapshot(): Promise<AlertsSnapshot>;
+  };
+  channelPoints: {
+    snapshot(): Promise<ChannelPointsSnapshot>;
+    refresh(): Promise<void>;
+    createReward(input: ChannelRewardCreate): Promise<boolean>;
+    updateReward(id: string, patch: ChannelRewardUpdate): Promise<boolean>;
+    listRedemptions(rewardId: string): Promise<RedemptionItem[]>;
+    setRedemption(rewardId: string, redemptionId: string, status: 'FULFILLED' | 'CANCELED'): Promise<boolean>;
+  };
+  rewardGroups: {
+    list(): Promise<RewardGroup[]>;
+    create(input: RewardGroupInput): Promise<RewardGroup>;
+    update(id: string, input: RewardGroupInput): Promise<RewardGroup | null>;
+    delete(id: string): Promise<boolean>;
+    /** Enable/disable every manageable reward in the group. Returns how many were toggled. */
+    setEnabled(id: string, enabled: boolean): Promise<number>;
   };
   actions: {
     list(): Promise<Action[]>;

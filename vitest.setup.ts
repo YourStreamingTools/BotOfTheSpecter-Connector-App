@@ -68,6 +68,21 @@ if (typeof window !== 'undefined') {
     alerts: {
       snapshot: vi.fn().mockResolvedValue({ alerts: [] })
     },
+    channelPoints: {
+      snapshot: vi.fn().mockResolvedValue({ rewards: [], state: 'idle' }),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      createReward: vi.fn().mockResolvedValue(true),
+      updateReward: vi.fn().mockResolvedValue(true),
+      listRedemptions: vi.fn().mockResolvedValue([]),
+      setRedemption: vi.fn().mockResolvedValue(true)
+    },
+    rewardGroups: {
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: 'grp_x', name: '', rewardIds: [] }),
+      update: vi.fn().mockResolvedValue(null),
+      delete: vi.fn().mockResolvedValue(true),
+      setEnabled: vi.fn().mockResolvedValue(0)
+    },
     actions: {
       list: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue(undefined),

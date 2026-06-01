@@ -52,6 +52,11 @@ if (typeof window !== 'undefined') {
       refresh: vi.fn().mockResolvedValue(undefined),
       updateBuiltin: vi.fn().mockResolvedValue(true)
     },
+    soundboard: {
+      snapshot: vi.fn().mockResolvedValue({ sounds: [], state: 'idle' }),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      play: vi.fn().mockResolvedValue(true)
+    },
     actions: {
       list: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue(undefined),

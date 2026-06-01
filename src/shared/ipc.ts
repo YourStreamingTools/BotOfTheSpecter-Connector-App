@@ -559,6 +559,19 @@ export interface CommandsSnapshot {
   fetchedAt?: string;
 }
 
+// ---- Soundboard (Phase 5 — sound alerts) ----
+// The streamer's soundboard entries (filenames incl. extension), listed from
+// GET /sound-alerts. Playing a sound triggers it on-stream via the overlay; the
+// list is read-only (uploads are managed on the BotOfTheSpecter website).
+export type SoundboardLoadState = 'idle' | 'loading' | 'ok' | 'error';
+
+export interface SoundboardSnapshot {
+  sounds: string[];          // e.g. ['airhorn.mp3', 'yay.wav']
+  state: SoundboardLoadState;
+  error?: string;
+  fetchedAt?: string;
+}
+
 // Safe, display-only subset of the BotOfTheSpecter account (/v2/account).
 // Tokens (access/refresh/spotify/discord/api_key) are intentionally NOT exposed
 // to the renderer — the main process strips them when mapping the response.
@@ -630,6 +643,10 @@ export const IPC = {
   commandsRefresh: 'commands:refresh',
   commandsChanged: 'commands:changed',
   commandsUpdateBuiltin: 'commands:updateBuiltin',
+  soundboardSnapshot: 'soundboard:snapshot',
+  soundboardRefresh: 'soundboard:refresh',
+  soundboardPlay: 'soundboard:play',
+  soundboardChanged: 'soundboard:changed',
   actionsList: 'actions:list',
   actionsCreate: 'actions:create',
   actionsUpdate: 'actions:update',
@@ -713,6 +730,11 @@ export interface BridgeApi {
     snapshot(): Promise<CommandsSnapshot>;
     refresh(): Promise<void>;
     updateBuiltin(name: string, patch: BuiltinCommandUpdate): Promise<boolean>;
+  };
+  soundboard: {
+    snapshot(): Promise<SoundboardSnapshot>;
+    refresh(): Promise<void>;
+    play(sound: string): Promise<boolean>;
   };
   actions: {
     list(): Promise<Action[]>;

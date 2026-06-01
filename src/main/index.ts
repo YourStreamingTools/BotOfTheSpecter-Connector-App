@@ -13,6 +13,7 @@ import { SpecterApiService } from './api/specter-api';
 import { TwitchService } from './twitch/twitch-service';
 import { ChatService } from './chat/chat-service';
 import { CommandsService } from './commands/commands-service';
+import { SoundboardService } from './soundboard/soundboard-service';
 import { ActionsService } from './automation/actions-service';
 import { AutomationsService } from './automation/automations-service';
 
@@ -27,6 +28,7 @@ let specterApi: SpecterApiService;
 let twitch: TwitchService;
 let chat: ChatService;
 let commands: CommandsService;
+let soundboard: SoundboardService;
 let actions: ActionsService;
 let automations: AutomationsService;
 
@@ -146,6 +148,8 @@ function registerRelay(): void {
     twitch.start();
     // New key → re-fetch custom + user commands (built-in is unchanged but harmless).
     void commands.refresh();
+    // New key → the soundboard list is per-user, so re-fetch it too.
+    void soundboard.refresh();
   });
   ipcMain.handle(IPC.relayConnect, () => relay.connect());
   ipcMain.handle(IPC.relayDisconnect, () => relay.disconnect());
@@ -201,6 +205,14 @@ function registerCommands(): void {
   ipcMain.handle(IPC.commandsUpdateBuiltin, (_e, name: string, patch: BuiltinCommandUpdate) => commands.updateBuiltin(name, patch));
 }
 
+function registerSoundboard(): void {
+  soundboard = new SoundboardService({ getApiKey: () => store.get('api_key') ?? '' });
+  soundboard.on('changed', (snap) => broadcast(IPC.soundboardChanged, snap));
+  ipcMain.handle(IPC.soundboardSnapshot, () => soundboard.snapshot());
+  ipcMain.handle(IPC.soundboardRefresh, () => soundboard.refresh());
+  ipcMain.handle(IPC.soundboardPlay, (_e, sound: string) => soundboard.play(sound));
+}
+
 function registerActions(): void {
   actions = new ActionsService({ store });
   actions.on('changed', (list) => broadcast(IPC.actionsChanged, list));
@@ -252,6 +264,7 @@ async function bootstrap(): Promise<void> {
   registerAuth();
   registerTwitch();
   registerCommands();
+  registerSoundboard();
   registerActions();
   registerAutomations();
 
@@ -276,6 +289,8 @@ async function bootstrap(): Promise<void> {
   // screen is ready by the time the user navigates to it. Built-in fetches without auth,
   // custom + user only fetch if there's an API key.
   void commands.refresh();
+  // Soundboard list is per-user; only meaningful with a key (no-ops to idle otherwise).
+  if (apiKey) void soundboard.refresh();
 
   createMainWindow();
 }

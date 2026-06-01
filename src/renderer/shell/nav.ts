@@ -16,6 +16,7 @@ import { ScreenChat } from '../screens/Chat';
 import { ScreenCommands } from '../screens/Commands';
 import { ScreenAutomation } from '../screens/Automation';
 import { ScreenActions } from '../screens/Actions';
+import { ScreenSoundboard } from '../screens/Soundboard';
 
 export type ScreenId =
   | 'dashboard' | 'obs' | 'chat' | 'alerts'
@@ -100,7 +101,7 @@ export const SCREENS: Record<ScreenId, { component: React.ComponentType }> = {
   automation: { component: ScreenAutomation },
   actions: { component: ScreenActions },
   alerts: { component: () => React.createElement(Placeholder, { title: 'Alerts', icon: IconAlerts, hint: 'Follow / sub / bits / raid alerts with sound and message overlays. Needs the alerts backend.' }) },
-  sound: { component: () => React.createElement(Placeholder, { title: 'Soundboard', icon: IconSoundboard, hint: 'Drag-drop sound alerts and walk-ons. Needs the bot media backend.' }) },
+  sound: { component: ScreenSoundboard },
   music: { component: () => React.createElement(Placeholder, { title: 'Song Requests', icon: IconMusic, hint: 'Spotify queue and chat-driven !songrequest. Needs the music backend.' }) },
   timers: { component: () => React.createElement(Placeholder, { title: 'Timers', icon: IconTimers, hint: 'Auto-messages on a cadence. Needs the bot timers API.' }) },
   giveaways: { component: () => React.createElement(Placeholder, { title: 'Giveaways · Polls · Predictions', icon: IconGiveaway, hint: 'Run a giveaway, poll or prediction. Needs the bot engagement API.' }) }

@@ -65,6 +65,18 @@ if (typeof window !== 'undefined') {
       toggle: vi.fn().mockResolvedValue(true),
       delete: vi.fn().mockResolvedValue(true)
     },
+    raffles: {
+      snapshot: vi.fn().mockResolvedValue({ raffles: [], state: 'idle' }),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(true),
+      update: vi.fn().mockResolvedValue(true),
+      start: vi.fn().mockResolvedValue(true),
+      stop: vi.fn().mockResolvedValue(true),
+      draw: vi.fn().mockResolvedValue([]),
+      delete: vi.fn().mockResolvedValue(true),
+      entries: vi.fn().mockResolvedValue([]),
+      winners: vi.fn().mockResolvedValue([])
+    },
     alerts: {
       snapshot: vi.fn().mockResolvedValue({ alerts: [] })
     },

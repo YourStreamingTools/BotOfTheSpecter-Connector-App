@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput } from '@shared/ipc';
+import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type RaffleInput, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput } from '@shared/ipc';
 import { ConfigStore } from './config-store';
 import { legacyConfigPath, migrateLegacyConfig } from './config-migration';
 import { createMainWindow, APP_ICON_PATH } from './window';
@@ -18,6 +18,7 @@ import { AlertsService } from './alerts/alerts-service';
 import { CommandsService } from './commands/commands-service';
 import { SoundboardService } from './soundboard/soundboard-service';
 import { TimersService } from './timers/timers-service';
+import { RafflesService } from './raffles/raffles-service';
 import { ActionsService } from './automation/actions-service';
 import { AutomationsService } from './automation/automations-service';
 
@@ -37,6 +38,7 @@ let alerts: AlertsService;
 let commands: CommandsService;
 let soundboard: SoundboardService;
 let timers: TimersService;
+let raffles: RafflesService;
 let actions: ActionsService;
 let automations: AutomationsService;
 
@@ -162,6 +164,8 @@ function registerRelay(): void {
     void soundboard.refresh();
     // New key → timers are per-user, re-fetch.
     void timers.refresh();
+    // New key → raffles are per-user, re-fetch.
+    void raffles.refresh();
   });
   ipcMain.handle(IPC.relayConnect, () => relay.connect());
   ipcMain.handle(IPC.relayDisconnect, () => relay.disconnect());
@@ -270,6 +274,21 @@ function registerTimers(): void {
   ipcMain.handle(IPC.timersDelete, (_e, id: number) => timers.delete(id));
 }
 
+function registerRaffles(): void {
+  raffles = new RafflesService({ getApiKey: () => store.get('api_key') ?? '' });
+  raffles.on('changed', (snap) => broadcast(IPC.rafflesChanged, snap));
+  ipcMain.handle(IPC.rafflesSnapshot, () => raffles.snapshot());
+  ipcMain.handle(IPC.rafflesRefresh, () => raffles.refresh());
+  ipcMain.handle(IPC.rafflesCreate, (_e, input: RaffleInput) => raffles.create(input));
+  ipcMain.handle(IPC.rafflesUpdate, (_e, id: number, input: RaffleInput) => raffles.update(id, input));
+  ipcMain.handle(IPC.rafflesStart, (_e, id: number) => raffles.start(id));
+  ipcMain.handle(IPC.rafflesStop, (_e, id: number) => raffles.stop(id));
+  ipcMain.handle(IPC.rafflesDraw, (_e, id: number) => raffles.draw(id));
+  ipcMain.handle(IPC.rafflesDelete, (_e, id: number) => raffles.delete(id));
+  ipcMain.handle(IPC.rafflesEntries, (_e, raffleId: number) => raffles.entries(raffleId));
+  ipcMain.handle(IPC.rafflesWinners, (_e, raffleId: number) => raffles.winners(raffleId));
+}
+
 function registerActions(): void {
   actions = new ActionsService({ store });
   actions.on('changed', (list) => broadcast(IPC.actionsChanged, list));
@@ -325,6 +344,7 @@ async function bootstrap(): Promise<void> {
   registerCommands();
   registerSoundboard();
   registerTimers();
+  registerRaffles();
   registerActions();
   registerAutomations();
 
@@ -353,6 +373,8 @@ async function bootstrap(): Promise<void> {
   if (apiKey) void soundboard.refresh();
   // Timers are per-user; only fetch when there's a key.
   if (apiKey) void timers.refresh();
+  // Raffles are per-user; only fetch when there's a key.
+  if (apiKey) void raffles.refresh();
   // Channel-point rewards are per-broadcaster; only fetch when there's a key.
   if (apiKey) void channelPoints.refresh();
 

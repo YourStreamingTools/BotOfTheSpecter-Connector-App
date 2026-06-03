@@ -18,6 +18,7 @@ import { ScreenAutomation } from '../screens/Automation';
 import { ScreenActions } from '../screens/Actions';
 import { ScreenSoundboard } from '../screens/Soundboard';
 import { ScreenTimers } from '../screens/Timers';
+import { ScreenRaffles } from '../screens/Raffles';
 import { ScreenAlerts } from '../screens/Alerts';
 
 export type ScreenId =
@@ -106,5 +107,5 @@ export const SCREENS: Record<ScreenId, { component: React.ComponentType }> = {
   sound: { component: ScreenSoundboard },
   music: { component: () => React.createElement(Placeholder, { title: 'Song Requests', icon: IconMusic, hint: 'Spotify queue and chat-driven !songrequest. Needs the music backend.' }) },
   timers: { component: ScreenTimers },
-  giveaways: { component: () => React.createElement(Placeholder, { title: 'Giveaways · Polls · Predictions', icon: IconGiveaway, hint: 'Run a giveaway, poll or prediction. Needs the bot engagement API.' }) }
+  giveaways: { component: ScreenRaffles }
 };

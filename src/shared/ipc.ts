@@ -605,6 +605,84 @@ export interface TimersSnapshot {
   fetchedAt?: string;
 }
 
+// ---- Giveaways / Raffles (Phase 5 — bot raffles) ----
+// The channel's raffles/giveaways, backed by GET/POST/PUT/DELETE /raffles on the
+// BotOfTheSpecter API (three tables: raffles + raffle_entries + raffle_winners).
+// Entries come from viewers via !joinraffle (read-only here). A raffle's config can
+// be edited only while it is 'scheduled'; the app can start/stop/draw/delete.
+export type RaffleStatus = 'scheduled' | 'running' | 'ended';
+export type RaffleFollowUnit = 'days' | 'weeks' | 'months' | 'years';
+export type RafflesLoadState = 'idle' | 'loading' | 'ok' | 'error';
+
+export interface Raffle {
+  id: number;
+  name: string;
+  prize: string;
+  numberOfWinners: number;
+  status: RaffleStatus;
+  isWeighted: boolean;
+  weightSubT1: number | null;
+  weightSubT2: number | null;
+  weightSubT3: number | null;
+  weightVip: number | null;
+  excludeMods: boolean;
+  subscribersOnly: boolean;
+  followersOnly: boolean;
+  followersMinEnabled: boolean;
+  followersMinValue: number;
+  followersMinUnit: string;
+  createdAt: string | null;
+  entryCount: number;
+  winnerCount: number;
+  winners: string[];   // winner usernames, from the list endpoint
+}
+
+// Create/update payload from the renderer. id is omitted on create; the API only
+// allows updating a raffle while it is 'scheduled'.
+export interface RaffleInput {
+  name: string;
+  prize?: string;
+  numberOfWinners: number;
+  isWeighted: boolean;
+  weightSubT1: number;
+  weightSubT2: number;
+  weightSubT3: number;
+  weightVip: number;
+  excludeMods: boolean;
+  subscribersOnly: boolean;
+  followersOnly: boolean;
+  followersMinEnabled: boolean;
+  followersMinValue: number;
+  followersMinUnit: RaffleFollowUnit;
+}
+
+export interface RaffleEntry {
+  id: number;
+  raffleId: number;
+  userId: string | null;
+  username: string | null;
+  weight: number;
+  source: string | null;
+  enteredAt: string | null;
+}
+
+export interface RaffleWinner {
+  id: number;
+  raffleId: number;
+  entryId: number;
+  userId: string | null;
+  username: string | null;
+  source: string | null;
+  wonAt: string | null;
+}
+
+export interface RafflesSnapshot {
+  raffles: Raffle[];
+  state: RafflesLoadState;
+  error?: string;
+  fetchedAt?: string;
+}
+
 // ---- Alerts (Phase 5 — live event feed) ----
 // A read-side feed of alert events received on the relay (follows, subs, cheers,
 // raids, channel-point redemptions, donations, stream on/off). The relay carries
@@ -811,6 +889,17 @@ export const IPC = {
   timersToggle: 'timers:toggle',
   timersDelete: 'timers:delete',
   timersChanged: 'timers:changed',
+  rafflesSnapshot: 'raffles:snapshot',
+  rafflesRefresh: 'raffles:refresh',
+  rafflesCreate: 'raffles:create',
+  rafflesUpdate: 'raffles:update',
+  rafflesStart: 'raffles:start',
+  rafflesStop: 'raffles:stop',
+  rafflesDraw: 'raffles:draw',
+  rafflesDelete: 'raffles:delete',
+  rafflesEntries: 'raffles:entries',
+  rafflesWinners: 'raffles:winners',
+  rafflesChanged: 'raffles:changed',
   alertsSnapshot: 'alerts:snapshot',
   alert: 'alerts:alert',
   channelPointsSnapshot: 'channelPoints:snapshot',
@@ -922,6 +1011,18 @@ export interface BridgeApi {
     update(id: number, input: TimerInput): Promise<boolean>;
     toggle(id: number, enabled: boolean): Promise<boolean>;
     delete(id: number): Promise<boolean>;
+  };
+  raffles: {
+    snapshot(): Promise<RafflesSnapshot>;
+    refresh(): Promise<void>;
+    create(input: RaffleInput): Promise<boolean>;
+    update(id: number, input: RaffleInput): Promise<boolean>;
+    start(id: number): Promise<boolean>;
+    stop(id: number): Promise<boolean>;
+    draw(id: number): Promise<string[] | null>;   // winner usernames, or null on failure
+    delete(id: number): Promise<boolean>;
+    entries(raffleId: number): Promise<RaffleEntry[]>;
+    winners(raffleId: number): Promise<RaffleWinner[]>;
   };
   alerts: {
     snapshot(): Promise<AlertsSnapshot>;

@@ -81,6 +81,18 @@ const api: BridgeApi = {
     toggle: (id, enabled) => ipcRenderer.invoke(IPC.timersToggle, id, enabled),
     delete: (id) => ipcRenderer.invoke(IPC.timersDelete, id)
   },
+  raffles: {
+    snapshot: () => ipcRenderer.invoke(IPC.rafflesSnapshot),
+    refresh: () => ipcRenderer.invoke(IPC.rafflesRefresh),
+    create: (input) => ipcRenderer.invoke(IPC.rafflesCreate, input),
+    update: (id, input) => ipcRenderer.invoke(IPC.rafflesUpdate, id, input),
+    start: (id) => ipcRenderer.invoke(IPC.rafflesStart, id),
+    stop: (id) => ipcRenderer.invoke(IPC.rafflesStop, id),
+    draw: (id) => ipcRenderer.invoke(IPC.rafflesDraw, id),
+    delete: (id) => ipcRenderer.invoke(IPC.rafflesDelete, id),
+    entries: (raffleId) => ipcRenderer.invoke(IPC.rafflesEntries, raffleId),
+    winners: (raffleId) => ipcRenderer.invoke(IPC.rafflesWinners, raffleId)
+  },
   alerts: {
     snapshot: () => ipcRenderer.invoke(IPC.alertsSnapshot)
   },

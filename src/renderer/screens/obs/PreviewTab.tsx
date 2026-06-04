@@ -44,8 +44,7 @@ export function PreviewTab({ obs }: { obs: Obs }) {
           {audio === null && <span className="dim" style={{ fontSize: 12 }}>Loading audio sources…</span>}
           {audio && audio.length === 0 && <span className="dim" style={{ fontSize: 12 }}>No audio sources found.</span>}
           {audio && audio.map((a) => {
-            // Muted inputs read as silent for the meter — OBS still emits levels
-            // post-mute on some kinds, and a meter on a muted row is misleading.
+            // Muted inputs read as silent (-100 dB) for the meter, since OBS may still emit post-mute levels.
             const peakDb = a.muted ? -100 : (meterByName.get(a.name) ?? -100);
             return (
               <div key={a.name} className="col" style={{ gap: 4 }}>
@@ -75,8 +74,7 @@ export function PreviewTab({ obs }: { obs: Obs }) {
   );
 }
 
-// Visual: -60 dB → empty, 0 dB → full. Green below -20, yellow -20 to -6, red above.
-// Muted rows render as a flat dim track so the row layout stays consistent.
+// Meter bar: -60 dB empty to 0 dB full; green below -20, yellow -20 to -6, red above; muted renders as a flat dim track.
 function MeterBar({ peakDb, muted }: { peakDb: number; muted: boolean }) {
   const MIN_DB = -60;
   const clamped = Math.max(MIN_DB, Math.min(0, peakDb));

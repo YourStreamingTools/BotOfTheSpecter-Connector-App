@@ -83,6 +83,12 @@ if (typeof window !== 'undefined') {
       create: vi.fn().mockResolvedValue(true),
       end: vi.fn().mockResolvedValue(true)
     },
+    predictions: {
+      snapshot: vi.fn().mockResolvedValue({ predictions: [], state: 'idle' }),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(true),
+      end: vi.fn().mockResolvedValue(true)
+    },
     alerts: {
       snapshot: vi.fn().mockResolvedValue({ alerts: [] })
     },

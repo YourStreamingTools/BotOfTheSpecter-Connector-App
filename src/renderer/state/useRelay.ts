@@ -5,8 +5,7 @@ export function useRelay() {
   const [status, setStatus] = React.useState<RelayStatus>({ state: 'disconnected', registered: false, locked: false, hasApiKey: false });
   React.useEffect(() => {
     let alive = true;
-    // Seed from the current status so a connect that happened before this hook
-    // mounted (e.g. auto-connect during bootstrap) is reflected, not just future pushes.
+    // Seed from current status so a connect before this hook mounted (e.g. bootstrap auto-connect) is reflected, not just future pushes.
     void window.api.relay.snapshot().then((s) => { if (alive) setStatus(s); });
     const off = window.api.on(IPC.relayStatus, (s) => setStatus(s as RelayStatus));
     return () => { alive = false; off(); };

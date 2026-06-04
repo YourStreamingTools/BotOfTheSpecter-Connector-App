@@ -1,15 +1,12 @@
 import React from 'react';
 import { ScreenRaffles } from './Raffles';
 import { ScreenPolls } from './Polls';
-import { IconGiveaway, IconBolt } from '../icons';
+import { ScreenPredictions } from './Predictions';
+import { IconGiveaway, IconBolt, IconStar } from '../icons';
 
-type Tab = 'giveaways' | 'polls';
+type Tab = 'giveaways' | 'polls' | 'predictions';
 
-/**
- * Host screen for the Engagement → Giveaways nav slot. Tabs across the giveaway-style
- * features: Giveaways (raffles) and Polls (Twitch). A Predictions tab can be added here
- * later. Each child renders a plain root; this container owns the `.screen` wrapper.
- */
+/** Host screen for the Giveaways nav slot; tabs across Giveaways (raffles), Polls and Predictions, and owns the `.screen` wrapper. */
 export function ScreenGiveaways() {
   const [tab, setTab] = React.useState<Tab>('giveaways');
   return (
@@ -21,8 +18,11 @@ export function ScreenGiveaways() {
         <button className={`btn btn-sm ${tab === 'polls' ? 'btn-primary' : ''}`} onClick={() => setTab('polls')}>
           <IconBolt size={12} />Polls
         </button>
+        <button className={`btn btn-sm ${tab === 'predictions' ? 'btn-primary' : ''}`} onClick={() => setTab('predictions')}>
+          <IconStar size={12} />Predictions
+        </button>
       </div>
-      {tab === 'giveaways' ? <ScreenRaffles /> : <ScreenPolls />}
+      {tab === 'giveaways' ? <ScreenRaffles /> : tab === 'polls' ? <ScreenPolls /> : <ScreenPredictions />}
     </div>
   );
 }

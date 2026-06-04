@@ -30,12 +30,7 @@ import {
   IconBox
 } from '../icons';
 
-// ============================================================================
-// ScreenAutomation — Streamer.bot-style folder tree + automation cards.
-// The whole screen lives in this file. It's long; the small inline helper
-// components below carry their own responsibilities and aren't reused outside
-// the Automation surface so there's no win to extracting them.
-// ============================================================================
+// ScreenAutomation — Streamer.bot-style folder tree + automation cards; the whole screen and its inline helpers live in this file.
 
 // ---------- labels & defaults ----------
 
@@ -421,8 +416,7 @@ function AutomationCard({ automation, level, ...rest }: AutomationCardProps) {
   } = rest;
   const expanded = expandedCards.has(automation.id);
 
-  // Local mirror of the automation so inline edits feel snappy. We push to the
-  // service on commit (blur / explicit change) and let the push refresh sync.
+  // Local mirror of the automation for snappy inline edits; pushed to the service on commit (blur/explicit change) and re-synced by push refresh.
   const [draft, setDraft] = React.useState<Automation>(automation);
   React.useEffect(() => { setDraft(automation); }, [automation]);
 

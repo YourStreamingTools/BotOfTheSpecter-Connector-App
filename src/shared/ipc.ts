@@ -1,16 +1,14 @@
-// ---- Automation (Phase 4 — Triggers/Actions/Automations) ----
-// First slice: Actions. These are reusable, configured units of work that an
-// Automation can run when a Trigger fires. Execution lives in the main process
-// so OS-level actions (shell, sound playback) work without a server round-trip.
+// ---- Automation (Triggers/Actions/Automations) ----
+// Actions: reusable, configured units of work an Automation runs when a Trigger fires.
 
 export type ActionType =
   | 'call_webpage'        // make an HTTP request
   | 'change_variable'     // set a value on the variables store
   | 'trigger_command'     // run a bot command (e.g. !so)
-  | 'play_sound'          // play a soundboard entry — routes via Soundboard → SpecterAPI later
-  | 'tts'                // text-to-speech via the Soundboard → SpecterAPI pipeline (integration later)
-  | 'toggle_automation'  // enable / disable another automation rule by id  (UI label: "Enable/Disable Command")
-  | 'send_webhook'             // (existing, end of App Actions)
+  | 'play_sound'          // play a soundboard entry
+  | 'tts'                // text-to-speech
+  | 'toggle_automation'  // enable / disable another automation rule by id (UI label: "Enable/Disable Command")
+  | 'send_webhook'             // outbound webhook
   // ---- Twitch Actions: execute via Twitch Helix API using the useable_access_token from /v2/account ----
   | 'toggle_redemption'        // Enable / Disable a specific Channel Points reward
   | 'run_ads'                  // start a Twitch ad break of a chosen length
@@ -34,28 +32,24 @@ export interface TriggerCommandConfig {
   command: string; // bare command without the '!' prefix
 }
 export interface PlaySoundConfig {
-  // Reference to a Soundboard entry. Resolved by the Soundboard service when it ships;
-  // until then the action is a no-op for execution purposes but the configuration is preserved.
+  // Reference to a Soundboard entry.
   soundId: string;
-  soundName: string; // cached display name so the row stays readable if the soundboard entry is missing
+  soundName: string; // cached display name so the row stays readable if the entry is missing
 }
 
-// TTS routes through Soundboard → SpecterAPI when that integration ships.
+// TTS config (routes through the Soundboard pipeline).
 export interface TtsConfig {
   text: string;
   voice: string; // optional — empty string means "default voice"
 }
 
-// Enable / disable another Automation rule by id. Surfaced in the UI as "Enable/Disable Command".
-// The target id will become a picker once the Automation screen is built; for v1 it's a free text input.
+// Enable/disable another Automation rule by id. UI label: "Enable/Disable Command".
 export interface ToggleAutomationConfig {
   targetAutomationId: string;
   mode: 'enable' | 'disable' | 'toggle';
 }
 
-// Outbound webhook — a POST-flavoured sibling of call_webpage. Distinct type so future
-// templates / triggers / dashboards can treat outbound webhooks separately from
-// "go fetch a page" GET calls.
+// Outbound webhook — a POST-flavoured sibling of call_webpage.
 export interface SendWebhookConfig {
   url: string;
   method: 'POST' | 'PUT';
@@ -64,13 +58,9 @@ export interface SendWebhookConfig {
 }
 
 // ---- Twitch Action configs ----
-// All Twitch Actions execute by hitting Twitch Helix with the streamer's
-// useable_access_token (pulled from SpecterApiService.getCredentials()). The
-// execution wiring is deferred until Triggers exist; for now we just persist the
-// configuration so it's ready to fire.
+// Twitch Actions execute against Helix with the streamer's useable_access_token.
 
-// Toggle a specific Channel Points custom reward. The rewardId is a Twitch UUID;
-// it'll become a picker once the Channel Points screen exposes the reward list.
+// Toggle a specific Channel Points custom reward (rewardId is a Twitch UUID).
 export interface ToggleRedemptionConfig {
   rewardId: string;
   rewardName: string; // cached display name so the row stays readable if the reward is removed
@@ -82,14 +72,12 @@ export interface RunAdsConfig {
   length: 30 | 60 | 90 | 120 | 150 | 180;
 }
 
-// Create a stream marker at the current timestamp (POST /helix/streams/markers).
-// description is optional and capped at 140 chars by Twitch.
+// Create a stream marker at the current timestamp (POST /helix/streams/markers); description optional, capped at 140 chars.
 export interface CreateMarkerConfig {
   description: string;
 }
 
-// Start or end a poll. "End" operates on the currently-active poll for the
-// channel (we'll look it up at execution time — Twitch only allows one active).
+// Start or end a poll. "End" operates on the channel's currently-active poll.
 export interface StartEndPollConfig {
   mode: 'start' | 'end';
   // start-only fields (ignored on 'end'):
@@ -109,8 +97,7 @@ export interface StartCancelPredictionConfig {
   predictionWindowSeconds: number;       // 30–1800
 }
 
-// Toggle chat slow mode. When mode='on', waitTimeSeconds is sent to Twitch (3–120).
-// When mode='toggle' we'll resolve the actual on/off at execution time by reading current chat settings.
+// Toggle chat slow mode. waitTimeSeconds (3–120) applies when mode='on'.
 export interface ToggleSlowModeConfig {
   mode: 'on' | 'off' | 'toggle';
   waitTimeSeconds: number;
@@ -154,10 +141,7 @@ export interface ActionInput {
 }
 
 // ---- Automations (the rules engine) ----
-// An Automation bundles one or more Triggers + optional Checks + an Actions
-// block that references reusable actions from the Actions library. Automations
-// live in a tree of nested Folders for organisation. Execution is gated by Checks
-// and serialised by an optional named queue. Storage is local (config.json).
+// An Automation bundles Triggers + optional Checks + an Actions block, organised in nested Folders.
 
 export type CheckOperator = 'eq' | 'ne' | 'gt' | 'lt' | 'contains' | 'regex';
 
@@ -179,12 +163,9 @@ export interface DataCheck {
 export type Check = VariableCheck | DataCheck;
 export type ChecksGate = 'AND' | 'OR';
 
-// ---- Triggers — 12 types in v1. Most have empty config (the type itself is the trigger);
-// a handful carry filter config to narrow which event fires them.
+// ---- Triggers — most have empty config; a few carry filter config to narrow which event fires.
 
-// Fires on every Twitch chat message. Optional `command` filter narrows the
-// match to messages whose first word matches `!<command>` (without the bang),
-// so commands are just a subset of chat messages — leave empty to fire on all chat.
+// Fires on Twitch chat; optional `command` filter matches messages starting with `!<command>`.
 export interface ChatMessageTriggerConfig { command?: string; }
 export interface SubTriggerConfig { minTier?: 1 | 2 | 3; }
 export interface BitsTriggerConfig { minBits?: number; }
@@ -208,9 +189,7 @@ export type Trigger =
 
 export type TriggerType = Trigger['type'];
 
-// ---- Action block — references actions from the Actions library by id. Different
-// modes interpret the references differently (Standard runs all in order, Random
-// picks one, If/Else branches by an inline check, etc.).
+// ---- Action block — references library actions by id; mode controls how they run.
 
 export interface ActionRef { actionId: string; }
 
@@ -235,9 +214,7 @@ export interface SwitchCaseBlock {
   defaultActions: ActionRef[];
 }
 
-// One unified block per Automation. Only the field for the active mode is populated;
-// the others stay undefined. This keeps the persisted JSON compact and makes mode
-// switching a single field swap.
+// One block per Automation; only the active mode's field is populated.
 export interface AutomationActions {
   mode: ActionMode;
   refs?: ActionRef[];          // used for standard | random | toggle | sequence
@@ -289,8 +266,7 @@ export interface AutomationInput {
 
 export type ReorderDirection = 'up' | 'down';
 
-// Persisted config shape. Keys api_key/obs_*/log_expanded/variables are
-// compatible with the legacy PyQt config.json for migration.
+// Persisted config shape; api_key/obs_*/log_expanded/variables stay compatible with the legacy PyQt config.json.
 export interface AppConfig {
   api_key?: string;
   obs_host?: string;
@@ -309,14 +285,11 @@ export interface AppConfig {
   folders?: Folder[];
   automations?: Automation[];
   rewardGroups?: RewardGroup[];
-  // Number of OBS stream outputs (main + multi-output destinations). Determines
-  // the ratio applied to OBS's drifted stream `outputDuration` so the LIVE
-  // counter matches real wall-clock time. `undefined` (or 0) = auto-detect via
-  // sampling (median-of-3). 1 = single stream. 2/3/4 = multi-output.
+  // OBS stream output count; scales the drifted outputDuration so LIVE matches wall-clock. 0/undefined = auto-detect.
   streamOutputCount?: number;
 }
 
-// ---- OBS integration (Phase 2) ----
+// ---- OBS integration ----
 export type ObsConnectionState = 'connected' | 'connecting' | 'disconnected' | 'error';
 
 export interface ObsStatus {
@@ -336,8 +309,7 @@ export interface ObsOutputs {
   streamTimecode: string;
   recordTimecode: string;
   recordPath?: string;
-  // Stream-specific health (from GetStreamStatus). 0 ≤ congestion ≤ 1 — Twitch's
-  // own network congestion estimate; > ~0.4 usually means viewers will see drops.
+  // Stream health from GetStreamStatus; streamCongestion 0–1 (>~0.4 ≈ viewer drops).
   streamReconnecting: boolean;
   streamCongestion: number;
 }
@@ -356,10 +328,7 @@ export interface ObsStats {
   outputTotalFrames: number;      // pairs with droppedFrames → drop rate %
 }
 
-// Live audio meter sample for one input. Pushed at ~30 Hz from the OBS
-// InputVolumeMeters event, throttled in the main process so the renderer
-// isn't chasing every frame. `peakDb` is the loudest channel's peak in dBFS,
-// floored at -100 to represent silence (JSON can't carry -Infinity).
+// Live audio meter for one input. peakDb = loudest channel peak (dBFS), floored at -100 for silence.
 export interface ObsAudioMeter {
   name: string;
   peakDb: number;
@@ -380,8 +349,7 @@ export interface ObsScenes {
   sources: Record<string, ObsSource[]>;
 }
 
-// A filter attached to a source (e.g. Color Correction, Sharpen, Chroma Key).
-// Listed via GetSourceFilterList; toggled via SetSourceFilterEnabled.
+// A filter attached to a source (e.g. Color Correction, Sharpen); listed via GetSourceFilterList, toggled via SetSourceFilterEnabled.
 export interface ObsSourceFilter {
   name: string;
   kind: string;     // OBS's internal filter kind id, e.g. 'color_correction_filter_v2'
@@ -410,8 +378,7 @@ export interface ObsConnectParams {
   password: string;
 }
 
-// Full current OBS state, fetched on mount so a screen renders correctly
-// without waiting for the next push (which for status only arrives on events).
+// Full current OBS state, fetched on mount so a screen renders before the next push.
 export interface ObsSnapshot {
   status: ObsStatus;
   outputs: ObsOutputs | null;
@@ -421,7 +388,7 @@ export interface ObsSnapshot {
   audioMeters: ObsAudioMeter[];
 }
 
-// ---- Relay / Variables / Logs (Phase 3) ----
+// ---- Relay / Variables / Logs ----
 export type RelayConnectionState = 'connected' | 'connecting' | 'disconnected' | 'error';
 
 export interface RelayStatus {
@@ -486,8 +453,7 @@ export interface BotStatus {
   latestVersion?: string;
 }
 
-// Live Twitch channel status, derived in the main process from the Helix API
-// (/streams for live state + viewers, /channels for the configured game/title).
+// Live Twitch channel status from Helix (/streams for live state + viewers, /channels for game/title), derived in the main process.
 export interface TwitchStatus {
   reachable: boolean; // could we reach Twitch with valid credentials
   online: boolean;
@@ -504,16 +470,9 @@ export interface ValidateResult {
   message: string;
 }
 
-// ---- Commands (Phase 4 — bot command catalog) ----
+// ---- Commands (bot command catalog) ----
 
-// A built-in bot command from GET /commands/info (public).
-// `usage` is the user-facing example(s) of how to invoke the command —
-// the API names this field `syntax` but it's really the usage string.
-//
-// `enabled` and `forceLevel` are the streamer-specific values mirrored locally
-// after PUT /v2/builtin-commands/update. The public catalog does not surface
-// per-streamer overrides, so on first load these are derived defaults (enabled=true,
-// forceLevel from the base definition).
+// A built-in bot command from GET /commands/info (usage = the API's `syntax`); enabled/forceLevel mirror the streamer-side state.
 export interface BuiltinCommand {
   name: string;          // e.g. 'songrequest'
   description: string;
@@ -538,8 +497,7 @@ export interface CustomCommand {
   permission: string;    // 'everyone' | 'mod' | 'broadcaster' | ...
 }
 
-// A viewer-defined personal command from GET /v2/user-commands/get/all (X-API-KEY).
-// The API groups these by the owner's Twitch login; we flatten with the owner attached.
+// A viewer-defined personal command from GET /v2/user-commands/get/all (X-API-KEY); the API groups by owner login, flattened here with the owner attached.
 export interface UserCommand {
   name: string;
   response: string;
@@ -560,10 +518,8 @@ export interface CommandsSnapshot {
   fetchedAt?: string;
 }
 
-// ---- Soundboard (Phase 5 — sound alerts) ----
-// The streamer's soundboard entries (filenames incl. extension), listed from
-// GET /sound-alerts. Playing a sound triggers it on-stream via the overlay; the
-// list is read-only (uploads are managed on the BotOfTheSpecter website).
+// ---- Soundboard (sound alerts) ----
+// The streamer's sound-alert filenames from GET /sound-alerts; read-only (play triggers via the overlay).
 export type SoundboardLoadState = 'idle' | 'loading' | 'ok' | 'error';
 
 export interface SoundboardSnapshot {
@@ -573,10 +529,8 @@ export interface SoundboardSnapshot {
   fetchedAt?: string;
 }
 
-// ---- Timers (Phase 5 — bot timed messages) ----
-// The bot's timed messages, one table split by triggerType: 'timer' fires every
-// `intervalCount` minutes, 'chat_lines' fires every `chatLineTrigger` messages,
-// 'both' uses both. Backed by GET/POST/PUT/DELETE /timers on the BotOfTheSpecter API.
+// ---- Timers (bot timed messages) ----
+// Bot timed messages via GET/POST/PUT/DELETE /timers; triggerType = timer | chat_lines | both.
 export type TimerTriggerType = 'timer' | 'chat_lines' | 'both';
 export type TimersLoadState = 'idle' | 'loading' | 'ok' | 'error';
 
@@ -605,11 +559,8 @@ export interface TimersSnapshot {
   fetchedAt?: string;
 }
 
-// ---- Giveaways / Raffles (Phase 5 — bot raffles) ----
-// The channel's raffles/giveaways, backed by GET/POST/PUT/DELETE /raffles on the
-// BotOfTheSpecter API (three tables: raffles + raffle_entries + raffle_winners).
-// Entries come from viewers via !joinraffle (read-only here). A raffle's config can
-// be edited only while it is 'scheduled'; the app can start/stop/draw/delete.
+// ---- Giveaways / Raffles (bot raffles) ----
+// Channel raffles via GET/POST/PUT/DELETE /raffles; entries are viewer-driven (!joinraffle), edit only while 'scheduled'.
 export type RaffleStatus = 'scheduled' | 'running' | 'ended';
 export type RaffleFollowUnit = 'days' | 'weeks' | 'months' | 'years';
 export type RafflesLoadState = 'idle' | 'loading' | 'ok' | 'error';
@@ -637,8 +588,7 @@ export interface Raffle {
   winners: string[];   // winner usernames, from the list endpoint
 }
 
-// Create/update payload from the renderer. id is omitted on create; the API only
-// allows updating a raffle while it is 'scheduled'.
+// Create/update payload from the renderer; id omitted on create, and the API only allows updating a raffle while 'scheduled'.
 export interface RaffleInput {
   name: string;
   prize?: string;
@@ -683,12 +633,8 @@ export interface RafflesSnapshot {
   fetchedAt?: string;
 }
 
-// ---- Polls (Phase 5 — Twitch polls) ----
-// The channel's Twitch polls via direct Helix (GET/POST/PATCH helix/polls). Only one
-// poll can be ACTIVE at a time. Viewers vote for free; optionally they can buy extra
-// votes with channel points. Bits voting was removed by Twitch (always 0). Lives in the
-// main process (broadcaster token). There's no live event feed, so an ACTIVE poll is
-// re-fetched on a short interval to surface live counts.
+// ---- Polls (Twitch polls) ----
+// Twitch polls via direct Helix (GET/POST/PATCH helix/polls); one ACTIVE at a time, re-fetched on an interval for live counts.
 export type PollStatus = 'ACTIVE' | 'COMPLETED' | 'TERMINATED' | 'ARCHIVED' | 'MODERATED' | 'INVALID';
 export type PollEndStatus = 'TERMINATED' | 'ARCHIVED';
 export type PollsLoadState = 'idle' | 'loading' | 'ok' | 'error';
@@ -728,11 +674,48 @@ export interface PollsSnapshot {
   fetchedAt?: string;
 }
 
-// ---- Alerts (Phase 5 — live event feed) ----
-// A read-side feed of alert events received on the relay (follows, subs, cheers,
-// raids, channel-point redemptions, donations, stream on/off). The relay carries
-// no timestamp (except channel points) and no history, so each alert is stamped
-// with receivedAt on arrival and the feed is in-memory only.
+// ---- Predictions (Twitch Channel Points predictions) ----
+// Twitch predictions via direct Helix; one at a time, requires the channel:manage:predictions scope, re-fetched on an interval for live stakes.
+export type PredictionStatus = 'ACTIVE' | 'LOCKED' | 'RESOLVED' | 'CANCELED';
+export type PredictionEndStatus = 'LOCKED' | 'RESOLVED' | 'CANCELED';
+export type PredictionsLoadState = 'idle' | 'loading' | 'ok' | 'error';
+
+export interface PredictionOutcome {
+  id: string;
+  title: string;
+  users: number;
+  channelPoints: number;
+  color: string;              // 'BLUE' | 'PINK'
+}
+
+export interface Prediction {
+  id: string;
+  title: string;
+  outcomes: PredictionOutcome[];
+  winningOutcomeId: string | null;
+  predictionWindow: number;   // seconds
+  status: PredictionStatus;
+  createdAt: string;
+  endedAt: string | null;
+  lockedAt: string | null;
+}
+
+// Create payload from the renderer.
+export interface PredictionInput {
+  title: string;
+  outcomes: string[];         // 2–10 non-empty outcome titles, each <= 25 chars
+  predictionWindow: number;   // 30–1800 seconds
+}
+
+export interface PredictionsSnapshot {
+  predictions: Prediction[];
+  state: PredictionsLoadState;
+  error?: string;
+  fetchedAt?: string;
+}
+
+// ---- Alerts (live event feed) ----
+// Read-only feed of relay alert events (follow/sub/cheer/raid/redemption/donation/stream), stamped with receivedAt, in-memory only.
 export type AlertKind =
   | 'follow' | 'sub' | 'cheer' | 'raid' | 'redemption' | 'donation' | 'stream';
 export type AlertPlatform = 'twitch' | 'fourthwall' | 'kofi' | 'patreon';
@@ -756,10 +739,8 @@ export interface AlertsSnapshot {
   alerts: Alert[];            // newest-first
 }
 
-// ---- Channel Points (Phase 5 — Twitch custom rewards + redemptions) ----
-// Direct Twitch Helix (broadcaster token + Specter Client-Id, main-process only).
-// `manageable` = the reward was created by the Specter app's Client-Id, so Twitch
-// allows this app to edit it; non-manageable rewards are read-only ("manage on web").
+// ---- Channel Points (Twitch custom rewards + redemptions) ----
+// Direct Helix (broadcaster token + Specter Client-Id); manageable = Specter-created, so editable here.
 export type ChannelPointsLoadState = 'idle' | 'loading' | 'ok' | 'error';
 
 export interface ChannelReward {
@@ -783,8 +764,7 @@ export interface ChannelReward {
   manageable: boolean;          // editable by this app (Specter-created)
 }
 
-// Patch body for PATCH /channel_points/custom_rewards. Only the fields being
-// changed are sent; all optional. Mirrors the Helix update body (camelCase here).
+// Patch body for PATCH /channel_points/custom_rewards; only changed fields sent (all optional), mirrors the Helix update body in camelCase.
 export interface ChannelRewardUpdate {
   title?: string;
   cost?: number;
@@ -838,9 +818,7 @@ export interface ChannelPointsSnapshot {
   fetchedAt?: string;
 }
 
-// A desktop-side grouping of rewards (Twitch has no group concept). Enabling or
-// disabling the group applies is_enabled to every MANAGEABLE member reward.
-// Persisted to config (AppConfig.rewardGroups).
+// Desktop-side grouping of rewards (no Twitch equivalent); toggling applies is_enabled to every manageable member.
 export interface RewardGroup {
   id: string;            // 'grp_' + 10 alphanum
   name: string;
@@ -852,9 +830,7 @@ export interface RewardGroupInput {
   rewardIds?: string[];
 }
 
-// Safe, display-only subset of the BotOfTheSpecter account (/v2/account).
-// Tokens (access/refresh/spotify/discord/api_key) are intentionally NOT exposed
-// to the renderer — the main process strips them when mapping the response.
+// Display-only subset of /v2/account; tokens (access/refresh/spotify/discord/api_key) are stripped in main, never exposed to the renderer.
 export interface AccountInfo {
   id: number;
   username: string;
@@ -866,7 +842,7 @@ export interface AccountInfo {
   isTechnical: boolean;
 }
 
-// IPC channel names. New channels are added here as later phases add services.
+// IPC channel names.
 export const IPC = {
   configGet: 'config:get',
   configSet: 'config:set',
@@ -950,6 +926,11 @@ export const IPC = {
   pollsCreate: 'polls:create',
   pollsEnd: 'polls:end',
   pollsChanged: 'polls:changed',
+  predictionsSnapshot: 'predictions:snapshot',
+  predictionsRefresh: 'predictions:refresh',
+  predictionsCreate: 'predictions:create',
+  predictionsEnd: 'predictions:end',
+  predictionsChanged: 'predictions:changed',
   alertsSnapshot: 'alerts:snapshot',
   alert: 'alerts:alert',
   channelPointsSnapshot: 'channelPoints:snapshot',
@@ -1079,6 +1060,12 @@ export interface BridgeApi {
     refresh(): Promise<void>;
     create(input: PollInput): Promise<boolean>;
     end(id: string, status: PollEndStatus): Promise<boolean>;
+  };
+  predictions: {
+    snapshot(): Promise<PredictionsSnapshot>;
+    refresh(): Promise<void>;
+    create(input: PredictionInput): Promise<boolean>;
+    end(id: string, status: PredictionEndStatus, winningOutcomeId?: string): Promise<boolean>;
   };
   alerts: {
     snapshot(): Promise<AlertsSnapshot>;

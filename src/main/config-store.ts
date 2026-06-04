@@ -5,8 +5,7 @@ import type { AppConfig } from '@shared/ipc';
 /** Crash-safe JSON config. No electron import → unit-testable in node. */
 export class ConfigStore {
   private data: AppConfig;
-  // Writes are serialized so concurrent set()/merge() calls never race on the
-  // temp file. Each write uses a unique temp name and the chain never breaks.
+  // Writes are serialized so concurrent set()/merge() calls never race; each write uses a unique temp name.
   private writeChain: Promise<unknown> = Promise.resolve();
   private writeSeq = 0;
 
@@ -62,8 +61,7 @@ export class ConfigStore {
       await fsp.writeFile(tmp, snapshot, 'utf-8');
       await fsp.rename(tmp, this.filePath); // atomic on the same volume
     } catch (err) {
-      // A failed write (or rename) must not leave the unique temp file behind —
-      // otherwise repeated failures accumulate orphans in userData.
+      // A failed write or rename must not leave the unique temp file behind, or failures accumulate orphans in userData.
       await fsp.unlink(tmp).catch(() => undefined);
       throw err;
     }

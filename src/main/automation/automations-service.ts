@@ -14,11 +14,7 @@ import type {
   TriggerType
 } from '@shared/ipc';
 
-/**
- * Minimal structural view of the ConfigStore — we only read/write the
- * `folders` and `automations` slots. Keeping the surface narrow lets the
- * service stay trivially unit-testable with an in-memory fake.
- */
+/** Minimal structural view of the ConfigStore — only reads/writes the `folders` and `automations` slots. */
 export interface AutomationsStore {
   get(key: 'folders'): unknown;
   get(key: 'automations'): unknown;
@@ -62,16 +58,7 @@ const KNOWN_CHECKS_GATES: ReadonlySet<ChecksGate> = new Set<ChecksGate>(['AND', 
 
 const ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
-/**
- * Persists Folders and Automations (the rules-engine tree) to the ConfigStore.
- * Mirrors the structural pattern of ActionsService: hydrate on construction,
- * drop entries that fail validation so a corrupt config can't crash startup,
- * emit '*Changed' events with the full list after every mutation.
- *
- * Folder delete cascades by lifting children up one level (folders + automations)
- * rather than deleting them — a missing folder is far less painful than silent
- * data loss.
- */
+/** Persists Folders and Automations (rules-engine tree) to the ConfigStore: hydrate on construction dropping invalid entries, emit '*Changed' events after mutations; folder delete lifts children up one level rather than deleting them. */
 export class AutomationsService extends EventEmitter {
   private readonly store: AutomationsStore;
   private readonly now: () => string;
@@ -119,9 +106,7 @@ export class AutomationsService extends EventEmitter {
     const nextParentId = input?.parentId === undefined ? existing.parentId : input.parentId;
     const parentChanged = nextParentId !== existing.parentId;
     if (parentChanged) this.assertValidParent(id, nextParentId);
-    // On a real move, recompute order so the folder gets a unique slot at the end
-    // of its new sibling group — carrying the old order forward would collide with
-    // an existing sibling and silently break reorder (equal orders swap to a no-op).
+    // On a real move, recompute order to a unique slot at the end of the new sibling group — a carried-over order collides and silently breaks reorder (equal orders swap to a no-op).
     const order = parentChanged
       ? nextOrder(this.folders.filter((f) => f.parentId === nextParentId && f.id !== id))
       : existing.order;
@@ -134,19 +119,13 @@ export class AutomationsService extends EventEmitter {
     return updated;
   }
 
-  /**
-   * Validate a proposed new parent for `folderId`: it must be null, or an
-   * existing folder that is neither the folder itself nor one of its own
-   * descendants (which would create a cycle and break the renderer's recursive
-   * tree-walk). Throws on violation; the IPC layer surfaces it as a rejected call.
-   */
+  /** Validate a proposed new parent for `folderId`: must be null or an existing folder that is neither the folder itself nor one of its descendants (would create a cycle); throws on violation. */
   private assertValidParent(folderId: string, parentId: string | null): void {
     if (parentId === null) return;
     if (parentId === folderId) throw new Error('A folder cannot be its own parent');
     const byId = new Map(this.folders.map((f) => [f.id, f] as const));
     if (!byId.has(parentId)) throw new Error('Parent folder does not exist');
-    // Walk up from the proposed parent; reaching folderId means parentId is a
-    // descendant of folderId, so the move would create a cycle.
+    // Walk up from the proposed parent; reaching folderId means parentId is a descendant, so the move would create a cycle.
     let cursor: string | null = parentId;
     const seen = new Set<string>();
     while (cursor) {
@@ -160,8 +139,7 @@ export class AutomationsService extends EventEmitter {
   async deleteFolder(id: string): Promise<boolean> {
     const target = this.folders.find((f) => f.id === id);
     if (!target) return false;
-    // Lift direct children up one level. Recursive descendants stay attached
-    // to those lifted children, so the whole subtree shifts up by one.
+    // Lift direct children up one level; descendants stay attached, so the whole subtree shifts up by one.
     const newParentId = target.parentId;
     this.folders = this.folders
       .filter((f) => f.id !== id)
@@ -256,8 +234,7 @@ export class AutomationsService extends EventEmitter {
     if (folderChanged && nextFolderId !== null && !this.folders.some((f) => f.id === nextFolderId)) {
       throw new Error('Folder does not exist');
     }
-    // Recompute order on a real folder move so it appends uniquely to the new
-    // group — see updateFolder for why a carried-over order breaks reorder.
+    // Recompute order on a real folder move so it appends uniquely to the new group — see updateFolder for why a carried-over order breaks reorder.
     const order = folderChanged
       ? nextOrder(this.automations.filter((a) => a.folderId === nextFolderId && a.id !== id))
       : existing.order;
@@ -320,12 +297,7 @@ export class AutomationsService extends EventEmitter {
     return true;
   }
 
-  /**
-   * Strip every reference to a now-deleted Action from all automations' action
-   * blocks (refs / ifElse / switchCase). Called when an Action is deleted so
-   * automations don't keep dangling actionIds that resolve to nothing.
-   * Returns whether anything changed.
-   */
+  /** Strip every reference to a now-deleted Action from all automations' action blocks (refs / ifElse / switchCase); returns whether anything changed. */
   async removeActionRefs(actionId: string): Promise<boolean> {
     let changed = false;
     this.automations = this.automations.map((a) => {
@@ -341,8 +313,7 @@ export class AutomationsService extends EventEmitter {
     return changed;
   }
 
-  /** Generate an id with the given prefix, guaranteed not to collide with an
-   *  existing folder or automation id. */
+  /** Generate an id with the given prefix, guaranteed not to collide with an existing folder or automation id. */
   private freshId(prefix: string): string {
     const taken = new Set<string>([...this.folders.map((f) => f.id), ...this.automations.map((a) => a.id)]);
     let id = genId(prefix);
@@ -373,8 +344,7 @@ function nextOrder(siblings: Array<{ order: number }>): number {
   return siblings.reduce((max, s) => (s.order > max ? s.order : max), -1) + 1;
 }
 
-/** Remove every ActionRef matching `actionId` from an action block. Returns the
- *  SAME object reference when nothing changed so callers can skip a needless write. */
+/** Remove every ActionRef matching `actionId` from an action block; returns the SAME object reference when nothing changed so callers can skip a needless write. */
 function stripActionRefs(actions: AutomationActions, actionId: string): AutomationActions {
   let changed = false;
   const filter = (refs: ActionRef[]): ActionRef[] => {

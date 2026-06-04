@@ -11,8 +11,7 @@ export function useChat(): ChatFeedItem[] {
   const [items, setItems] = React.useState<ChatFeedItem[]>([]);
   React.useEffect(() => {
     let alive = true;
-    // Subscribe BEFORE requesting the snapshot so messages arriving during the
-    // round-trip aren't dropped when the snapshot resolves.
+    // Subscribe before requesting the snapshot so messages arriving during the round-trip aren't dropped.
     const offMsg = window.api.on(IPC.chatMessage, (m) => {
       const msg = m as ChatMessage;
       const item: ChatFeedItem = { kind: 'msg', key: msg.id, msg };
@@ -24,8 +23,7 @@ export function useChat(): ChatFeedItem[] {
     void window.api.chat.snapshot().then((msgs) => {
       if (!alive) return;
       const snap = msgs.map((m): ChatFeedItem => ({ kind: 'msg', key: m.id, msg: m }));
-      // Merge instead of overwrite: snapshot (history) first, then any live items
-      // that arrived during the round-trip and aren't already in the snapshot.
+      // Merge snapshot (history) first, then live items from the round-trip not already in the snapshot.
       setItems((live) => {
         const seen = new Set(snap.map((it) => it.key));
         return [...snap, ...live.filter((it) => !seen.has(it.key))].slice(-CAP);
@@ -36,8 +34,7 @@ export function useChat(): ChatFeedItem[] {
   return items;
 }
 
-// Mirror the moderation effect on the live feed (the service already does it for the
-// snapshot) and append a system notice describing what happened.
+// Mirror the moderation effect on the live feed (service already handles the snapshot) and append a system notice.
 function applyModeration(items: ChatFeedItem[], mod: ChatModeration): ChatFeedItem[] {
   let next = items;
   if (mod.action === 'clear') next = [];
@@ -58,6 +55,6 @@ function describeMod(mod: ChatModeration): string | null {
     case 'delete': return `Message${mod.targetUserName ? ` from ${mod.targetUserName}` : ''} deleted by ${by}`;
     case 'ban': return `${mod.targetUserName ?? 'A user'} banned by ${by}`;
     case 'timeout': return `${mod.targetUserName ?? 'A user'} timed out by ${by}`;
-    default: return null; // other mod actions aren't surfaced in the feed (v1)
+    default: return null; // other mod actions aren't surfaced in the feed
   }
 }

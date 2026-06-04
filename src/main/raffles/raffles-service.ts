@@ -16,14 +16,7 @@ export interface RafflesServiceDeps {
 
 const BASE = `${BOTOFTHESPECTER_API_BASE}/raffles`;
 
-/**
- * Lists and controls the channel's raffles/giveaways via the BotOfTheSpecter API
- * (GET/POST/PUT/DELETE /raffles). All routes take the api_key as a QUERY param, so
- * this lives in the main process and the key never crosses IPC. Mutations are
- * validated locally first (same rules as the API), then the list is re-fetched so
- * the renderer always reflects the server's authoritative state. Entries are
- * viewer-driven (read-only); the app owns create/edit/start/stop/draw/delete.
- */
+/** Lists/controls raffles via GET/POST/PUT/DELETE /raffles; runs in main process since api_key is a query param (never crosses IPC); mutations validated locally then list re-fetched; entries are read-only. */
 export class RafflesService extends EventEmitter {
   private fetch: typeof fetch;
   private getApiKey: () => string;

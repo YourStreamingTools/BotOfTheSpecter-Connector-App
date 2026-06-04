@@ -12,9 +12,7 @@ export function legacyConfigPath(appDataDir: string): string {
 
 /** Import legacy settings into a fresh store. Returns true if anything was imported. */
 export async function migrateLegacyConfig(store: ConfigStore, legacyPath: string): Promise<boolean> {
-  // Only seed a genuinely fresh store. Gating solely on api_key/obs_host would
-  // re-run the legacy merge for a store that already holds other settings
-  // (theme, automations, …), clobbering newer values with stale legacy ones.
+  // Only seed a genuinely fresh store; gating on api_key/obs_host alone would clobber newer settings (theme, automations) with stale legacy values.
   if (Object.keys(store.all()).length > 0) return false;
   if (!existsSync(legacyPath)) return false;
 

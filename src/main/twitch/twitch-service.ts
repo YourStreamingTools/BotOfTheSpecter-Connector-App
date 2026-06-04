@@ -11,11 +11,7 @@ export interface TwitchServiceDeps {
   intervalMs?: number;
   /** Fallback token lifetime when the account's updated timestamp can't be parsed. */
   tokenTtlMs?: number;
-  /**
-   * Called with each freshly-fetched Twitch access token so it can be registered
-   * as a secret and scrubbed from log lines. Defense-in-depth: the token must
-   * never surface in logs even if it leaks into a message string.
-   */
+  /** Registers each freshly-fetched Twitch access token as a secret so it's scrubbed from log lines (defense-in-depth). */
   registerSecret?: (secret: string) => void;
 }
 
@@ -25,13 +21,7 @@ const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 type CachedCreds = { accessToken: string; broadcasterId: string };
 
-/**
- * Polls the Twitch Helix API for the channel's live status, game and title.
- *
- * Twitch tokens issued by BotOfTheSpecter expire after ~4 hours (rotated by the
- * backend), so the useable token is cached and only re-fetched from /v2/account
- * when it nears expiry (per `useable_access_token_updated`) or Twitch returns 401.
- */
+/** Polls the Twitch Helix API for the channel's live status, game and title; caches the ~4h useable token and only re-fetches from /v2/account near expiry or on 401. */
 export class TwitchService extends EventEmitter {
   private fetch: typeof fetch;
   private clientId: string;
@@ -65,8 +55,7 @@ export class TwitchService extends EventEmitter {
     this.creds = null; // a different key means different credentials
     this.credsValidUntil = 0;
     if (!this.apiKey) {
-      // Key cleared — stop polling and reset the status so the dashboard doesn't
-      // keep showing the previous channel's online/viewers/title.
+      // Key cleared — stop polling and reset status so the dashboard drops the previous channel's online/viewers/title.
       this.stop();
       this.set({ ...OFFLINE });
     }
@@ -87,8 +76,7 @@ export class TwitchService extends EventEmitter {
     }
   }
 
-  /** Coalesce overlapping refreshes so a poll tick + a key-change refresh don't
-   *  fire duplicate /v2/account + Helix calls or broadcast out-of-order status. */
+  /** Coalesce overlapping refreshes so a poll tick + key-change refresh don't fire duplicate /v2/account + Helix calls or broadcast out-of-order status. */
   async refresh(): Promise<void> {
     if (this.inFlight) return this.inFlight;
     this.inFlight = this.doRefresh().finally(() => { this.inFlight = null; });
@@ -171,13 +159,7 @@ export class TwitchService extends EventEmitter {
   }
 }
 
-/**
- * Normalize a server timestamp to an explicit-UTC ISO string. The BotOfTheSpecter
- * API sends UTC, but as "YYYY-MM-DD HH:MM:SS" or an ISO string WITHOUT an offset —
- * both of which `Date.parse` would otherwise interpret in the host's local zone,
- * skewing token-expiry math by the local UTC offset. If an offset (Z or ±hh:mm)
- * is already present we trust it.
- */
+/** Normalize a BotOfTheSpecter UTC timestamp ("YYYY-MM-DD HH:MM:SS" or offset-less ISO) to explicit-UTC ISO so Date.parse doesn't apply the host's local zone; existing Z or ±hh:mm offsets are trusted as-is. */
 export function toUtcIso(raw: string): string {
   const s = raw.trim();
   if (/([zZ]|[+-]\d{2}:?\d{2})$/.test(s)) return s; // already has a timezone

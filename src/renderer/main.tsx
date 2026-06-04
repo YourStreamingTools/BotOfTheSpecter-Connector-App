@@ -16,9 +16,7 @@ import { ObsProvider } from './state/useObs';
 import { ThemeProvider, resolveTheme } from './state/theme';
 import { ErrorBoundary } from './shell/ErrorBoundary';
 
-// Last-resort visible fallback if React can't even mount (preload missing, the
-// config IPC handler not ready, or a synchronous throw during initial render).
-// Without this the user just sees a permanently blank window.
+// Last-resort visible fallback if React can't mount (preload missing, config IPC not ready, or a synchronous render throw), avoiding a permanently blank window.
 function renderFatal(message: string): void {
   const el = document.getElementById('root');
   if (!el) return;
@@ -39,8 +37,7 @@ async function boot() {
   root.setAttribute('data-density', cfg.density ?? 'regular');
   createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      {/* Top-level backstop: catches render errors in the providers/shell that
-          the per-screen boundary in App can't reach. */}
+      {/* Top-level backstop: catches render errors in the providers/shell that the per-screen boundary in App can't reach. */}
       <ErrorBoundary>
         <ThemeProvider initial={themePref}>
           <AccountProvider>
@@ -54,8 +51,7 @@ async function boot() {
   );
 }
 
-// Log stray async rejections for diagnostics instead of letting them vanish
-// (do NOT blank the window — a non-fatal rejection shouldn't replace the UI).
+// Log stray async rejections for diagnostics; do NOT blank the window since a non-fatal rejection shouldn't replace the UI.
 window.addEventListener('unhandledrejection', (e) => {
   console.error('Unhandled promise rejection:', e.reason);
 });

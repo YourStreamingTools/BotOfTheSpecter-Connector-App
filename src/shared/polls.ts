@@ -1,14 +1,6 @@
 import type { PollInput } from './ipc';
 
-/**
- * Validate a poll input against Twitch's Helix Create Poll rules: title 1–60 chars,
- * 2–5 non-empty choices each ≤25 chars, duration 15–1800 seconds, and (only when
- * channel-points voting is enabled) a points-per-vote of 1–1,000,000. Returns an
- * error string, or null when valid.
- *
- * Lives in @shared so the main-process service and the renderer form gate Create with
- * the identical rules (and the renderer doesn't import main-process code).
- */
+/** Validate a poll input against Twitch Helix Create Poll rules (title 1–60 chars, 2–5 choices each ≤25 chars, duration 15–1800s, points-per-vote 1–1,000,000 when channel-points voting enabled); returns an error string or null; lives in @shared so main-process service and renderer form share identical rules. */
 export function validatePollInput(input: PollInput): string | null {
   const title = (input?.title ?? '').trim();
   if (!title) return 'Title is required';

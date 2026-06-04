@@ -1,9 +1,4 @@
-/**
- * Convert one input's `inputLevelsMul` (per-channel `[magnitude, peak, input_peak]`
- * triples from OBS's `InputVolumeMeters` event) to a single peak value in dBFS.
- * Returns the loudest channel's peak. Floored at -100 dB to represent silence —
- * JSON can't carry -Infinity, and -100 is well below what's audible.
- */
+/** Convert OBS InputVolumeMeters `inputLevelsMul` triples to the loudest channel's peak in dBFS, floored at -100 dB for silence (JSON can't carry -Infinity). */
 export const SILENCE_DB = -100;
 
 export function peakDbFromLevels(levels: unknown): number {

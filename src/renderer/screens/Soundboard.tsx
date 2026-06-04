@@ -88,8 +88,7 @@ function Body({
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
               padding: '14px 14px', cursor: 'pointer', textAlign: 'left',
-              // <button> defaults to a dim inherited color; force the theme text color
-              // so the sound name is readable in both dark and light mode.
+              // Force theme text color since <button> inherits a dim color, keeping the sound name readable in dark and light mode.
               color: 'var(--text)',
               borderColor: f === 'ok' ? 'var(--success)' : f === 'err' ? 'var(--error)' : undefined
             }}

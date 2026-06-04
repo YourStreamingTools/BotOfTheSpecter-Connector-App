@@ -17,8 +17,7 @@ export function ScenesTab({ obs }: { obs: Obs }) {
   const [filtersLoading, setFiltersLoading] = React.useState(false);
   const active = selected ?? scenes?.current ?? null;
 
-  // Fetch filters for the currently-selected source. Refetches when the source
-  // changes or when the user hits the refresh button (via a manual `tick`).
+  // Fetch filters for the selected source; refetches on source change or manual refresh tick.
   const [refreshTick, setRefreshTick] = React.useState(0);
   React.useEffect(() => {
     if (!selectedSource) { setFilters(null); return; }
@@ -27,9 +26,7 @@ export function ScenesTab({ obs }: { obs: Obs }) {
     void window.api.obs
       .listSourceFilters(selectedSource)
       .then((f) => { if (alive) { setFilters(f); setFiltersLoading(false); } })
-      // On error (OBS errored, source removed, socket dropped mid-call) clear the
-      // loading flag and fall back to an empty list so the panel doesn't hang on
-      // "Loading filters…" forever with an unhandled rejection.
+      // On error, clear loading and fall back to an empty list so the panel doesn't hang on "Loading filters…".
       .catch(() => { if (alive) { setFilters([]); setFiltersLoading(false); } });
     return () => { alive = false; };
   }, [selectedSource, refreshTick]);
@@ -37,12 +34,10 @@ export function ScenesTab({ obs }: { obs: Obs }) {
   // Clear the selected source when the active scene changes — its sources are different.
   React.useEffect(() => { setSelectedSource(null); }, [active]);
 
-  // Follow the live program scene when it changes externally (OBS-side or another
-  // client): drop any manual selection so the view reflects what's actually live.
+  // Follow the live program scene when it changes externally: drop any manual selection.
   React.useEffect(() => { setSelected(null); }, [scenes?.current]);
 
-  // Optimistic source-visibility overrides (sceneItemId → enabled), reconciled
-  // away whenever the authoritative scene list refreshes.
+  // Optimistic source-visibility overrides (sceneItemId → enabled), reconciled on scene list refresh.
   const [pendingSource, setPendingSource] = React.useState<Record<number, boolean>>({});
   React.useEffect(() => { setPendingSource({}); }, [scenes]);
   const toggleSourceVisibility = (id: number, next: boolean) => {
@@ -58,8 +53,7 @@ export function ScenesTab({ obs }: { obs: Obs }) {
     try {
       await window.api.obs.setSourceFilterEnabled(selectedSource, filterName, !currentEnabled);
     } catch {
-      // The call failed — revert the optimistic flip so the chip reflects reality
-      // (the refetch below reconciles with OBS's authoritative state regardless).
+      // Call failed — revert the optimistic flip; the refetch below reconciles with OBS regardless.
       setFilters((prev) => prev?.map((f) => f.name === filterName ? { ...f, enabled: currentEnabled } : f) ?? null);
     } finally {
       setRefreshTick((t) => t + 1);
@@ -72,8 +66,7 @@ export function ScenesTab({ obs }: { obs: Obs }) {
   const sources = active ? (scenes.sources[active] ?? []) : [];
 
   return (
-    // Fills the parent flex container's available height. Each card is itself a
-    // flex column so the head stays pinned and the list scrolls inside.
+    // Fills the parent flex height; each card is a flex column so its head stays pinned and the list scrolls inside.
     <div className="grid" style={{ gridTemplateColumns: '2fr 3fr 2fr', gap: 14, flex: 1, minWidth: 0, minHeight: 0 }}>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div className="card-head" style={{ flexShrink: 0 }}>
@@ -186,8 +179,7 @@ export function ScenesTab({ obs }: { obs: Obs }) {
   );
 }
 
-// OBS filter kinds are coded ids like 'color_correction_filter_v2'; strip the
-// trailing version + 'filter' marker and convert to Title Case for the chip.
+// Strip trailing version + 'filter' marker from OBS filter kind ids (e.g. 'color_correction_filter_v2') and Title-Case them.
 function prettyKind(kind: string): string {
   return kind
     .replace(/_filter(_v\d+)?$/i, '')

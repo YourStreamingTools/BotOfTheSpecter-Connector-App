@@ -58,9 +58,7 @@ const DEFAULT: ObsContextValue = {
 
 const ObsContext = React.createContext<ObsContextValue>(DEFAULT);
 
-// Single OBS state store for the whole app. Mounted once at the root so the
-// connection state, scenes, outputs and event log persist across screen
-// navigation — switching to OBS Control no longer resets to "disconnected".
+// Single OBS state store mounted once at the root so connection state, scenes, outputs and event log persist across screen navigation.
 export function ObsProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = React.useState<ObsStatus>(DEFAULT.status);
   const [outputs, setOutputs] = React.useState<ObsOutputs | null>(null);
@@ -72,8 +70,7 @@ export function ObsProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let alive = true;
-    // Seed from the current state so a connect that happened before mount
-    // (auto-connect during bootstrap) is reflected without waiting for a push.
+    // Seed from current state so a connect that happened before mount (auto-connect during bootstrap) is reflected without waiting for a push.
     void window.api.obs.snapshot().then((snap) => {
       if (!alive || !snap) return;
       setStatus(snap.status);
@@ -87,9 +84,7 @@ export function ObsProvider({ children }: { children: React.ReactNode }) {
       window.api.on(IPC.obsStatus, (s) => {
         const st = s as ObsStatus;
         setStatus(st);
-        // When OBS is no longer connected (explicit disconnect OR an unexpected
-        // drop), clear the live/transient data so the UI doesn't keep showing a
-        // frozen "streaming/LIVE" state with a stale timecode, bitrate and meters.
+        // When OBS is no longer connected (explicit disconnect or unexpected drop), clear live data so the UI doesn't show a frozen LIVE state with stale timecode, bitrate and meters.
         if (st.state !== 'connected') {
           setOutputs(null);
           setStats(null);

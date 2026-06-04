@@ -29,8 +29,7 @@ export class BotStatusService extends EventEmitter {
   setApiKey(key: string): void {
     this.apiKey = key.trim();
     if (!this.apiKey) {
-      // Key cleared — stop polling and reset the status so the UI doesn't keep
-      // reporting the bot as running.
+      // Key cleared: stop polling and reset status so the UI stops reporting the bot as running.
       this.stop();
       this.set({ ...UNREACHABLE });
     }

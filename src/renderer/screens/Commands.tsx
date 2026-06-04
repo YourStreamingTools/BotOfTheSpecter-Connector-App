@@ -3,9 +3,7 @@ import { useCommands } from '../state/useCommands';
 import type { BuiltinCommand, CustomCommand, UserCommand, CommandsSnapshot } from '@shared/ipc';
 import { IconChevronLeft, IconChevronRight, IconEdit, IconBox, IconUsers, IconSearch } from '../icons';
 
-// ---- internal "router" — the Commands area is a 3-deep navigation that mirrors the mobile app:
-//   index → list → detail. We model the trip as a stack so the header can show breadcrumbs
-//   and a Back button without coupling the body to its history.
+// 3-deep navigation (index → list → detail) modeled as a stack for breadcrumbs and Back.
 
 type View =
   | { kind: 'index' }
@@ -44,8 +42,7 @@ function CommandsHeader({ view, stack, onBack, onRefresh, snap }: {
   const [refreshing, setRefreshing] = React.useState(false);
   const doRefresh = async () => {
     setRefreshing(true);
-    // Errors surface via snap.state ('error' chip); catch here just prevents an
-    // unhandled rejection from the onClick handler.
+    // Errors surface via snap.state ('error' chip); catch only prevents an unhandled rejection.
     try { await onRefresh(); } catch { /* surfaced via snap.state */ } finally { setRefreshing(false); }
   };
   const title = titleFor(view, snap);
@@ -241,8 +238,7 @@ function BuiltinListView({ snap, push }: { snap: CommandsSnapshot; push: (v: Vie
 
 // ---------- built-in detail (editable — PUT /v2/builtin-commands/update) ----------
 
-// Single source of truth for permission tokens. The label is the human-readable
-// chip text; the value is what the API expects in the `permission` query param.
+// Permission tokens: value is what the API expects in the `permission` query param, label is chip text.
 const PERMISSIONS: { value: string; label: string }[] = [
   { value: 'everyone',    label: 'Everyone' },
   { value: 'vip',         label: 'VIPs' },
@@ -262,16 +258,13 @@ function BuiltinDetailView({ name, snap }: { name: string; snap: CommandsSnapsho
   const [saving, setSaving] = React.useState(false);
   const [feedback, setFeedback] = React.useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
-  // Re-seed the editable values when the command's identity OR its persisted
-  // values change (e.g. an external refresh updates this command), so the panel
-  // never shows stale enabled/permission.
+  // Re-seed editable values when the command's identity or persisted values change, to avoid stale state.
   React.useEffect(() => {
     if (!c) return;
     setPerm((c.forceLevel ?? 'everyone').toLowerCase());
     setEnabled(c.enabled);
   }, [c?.name, c?.enabled, c?.forceLevel]);
-  // Clear feedback only on navigation to a different command — not on a value
-  // re-seed, so the "Saved." message survives the post-save snapshot update.
+  // Clear feedback only on navigating to a different command, so "Saved." survives the post-save snapshot update.
   React.useEffect(() => { setFeedback(null); }, [c?.name]);
 
   if (!c) return <EmptyRow text="Command not found." />;
@@ -357,7 +350,7 @@ function CustomListView({ snap, push }: { snap: CommandsSnapshot; push: (v: View
   );
 }
 
-// ---------- custom detail (read-only — edit/delete pending API) ----------
+// ---------- custom detail (read-only) ----------
 
 function CustomDetailView({ name, snap }: { name: string; snap: CommandsSnapshot }) {
   const c = snap.custom.find((x) => x.name === name);

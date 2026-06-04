@@ -1,11 +1,7 @@
 import { EventEmitter } from 'events';
 import type { Action, ActionInput, ActionType } from '@shared/ipc';
 
-/**
- * Minimal structural view of the ConfigStore — we only read/write the
- * `actions` slot, so we don't take a dependency on the full ConfigStore class
- * here (keeps the service trivially unit-testable with an in-memory fake).
- */
+/** Minimal structural view of the ConfigStore exposing only the `actions` slot, for testability with an in-memory fake. */
 export interface ActionsStore {
   get(key: 'actions'): unknown;
   set(key: 'actions', value: Action[]): void | Promise<void>;
@@ -36,13 +32,7 @@ const KNOWN_TYPES: ReadonlySet<ActionType> = new Set<ActionType>([
 
 const ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
-/**
- * Persists the Actions list (reusable units of work driven by Automations) to
- * the ConfigStore. CRUD methods emit 'changed' with the full list so the
- * renderer can stay in sync without polling. Hydrates on construction and
- * drops any persisted entry that doesn't match the Action shape so a corrupt
- * config can't crash startup.
- */
+/** Persists the Actions list to the ConfigStore; CRUD methods emit 'changed' with the full list, and hydration drops malformed entries so a corrupt config can't crash startup. */
 export class ActionsService extends EventEmitter {
   private readonly store: ActionsStore;
   private readonly now: () => string;
@@ -136,8 +126,7 @@ function hydrate(raw: unknown): Action[] {
   const out: Action[] = [];
   const seen = new Set<string>();
   for (const entry of raw) {
-    // Drop duplicate ids (e.g. from a hand-merged config) so CRUD-by-id can't
-    // hit the wrong record.
+    // Drop duplicate ids so CRUD-by-id can't hit the wrong record.
     if (isValidPersistedAction(entry) && !seen.has(entry.id)) {
       seen.add(entry.id);
       out.push(entry);

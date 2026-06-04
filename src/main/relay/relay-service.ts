@@ -64,8 +64,7 @@ export class RelayService extends EventEmitter {
 
     socket.on('connect', () => {
       socket.emit('REGISTER', { code: this.apiKey, channel: 'BotOfTheSpecter APP', name: `V${this.deps.getVersion?.() ?? APP_VERSION}` });
-      // Socket is up but the relay hasn't acknowledged registration yet — that
-      // arrives as the 'SUCCESS' event (see onAny), which flips `registered`.
+      // Socket is up but not yet registered; the 'SUCCESS' event (see onAny) flips `registered`.
       this.setStatus({ state: 'connected' });
       this.deps.log.add('WS', 'ok', 'Connected to BotOfTheSpecter relay');
     });
@@ -74,9 +73,7 @@ export class RelayService extends EventEmitter {
       this.deps.log.add('WS', 'warn', 'Relay disconnected — reconnecting');
     });
     socket.on('connect_error', (err: Error) => {
-      // socket.io keeps auto-reconnecting (reconnection:true), so a connect error
-      // is transient — reflect "connecting" (keeping the message) rather than a
-      // terminal "error" that would make the UI look permanently broken.
+      // socket.io auto-reconnects, so treat connect errors as transient "connecting" rather than terminal "error".
       this.setStatus({ state: 'connecting', error: err?.message ?? 'connect error' });
       this.deps.log.add('WS', 'err', `Relay connect error: ${err?.message ?? err}`);
     });
@@ -104,15 +101,12 @@ export class RelayService extends EventEmitter {
     if (event === 'SUCCESS') { this.setStatus({ registered: true }); this.deps.log.add('WS', 'ok', 'Registered with relay'); return; }
     if (IGNORED_FOR_VARS.has(event)) return;
     const raw = (data && typeof data === 'object') ? (data as Record<string, unknown>) : {};
-    // Redact secrets (incl. the literal API key) at the boundary so neither the
-    // variables view nor the logs can ever surface them.
+    // Redact secrets (incl. the API key) at the boundary so the variables view and logs never surface them.
     const obj = redactSensitive(raw, this.apiKey ? [this.apiKey] : []);
-    // Chat is high-volume and moderation is its own stream — route them to the
-    // chat pipeline instead of spamming the variables view / event log.
+    // Route high-volume chat and moderation to their own streams instead of the variables view / event log.
     if (event === 'CHAT_MESSAGE') { this.emit('chat', obj); return; }
     if (event === 'MODERATION') { this.emit('moderation', obj); this.deps.log.add('TWITCH', 'evt', describeModeration(obj)); return; }
-    // Surface the raw (event, payload) so consumers like the Alerts feed can pick
-    // out the events they care about, alongside the variables engine + log.
+    // Surface the raw (event, payload) for consumers like the Alerts feed, alongside the variables engine + log.
     this.emit('specterEvent', event, obj);
     this.deps.variables.handleEvent(event, obj);
     this.deps.log.add(srcFor(event), levelFor(event), describe(event, obj));

@@ -5,8 +5,7 @@ import { IconCopy, IconDot } from '../../icons';
 type Obs = ReturnType<typeof useObs>;
 
 export function EventsTab({ obs }: { obs: Obs }) {
-  // Memoize so the (potentially large) join only recomputes when the log changes —
-  // not on every 30 Hz audio-meter re-render of the shared OBS context.
+  // Memoize so the join only recomputes when the log changes, not on every 30 Hz audio-meter re-render of the shared OBS context.
   const text = React.useMemo(
     () => obs.log.map((l) => `[${l.t}] ← ${l.type.padEnd(28)} ${l.message}`).join('\n'),
     [obs.log]

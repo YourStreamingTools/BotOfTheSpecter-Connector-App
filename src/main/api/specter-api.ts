@@ -1,8 +1,7 @@
 import { BOTOFTHESPECTER_API_BASE } from '@shared/constants';
 import type { ValidateResult, AccountInfo } from '@shared/ipc';
 
-// Twitch API credentials sourced from /v2/account. Main-process only — the
-// access token is never sent across IPC to the renderer.
+// Twitch API credentials from /v2/account; main-process only, access token never crosses IPC to renderer.
 export interface TwitchCredentials {
   accessToken: string;
   broadcasterId: string;
@@ -13,10 +12,7 @@ export interface SpecterApiDeps {
   fetch?: typeof fetch;
 }
 
-/**
- * Talks to the BotOfTheSpecter HTTP API. Auth is via the `X-API-KEY` header.
- * The `fetch` dependency is injectable so the service can be unit-tested.
- */
+/** Talks to the BotOfTheSpecter HTTP API via the `X-API-KEY` header; `fetch` is injectable for unit tests. */
 export class SpecterApiService {
   private fetch: typeof fetch;
 
@@ -24,11 +20,7 @@ export class SpecterApiService {
     this.fetch = deps.fetch ?? fetch;
   }
 
-  /**
-   * Verify an API key via `GET /v2/checkkey`. A valid key responds with
-   * `{ status: "Valid API Key", username: "<name>" }`; an invalid one with
-   * `{ status: "Invalid API Key", username: null }`.
-   */
+  /** Verify an API key via `GET /v2/checkkey`; valid returns `{ status: "Valid API Key", username }`, invalid returns `{ status: "Invalid API Key", username: null }`. */
   async validateApiKey(key: string): Promise<ValidateResult> {
     if (!key) return { valid: false, message: 'API key is empty' };
     try {
@@ -45,12 +37,7 @@ export class SpecterApiService {
     }
   }
 
-  /**
-   * Fetch the account profile via `GET /v2/account`, returning only the
-   * display-safe fields. The raw response also carries OAuth tokens and the
-   * api_key; those are dropped here so they never reach the renderer.
-   * Returns `null` on missing key, HTTP error, or malformed payload.
-   */
+  /** Fetch account profile via `GET /v2/account`, returning only display-safe fields (OAuth tokens and api_key dropped so they never reach the renderer); `null` on missing key, HTTP error, or malformed payload. */
   async getAccount(key: string): Promise<AccountInfo | null> {
     if (!key) return null;
     try {
@@ -76,11 +63,7 @@ export class SpecterApiService {
     }
   }
 
-  /**
-   * Fetch the Twitch API credentials from /v2/account: the useable access token,
-   * the broadcaster id (twitch_user_id), and the token's last-updated timestamp.
-   * Used only in the main process to call the Twitch Helix API.
-   */
+  /** Fetch Twitch credentials from /v2/account (useable access token, broadcaster id from twitch_user_id, last-updated timestamp); main-process only, for the Twitch Helix API. */
   async getCredentials(key: string): Promise<TwitchCredentials | null> {
     if (!key) return null;
     try {

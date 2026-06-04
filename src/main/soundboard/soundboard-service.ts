@@ -11,15 +11,7 @@ export interface SoundboardServiceDeps {
 const LIST_URL = `${BOTOFTHESPECTER_API_BASE}/sound-alerts`;
 const PLAY_URL = `${BOTOFTHESPECTER_API_BASE}/websocket/sound_alert`;
 
-/**
- * Lists and plays the streamer's soundboard sounds via the BotOfTheSpecter API.
- *
- * Both endpoints require the api_key as a QUERY param (they're non-/v2 routes),
- * so this lives in the main process and the key never crosses IPC to the renderer.
- * "Play" triggers the sound on-stream: the API fans a SOUND_ALERT onto the relay,
- * which the OBS overlay plays — there is no in-app preview. Listing is read-only
- * (no upload/delete endpoint exists; sounds are managed on the website).
- */
+/** Lists and plays soundboard sounds via the BotOfTheSpecter API; main-process only since both endpoints take api_key as a query param (non-/v2 routes); play fans a SOUND_ALERT onto the relay for the OBS overlay (no in-app preview), listing is read-only. */
 export class SoundboardService extends EventEmitter {
   private fetch: typeof fetch;
   private getApiKey: () => string;
@@ -60,10 +52,7 @@ export class SoundboardService extends EventEmitter {
     }
   }
 
-  /**
-   * Trigger a sound on-stream. Returns whether the request was accepted.
-   * No network call when the key or sound name is missing.
-   */
+  /** Trigger a sound on-stream; returns whether the request was accepted; no network call when key or sound name is missing. */
   async play(sound: string): Promise<boolean> {
     const key = (this.getApiKey() ?? '').trim();
     const name = (sound ?? '').trim();

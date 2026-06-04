@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type RaffleInput, type PollInput, type PollEndStatus, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput } from '@shared/ipc';
+import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type RaffleInput, type PollInput, type PollEndStatus, type PredictionInput, type PredictionEndStatus, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput } from '@shared/ipc';
 import { ConfigStore } from './config-store';
 import { legacyConfigPath, migrateLegacyConfig } from './config-migration';
 import { createMainWindow, APP_ICON_PATH } from './window';
@@ -20,6 +20,7 @@ import { SoundboardService } from './soundboard/soundboard-service';
 import { TimersService } from './timers/timers-service';
 import { RafflesService } from './raffles/raffles-service';
 import { PollsService } from './polls/polls-service';
+import { PredictionsService } from './predictions/predictions-service';
 import { ActionsService } from './automation/actions-service';
 import { AutomationsService } from './automation/automations-service';
 
@@ -41,11 +42,11 @@ let soundboard: SoundboardService;
 let timers: TimersService;
 let raffles: RafflesService;
 let polls: PollsService;
+let predictions: PredictionsService;
 let actions: ActionsService;
 let automations: AutomationsService;
 
-// Persistable config keys — the allow-list for config:set so a buggy/compromised
-// renderer can't scribble arbitrary keys into the plaintext config.json.
+// Allow-list of persistable config keys for config:set, blocking arbitrary keys from a compromised renderer.
 const CONFIG_KEYS = new Set<keyof AppConfig>([
   'api_key', 'obs_host', 'obs_port', 'obs_password', 'autoConnectObs', 'log_expanded',
   'theme', 'density', 'sidebarExpanded', 'variables', 'actions', 'folders', 'automations', 'streamOutputCount'
@@ -53,8 +54,7 @@ const CONFIG_KEYS = new Set<keyof AppConfig>([
 
 function broadcast(channel: string, payload: unknown): void {
   for (const w of BrowserWindow.getAllWindows()) {
-    // Skip windows torn down or with a destroyed webContents — sending to those
-    // throws (or is silently lost) on a high-frequency emitter like OBS stats.
+    // Skip destroyed windows/webContents — sending to those throws on high-frequency emitters like OBS stats.
     if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
     w.webContents.send(channel, payload);
   }
@@ -81,8 +81,7 @@ function registerIpc(): void {
 }
 
 function registerObs(): void {
-  // Read streamOutputCount lazily so a config change takes effect on the next
-  // stream-start without restarting the app.
+  // Read streamOutputCount lazily so a config change takes effect on the next stream-start without restart.
   obs = new ObsService({ getStreamOutputCount: () => store.get('streamOutputCount') });
   obs.on('status', (s) => {
     broadcast(IPC.obsStatus, s);
@@ -144,9 +143,7 @@ function registerRelay(): void {
     const trimmed = typeof key === 'string' ? key.trim() : '';
     logs.registerSecret(trimmed); // register BEFORE logging so any failure line is scrubbed
     try {
-      // Await the persist so the renderer's await only resolves once the key is
-      // safely on disk, and a failed write surfaces as a rejected invoke instead
-      // of a silently-dropped promise (key gone on next launch).
+      // Await the persist so the renderer resolves only once the key is on disk and a failed write rejects the invoke.
       await store.set('api_key', trimmed);
     } catch (err) {
       logs.add('APP', 'err', `Failed to persist API key: ${err instanceof Error ? err.message : String(err)}`);
@@ -170,6 +167,8 @@ function registerRelay(): void {
     void raffles.refresh();
     // New key → Twitch polls are per-broadcaster, re-fetch.
     void polls.refresh();
+    // New key → Twitch predictions are per-broadcaster, re-fetch.
+    void predictions.refresh();
   });
   ipcMain.handle(IPC.relayConnect, () => relay.connect());
   ipcMain.handle(IPC.relayDisconnect, () => relay.disconnect());
@@ -216,10 +215,7 @@ function registerTwitch(): void {
   });
   twitch.on('status', (s: TwitchStatus) => {
     broadcast(IPC.twitchStatus, s);
-    // Keep the persisted stream_status variable honest. The bot's STREAM_ONLINE/
-    // OFFLINE events drive it normally, but a missed STREAM_OFFLINE leaves it
-    // stuck "online". When Twitch gives a definitive answer, mirror it so the
-    // Variables page agrees with the dashboard (both derive from Twitch).
+    // Mirror Twitch's definitive online state into stream_status to correct a missed STREAM_OFFLINE event.
     if (s.reachable) variables.reconcileStreamStatus(s.online);
   });
   ipcMain.handle(IPC.twitchSnapshot, () => twitch.getStatus());
@@ -305,6 +301,18 @@ function registerPolls(): void {
   ipcMain.handle(IPC.pollsEnd, (_e, id: string, status: PollEndStatus) => polls.end(id, status));
 }
 
+function registerPredictions(): void {
+  predictions = new PredictionsService({
+    getCredentials: (key) => specterApi.getCredentials(key),
+    getApiKey: () => store.get('api_key') ?? ''
+  });
+  predictions.on('changed', (snap) => broadcast(IPC.predictionsChanged, snap));
+  ipcMain.handle(IPC.predictionsSnapshot, () => predictions.snapshot());
+  ipcMain.handle(IPC.predictionsRefresh, () => predictions.refresh());
+  ipcMain.handle(IPC.predictionsCreate, (_e, input: PredictionInput) => predictions.create(input));
+  ipcMain.handle(IPC.predictionsEnd, (_e, id: string, status: PredictionEndStatus, winningOutcomeId?: string) => predictions.end(id, status, winningOutcomeId));
+}
+
 function registerActions(): void {
   actions = new ActionsService({ store });
   actions.on('changed', (list) => broadcast(IPC.actionsChanged, list));
@@ -339,9 +347,7 @@ function registerAutomations(): void {
 }
 
 async function bootstrap(): Promise<void> {
-  // macOS dock icon — Windows + Linux taskbar icons are set via BrowserWindow.icon.
-  // In a packaged .app the bundle's Icon.icns wins, but in dev this gives us the
-  // right artwork instead of the generic Electron mascot.
+  // macOS dock icon (Windows/Linux taskbar use BrowserWindow.icon); in dev this avoids the generic Electron mascot.
   if (process.platform === 'darwin' && app.dock) {
     try { app.dock.setIcon(APP_ICON_PATH); } catch { /* ignore — best-effort cosmetic */ }
   }
@@ -362,6 +368,7 @@ async function bootstrap(): Promise<void> {
   registerTimers();
   registerRaffles();
   registerPolls();
+  registerPredictions();
   registerActions();
   registerAutomations();
 
@@ -382,9 +389,7 @@ async function bootstrap(): Promise<void> {
     twitch.setApiKey(apiKey);
     twitch.start();
   }
-  // Commands fetch is cheap and shared across viewers; kick off once on boot so the
-  // screen is ready by the time the user navigates to it. Built-in fetches without auth,
-  // custom + user only fetch if there's an API key.
+  // Fetch commands on boot so the screen is ready; built-in fetches without auth, custom + user need an API key.
   void commands.refresh();
   // Soundboard list is per-user; only meaningful with a key (no-ops to idle otherwise).
   if (apiKey) void soundboard.refresh();
@@ -396,6 +401,8 @@ async function bootstrap(): Promise<void> {
   if (apiKey) void channelPoints.refresh();
   // Twitch polls are per-broadcaster; only fetch when there's a key.
   if (apiKey) void polls.refresh();
+  // Twitch predictions are per-broadcaster; only fetch when there's a key.
+  if (apiKey) void predictions.refresh();
 
   createMainWindow();
 }

@@ -18,13 +18,7 @@ export interface PollsServiceDeps {
 const POLLS_URL = `${TWITCH_API_BASE}/polls`;
 const POLL_STATUSES: PollStatus[] = ['ACTIVE', 'COMPLETED', 'TERMINATED', 'ARCHIVED', 'MODERATED', 'INVALID'];
 
-/**
- * Manages Twitch polls via direct Helix (broadcaster token + the Specter Client-Id):
- * GET helix/polls (list, last 90 days), POST helix/polls (create), PATCH helix/polls
- * (end → TERMINATED or ARCHIVED). Lives in the main process so the token never crosses
- * IPC. Only one poll can be ACTIVE at a time (Twitch rejects a second). There is no
- * live event feed, so the renderer re-fetches on a short interval while a poll runs.
- */
+/** Manages Twitch polls via direct Helix (broadcaster token + Specter Client-Id) in the main process so the token never crosses IPC: GET helix/polls (list, last 90 days), POST (create), PATCH (end → TERMINATED or ARCHIVED); only one poll ACTIVE at a time, no live feed so renderer re-fetches on an interval. */
 export class PollsService extends EventEmitter {
   private fetch: typeof fetch;
   private clientId: string;

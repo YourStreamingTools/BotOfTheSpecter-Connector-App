@@ -15,9 +15,7 @@ export function ObsDisconnected({
   const [password, setPassword] = React.useState(defaults.password);
   const [autoConnect, setAutoConnect] = React.useState(defaults.autoConnect);
 
-  // Saved settings are loaded async by the parent, so they often arrive after
-  // this form mounts. Re-seed the fields when they do (keyed on the values, not
-  // the object, so it won't clobber edits on unrelated re-renders).
+  // Re-seed fields when async-loaded saved settings arrive after mount (keyed on values so unrelated re-renders don't clobber edits).
   React.useEffect(() => {
     setHost(defaults.host);
     setPort(String(defaults.port));

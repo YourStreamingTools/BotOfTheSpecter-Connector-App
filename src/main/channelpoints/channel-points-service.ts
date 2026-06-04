@@ -14,8 +14,7 @@ export interface ChannelPointsServiceDeps {
 const REWARDS_URL = `${TWITCH_API_BASE}/channel_points/custom_rewards`;
 const REDEMPTIONS_URL = `${TWITCH_API_BASE}/channel_points/custom_rewards/redemptions`;
 
-// Map a ChannelRewardUpdate (camelCase) to the Helix PATCH body (snake_case),
-// sending only the fields that were provided.
+// Maps ChannelRewardUpdate (camelCase) keys to the Helix PATCH body (snake_case); only provided fields are sent.
 const UPDATE_KEY_MAP: Record<keyof ChannelRewardUpdate, string> = {
   title: 'title',
   cost: 'cost',
@@ -48,14 +47,7 @@ const CREATE_KEY_MAP: Record<keyof ChannelRewardCreate, string> = {
   shouldRedemptionsSkipRequestQueue: 'should_redemptions_skip_request_queue'
 };
 
-/**
- * Manages Twitch channel-point custom rewards + redemptions via direct Helix
- * (broadcaster token + the Specter Client-Id). Lives in the main process so the
- * token never crosses IPC. A reward is `manageable` only if it was created by
- * this Client-Id (only_manageable_rewards=true returns exactly those); Twitch
- * rejects edits to rewards created by other apps, so the UI restricts editing
- * to manageable rewards and points the user to the website for the rest.
- */
+/** Manages Twitch channel-point custom rewards + redemptions via direct Helix (broadcaster token + Specter Client-Id); main-process only so the token never crosses IPC. A reward is `manageable` only if created by this Client-Id (only_manageable_rewards=true returns those), since Twitch rejects edits to other apps' rewards. */
 export class ChannelPointsService extends EventEmitter {
   private fetch: typeof fetch;
   private clientId: string;

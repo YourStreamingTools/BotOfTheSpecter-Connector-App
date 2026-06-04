@@ -58,8 +58,7 @@ export function ScreenLogs() {
         <div style={{ maxHeight: 'calc(100vh - 260px)', overflowY: 'auto', padding: '4px 14px' }}>
           {lines.length === 0 && <div className="dim" style={{ padding: 16, fontSize: 12 }}>No events yet.</div>}
           {lines.map((l) => (
-            // Stable content key so prepending newer lines doesn't re-key every row
-            // (array index would shift on every prepend, re-mounting all rows).
+            // Stable content key so prepending newer lines doesn't re-mount every row (array index would shift).
             <div key={`${l.t}|${l.src}|${l.level}|${l.message}`} className="log-line" style={{ gridTemplateColumns: '110px 70px 70px 1fr' }}>
               <span className="t">{l.t}</span>
               <span style={{ color: srcColor[l.src] ?? 'var(--text-mute)', fontWeight: 700, fontSize: 10.5, letterSpacing: '0.04em' }}>{l.src}</span>

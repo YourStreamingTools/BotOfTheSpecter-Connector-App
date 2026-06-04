@@ -85,8 +85,7 @@ describe('ScenesTab filter error handling', () => {
     // Enabled filter shows the "Disable" affordance; toggling optimistically flips it.
     fireEvent.click(screen.getByTitle('Disable'));
 
-    // The call fails → the optimistic flip must revert (back to "Disable") and a
-    // reconciling refetch must run.
+    // The call fails → the optimistic flip reverts (back to "Disable") and a reconciling refetch runs.
     await waitFor(() => expect(screen.getByTitle('Disable')).toBeInTheDocument());
     expect(window.api.obs.listSourceFilters).toHaveBeenCalledTimes(2);
   });

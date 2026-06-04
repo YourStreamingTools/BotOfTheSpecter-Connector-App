@@ -11,8 +11,7 @@ export function useLogs() {
     const off = window.api.on(IPC.logLine, (e) => setLines((prev) => [e as LogEntry, ...prev].slice(0, CAP)));
     void window.api.logs.snapshot().then((s) => {
       if (!alive) return;
-      // Newest-first: lines that arrived during the round-trip are newer than the
-      // snapshot history, so they stay in front; the snapshot follows.
+      // Newest-first: lines that arrived during the round-trip stay in front, snapshot history follows.
       setLines((live) => [...live, ...s].slice(0, CAP));
     });
     return () => { alive = false; off(); };

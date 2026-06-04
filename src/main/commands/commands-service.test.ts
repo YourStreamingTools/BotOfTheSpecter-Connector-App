@@ -5,11 +5,7 @@ import { CommandsService } from './commands-service';
 const jsonResponse = (body: unknown, ok = true, status = 200) =>
   ({ ok, status, json: async () => body }) as Response;
 
-// Generic test fixtures — no real users. The Builtin response keys are arbitrary,
-// the Custom & User responses use teststreamer / viewer1 / viewer2 placeholders.
-// Real API shape: { commands: { <name>: {...} } } — note one of the entries IS
-// literally named "commands" (the !commands command itself). The parser must
-// treat it as an entry, NOT descend into it.
+// Test fixtures; real shape is { commands: { <name>: {...} } } where one entry is literally named "commands" — the parser must treat it as an entry, not descend into it.
 const BUILTIN = {
   commands: {
     commands: { description: 'Lists all commands.', aliases: ['cmds'], syntax: '!commands' },
@@ -197,8 +193,7 @@ describe('CommandsService.refresh', () => {
   });
 
   it('preserves locally-applied overrides across a subsequent refresh', async () => {
-    // /commands/info does not return per-streamer overrides, so a naive refresh
-    // would overwrite a saved Disabled back to Enabled. Refresh must merge.
+    // /commands/info omits per-streamer overrides, so refresh must merge rather than overwrite a saved Disabled back to Enabled.
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       if (String(url).includes('/commands/info')) return jsonResponse(BUILTIN);
       if (String(url).includes('/v2/builtin-commands/update')) return jsonResponse({ status: 'success' });

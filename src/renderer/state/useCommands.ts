@@ -3,11 +3,7 @@ import { IPC, type CommandsSnapshot } from '@shared/ipc';
 
 const EMPTY: CommandsSnapshot = { builtin: [], custom: [], user: [], state: 'idle' };
 
-/**
- * Subscribe to the CommandsService snapshot. Seeds from the current snapshot on mount
- * (so the screen renders even if the boot-time refresh already finished) and updates
- * on the 'changed' push when refresh completes.
- */
+/** Subscribe to the CommandsService snapshot: seeds from the current snapshot on mount and updates on the 'changed' push when refresh completes. */
 export function useCommands(): { snap: CommandsSnapshot; refresh: () => Promise<void> } {
   const [snap, setSnap] = React.useState<CommandsSnapshot>(EMPTY);
 

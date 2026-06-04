@@ -26,8 +26,7 @@ export function ScreenSettings() {
     void window.api.config.set('streamOutputCount', n === 0 ? undefined : n);
   };
 
-  // Validate the key against the BotOfTheSpecter API before saving/connecting.
-  // An invalid key is never persisted and never triggers a relay connection.
+  // Validate the key against the BotOfTheSpecter API before saving; an invalid key is never persisted and never triggers a relay connection.
   const save = async () => {
     const trimmed = key.trim();
     if (!trimmed) { setMsg({ kind: 'err', text: 'Enter your API key first.' }); return; }

@@ -16,9 +16,7 @@ export function ObsConnected({ obs }: { obs: Obs }) {
   const replayActive = outputs?.replayBuffer ?? false;
 
   return (
-    // Flex column that fills the viewport. Top status cards stay fixed-size;
-    // the active tab grows into the remaining space and its inner content
-    // scrolls — so the Stream/Recording/Replay controls always stay in view.
+    // Flex column filling the viewport: fixed status cards on top, active tab grows and scrolls so controls stay in view.
     <div className="screen" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="card" style={{ padding: '14px 18px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
         <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--success-soft)', border: '1px solid var(--success)', display: 'grid', placeItems: 'center', color: 'var(--success)' }}>
@@ -129,9 +127,7 @@ export function ObsConnected({ obs }: { obs: Obs }) {
         ))}
       </div>
 
-      {/* Tab content grows into the remaining viewport. `minHeight: 0` is
-          essential — without it, flex children refuse to shrink below their
-          intrinsic content size, defeating the whole purpose. */}
+      {/* Tab content grows into remaining viewport; minHeight:0 lets flex children shrink below intrinsic content size. */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         {tab === 'scenes' && <ScenesTab obs={obs} />}
         {tab === 'events' && <EventsTab obs={obs} />}

@@ -3,11 +3,7 @@ import { IPC, type Alert } from '@shared/ipc';
 
 const CAP = 200;
 
-/**
- * Live alert feed (newest-first). Seeds from the main-process snapshot on mount
- * and appends each pushed alert. Subscribes BEFORE the snapshot so an alert that
- * arrives during the round-trip isn't lost, then merges by id.
- */
+/** Live alert feed (newest-first); subscribes before the main-process snapshot so an alert arriving during the round-trip isn't lost, then merges by id (capped at 200). */
 export function useAlerts(): Alert[] {
   const [alerts, setAlerts] = React.useState<Alert[]>([]);
   React.useEffect(() => {

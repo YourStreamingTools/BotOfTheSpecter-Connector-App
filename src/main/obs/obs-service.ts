@@ -6,10 +6,7 @@ import { normalizeObsEvent } from './obs-events';
 import { classifySource } from './obs-sources';
 import { peakDbFromLevels } from './audio-meters';
 
-// obs-websocket-js exports its class as the ESM default. When the main process
-// is bundled to CommonJS with this package externalized, the default import can
-// bind to the module namespace instead of `.default`, so resolve the real
-// constructor explicitly (works whether the binding is the class or namespace).
+// obs-websocket-js exports its class as the ESM default; under CommonJS bundling the import can bind to the namespace, so resolve the real constructor via `.default ?? OBSWebSocket`.
 const OBSWebSocketCtor: typeof OBSWebSocket =
   (OBSWebSocket as unknown as { default?: typeof OBSWebSocket }).default ?? OBSWebSocket;
 
@@ -24,21 +21,11 @@ const RELAYOUT_EVENTS = new Set([
 
 export interface ObsServiceDeps {
   client?: OBSWebSocket;
-  /**
-   * Optional accessor for the user-configured stream output count. When set to a
-   * known value (1–4) we anchor the LIVE timecode immediately on the first
-   * stream-active poll using a known/extrapolated ratio — no sampling delay.
-   * When null/undefined we fall back to median-of-3 sampling at runtime.
-   */
+  /** Optional accessor for the user-configured stream output count (1-4); when known, anchors the LIVE timecode immediately via a preset ratio, else falls back to median-of-3 sampling. */
   getStreamOutputCount?: () => number | null | undefined;
 }
 
-/**
- * Ratios for outputDuration → real-time conversion, indexed by stream output count.
- * 1 = single stream (verified). 3 = main Twitch + 2 multi-output destinations
- * (verified — observed in user data). 2 and 4 are extrapolated from the formula
- * `1 + (N-1) × 0.75` and may be tweaked if data points are wrong.
- */
+/** outputDuration → real-time conversion ratios by stream output count; 1 and 3 verified, 2 and 4 extrapolated from `1 + (N-1) × 0.75`. */
 const KNOWN_OUTPUT_RATIOS: Record<number, number> = {
   1: 1.0,
   2: 1.75,
@@ -50,27 +37,12 @@ export class ObsService extends EventEmitter {
   private obs: OBSWebSocket;
   private getStreamOutputCount: () => number | null | undefined;
   private status: ObsStatus = { state: 'disconnected', eventsForwarded: 0 };
-  // Byte counters from the previous poll — used for bitrate deltas. Time deltas
-  // come from wall-clock (`lastPollAt`), NOT from OBS's outputDuration, because
-  // OBS's counter can drift (it accumulates across sessions on some setups).
+  // Byte counters from the previous poll for bitrate deltas; time deltas use wall-clock (`lastPollAt`), not OBS's outputDuration, which can drift across sessions.
   private prev = { streamBytes: 0, recordBytes: 0 };
   private lastPollAt = 0;
   private lastStreamKbps = 0;
   private lastRecordKbps = 0;
-  // OBS's stream `outputDuration` advances at 1× wall-clock when there's a single
-  // stream output. With a multi-output plugin sending to N destinations it sums
-  // across them and ticks at ~Nx wall-clock. Strategy:
-  //
-  //   • Fresh stream (outputDuration ≈ 0 on first observation): anchor the
-  //     display at wall-clock immediately, with offset 0.
-  //   • Mid-stream app join (outputDuration is already non-trivial): collect
-  //     3 ratio samples (outputDuration-delta ÷ wall-clock-delta), take the
-  //     median to dodge outliers, then anchor with offset = outputDuration ÷ median.
-  //
-  // After the anchor is set the display is just `realAtAnchor + (now - wallAnchor)`.
-  // We never read outputDuration again — so the user adding or removing multi-output
-  // destinations mid-stream cannot perturb the counter. Recording is unaffected
-  // because there's only one record output; its timecode is `outputDuration` direct.
+  // OBS stream `outputDuration` ticks at ~Nx wall-clock for N multi-output destinations; we anchor once (fresh stream → wall-clock now; mid-stream → median of 3 outputDuration/wall-clock ratio samples) then display `realAtAnchor + (now - wallAnchor)` without re-reading outputDuration, so mid-stream destination changes can't perturb it. Recording is single-output so its timecode is `outputDuration` direct.
   private streamWallAnchor: number | null = null;
   private streamRealAtAnchor = 0;
   private streamRatioSamples: number[] = [];
@@ -78,14 +50,11 @@ export class ObsService extends EventEmitter {
   // Mid-stream join is anything above this much already on the clock at first observation.
   private static readonly FRESH_THRESHOLD_MS = 2_000;
   private static readonly NEEDED_SAMPLES = 3;
-  // InputVolumeMeters fires at ~60 Hz from OBS. We throttle to ~30 Hz so the
-  // renderer isn't crushed by IPC traffic, but keep the latest sample so a
-  // snapshot reads what's current.
+  // InputVolumeMeters fires at ~60 Hz; throttle to ~30 Hz to spare IPC traffic but keep the latest sample for snapshot reads.
   private lastAudioMeters: ObsAudioMeter[] = [];
   private lastMetersEmittedAt = 0;
   private url = '';
-  // Latest pushed values, retained so a renderer that mounts mid-session can
-  // seed its state from getSnapshot() instead of waiting for the next push.
+  // Latest pushed values, retained so a renderer mounting mid-session can seed from getSnapshot() instead of waiting for the next push.
   private lastOutputs: ObsOutputs | null = null;
   private lastStats: ObsStats | null = null;
   private lastScenes: ObsScenes | null = null;
@@ -114,18 +83,14 @@ export class ObsService extends EventEmitter {
 
   async connect(params: ObsConnectParams): Promise<void> {
     this.url = `ws://${params.host}:${params.port}`;
-    // Start every connection from a clean slate. A previous session may have
-    // ended via an unexpected ConnectionClosed (which does not call disconnect),
-    // so resetting here guarantees a stale stream anchor or bitrate counter can
-    // never bleed into the new session and skew the LIVE timecode/bitrate.
+    // Start from a clean slate so a stale stream anchor or bitrate counter from a prior session (e.g. one ended via ConnectionClosed without disconnect) can't skew the new session.
     this.resetSession();
     this.setStatus({ state: 'connecting', url: this.url, error: undefined });
     try {
       const { obsWebSocketVersion, negotiatedRpcVersion } = await this.obs.connect(
         this.url,
         params.password,
-        // EventSubscription.All excludes the high-volume meter event by design,
-        // so we OR it in explicitly to receive InputVolumeMeters for the UI bars.
+        // EventSubscription.All excludes the high-volume meter event, so OR in InputVolumeMeters explicitly for the UI bars.
         { eventSubscriptions: EventSubscription.All | EventSubscription.InputVolumeMeters, rpcVersion: 1 }
       );
       this.setStatus({ state: 'connected', obsVersion: obsWebSocketVersion, rpcVersion: negotiatedRpcVersion });
@@ -145,13 +110,7 @@ export class ObsService extends EventEmitter {
     }
   }
 
-  /**
-   * Reset all per-connection state to a clean slate: bitrate sampling, the
-   * stream-duration anchor, throttled audio meters, the cached snapshot values,
-   * and any pending audio-refresh timer. Called when (re)connecting and when a
-   * connection ends — whether via an explicit disconnect() or an unexpected
-   * ConnectionClosed — so no stale state survives into the next session.
-   */
+  /** Reset all per-connection state (bitrate sampling, stream-duration anchor, throttled meters, cached snapshots, pending audio-refresh timer); called on (re)connect and on connection end via disconnect() or ConnectionClosed. */
   private resetSession(): void {
     this.prev = { streamBytes: 0, recordBytes: 0 };
     this.lastPollAt = 0;
@@ -189,11 +148,7 @@ export class ObsService extends EventEmitter {
     this.emit('scenes', payload);
   }
 
-  /**
-   * Fetch the audio mixer: all audio-kind inputs from GetInputList plus the
-   * global/special inputs (desktop audio, mic/aux) that aren't scene items,
-   * each with its current mute state and volume. Emits 'audio'.
-   */
+  /** Fetch the audio mixer (audio-kind inputs from GetInputList plus global/special inputs like desktop audio and mic/aux), each with mute state and volume; emits 'audio'. */
   async refreshAudio(): Promise<void> {
     if (this.status.state !== 'connected') return;
     const list = await this.obs.call('GetInputList');
@@ -258,11 +213,7 @@ export class ObsService extends EventEmitter {
   stopReplayBuffer(): Promise<unknown> { return this.obs.call('StopReplayBuffer'); }
   toggleVcam(): Promise<unknown> { return this.obs.call('ToggleVirtualCam'); }
 
-  /**
-   * Fetch the filter list for one source. OBS returns filters in stacking order
-   * (smaller `filterIndex` = renders first). We pass through the order; the
-   * renderer can choose to sort if it wants a different presentation.
-   */
+  /** Fetch a source's filter list in OBS stacking order (smaller `filterIndex` renders first); order is passed through for the renderer to sort if desired. */
   async listSourceFilters(sourceName: string): Promise<ObsSourceFilter[]> {
     const res = await this.obs.call('GetSourceFilterList', { sourceName });
     const raw = (res as { filters?: Array<{ filterName: string; filterKind: string; filterEnabled: boolean; filterIndex: number }> }).filters;
@@ -304,9 +255,7 @@ export class ObsService extends EventEmitter {
     const now = Date.now();
     const wallDeltaMs = this.lastPollAt > 0 ? now - this.lastPollAt : 0;
 
-    // Bitrate: delta bytes over wall-clock delta time. Not over OBS's outputDuration —
-    // that field can drift independently of real time on some setups (e.g. counter
-    // doesn't fully reset between stream sessions in the same OBS process).
+    // Bitrate: delta bytes over wall-clock delta time, not OBS's outputDuration, which can drift from real time (e.g. counter not fully reset between sessions in the same process).
     if (wallDeltaMs > 0) {
       const streamKbps = deltaBitrateKbps(this.prev.streamBytes, 0, s.outputBytes, wallDeltaMs);
       if (streamKbps !== null) this.lastStreamKbps = streamKbps;
@@ -350,8 +299,7 @@ export class ObsService extends EventEmitter {
       memoryMb: Math.round(st.memoryUsage ?? 0),
       activeFps: Math.round(st.activeFps ?? 0),
       droppedFrames: st.outputSkippedFrames ?? 0,
-      // Expanded fields — GetStats reports availableDiskSpace in BYTES; we
-      // surface it in megabytes for a friendlier UI display.
+      // GetStats reports availableDiskSpace in BYTES; surface it in megabytes for the UI.
       availableDiskSpaceMb: Math.round((st.availableDiskSpace ?? 0) / 1_048_576),
       renderSkippedFrames: st.renderSkippedFrames ?? 0,
       renderTotalFrames: st.renderTotalFrames ?? 0,
@@ -381,32 +329,18 @@ export class ObsService extends EventEmitter {
     for (const name of ['InputMuteStateChanged', 'InputVolumeChanged', 'InputCreated', 'InputRemoved', 'InputNameChanged']) {
       on(name, () => this.scheduleAudioRefresh());
     }
-    // High-volume audio meters — throttled to ~30 Hz so we don't drown the
-    // renderer in IPC traffic. The latest sample is cached so a snapshot read
-    // can hand the current value back without waiting for the next push.
+    // High-volume audio meters throttled to ~30 Hz to spare IPC traffic; latest sample cached for snapshot reads.
     on('InputVolumeMeters', (data) => this.onAudioMeters(data));
     on('ConnectionClosed', () => {
       if (this.status.state === 'connected') {
-        // Drop the dead session's state immediately. ConnectionClosed is the
-        // unexpected-drop path (no disconnect() call), so without this a later
-        // reconnect would reuse a stale anchor and jump the LIVE timecode.
+        // Drop the dead session's state; ConnectionClosed is the unexpected-drop path (no disconnect()), so without this a reconnect would reuse a stale anchor and jump the LIVE timecode.
         this.resetSession();
         this.setStatus({ state: 'disconnected' });
       }
     });
   }
 
-  /**
-   * Move the stream timecode anchor forward in response to a poll. Tries:
-   *   1. Configured output-count preset (instant anchor).
-   *   2. Recording-derived anchor (instant) — recording's `outputDuration` is
-   *      reliable single-output time, so when both are active and the implied
-   *      ratio is plausible we treat recording as ground truth.
-   *   3. Fresh-start anchor (outputDuration ≈ 0) — wall-clock from now.
-   *   4. Median-of-3 sampling for mid-stream joins without recording.
-   *
-   * Once anchored, no-op — user-induced multi-output changes can't perturb us.
-   */
+  /** Set the stream timecode anchor on a poll, trying in order: configured output-count preset, recording-derived (recording's single-output outputDuration as ground truth when ratio is plausible), fresh-start (outputDuration ≈ 0 → wall-clock now), then median-of-3 sampling; no-op once anchored. */
   private advanceStreamAnchor(streamDur: number, recordDur: number, recordActive: boolean, now: number, wallDeltaMs: number): void {
     if (this.streamWallAnchor !== null) return; // already anchored — nothing to do
 
@@ -420,11 +354,7 @@ export class ObsService extends EventEmitter {
       return;
     }
 
-    // 2. Auto mode + recording active + plausible ratio → use recording's
-    //    outputDuration as the true elapsed time. The implied ratio
-    //    (stream ÷ record) is only plausible when both outputs started close
-    //    together; if recording started much later or earlier the ratio
-    //    falls outside our sanity bounds and we fall through to sampling.
+    // 2. Auto mode + recording active + plausible implied ratio (stream ÷ record, valid only when both outputs started close together) → use recording's outputDuration as true elapsed time, else fall through to sampling.
     if (recordActive && recordDur > 1_000 && streamDur > 1_000) {
       const impliedRatio = streamDur / recordDur;
       if (impliedRatio >= 0.5 && impliedRatio <= 10) {
@@ -492,8 +422,7 @@ function timecode(): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
 }
 
-// HH:MM:SS from a duration in milliseconds. No decimal — designed for the
-// streaming/recording timecode display, not for event timestamps.
+// HH:MM:SS (no decimal) from a duration in milliseconds, for the streaming/recording timecode display.
 function formatHms(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);

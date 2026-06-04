@@ -1,12 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeStreamLive } from './streamLive';
 
-// Twitch is the source of truth whenever it's reachable. When it isn't, OBS's
-// in-memory streaming flag is the fallback — it's a live signal, unlike the
-// persisted `values.stream_status` variable which can be stale across sessions
-// (the bot's STREAM_ONLINE event sets it but no STREAM_OFFLINE arrives if the
-// app isn't running at end-of-stream). The variable is intentionally NOT
-// consulted by this function.
+// Twitch is the source of truth when reachable; otherwise fall back to OBS's in-memory streaming flag (not the persisted `values.stream_status`, which can be stale).
 
 describe('computeStreamLive', () => {
   it('returns Twitch.online verbatim when Twitch is reachable — Twitch is the source of truth', () => {
@@ -15,8 +10,7 @@ describe('computeStreamLive', () => {
   });
 
   it('ignores OBS streaming when Twitch says the stream is offline', () => {
-    // Twitch hasn't picked up the stream yet OR OBS is in a stale state. Either
-    // way, Twitch is authoritative — don't override.
+    // Twitch is authoritative even if OBS is streaming — don't override.
     expect(computeStreamLive({ twitchReachable: true, twitchOnline: false, obsStreaming: true })).toBe(false);
   });
 

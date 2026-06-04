@@ -31,9 +31,7 @@ describe('VariablesService', () => {
     expect(vs.all().values.last_cheer_amount).toBe(100);
   });
 
-  // The real relay wire shapes (verified in beta.py / notify_event.php): hyphenated
-  // keys, string-encoded numbers, redemptions as a `rewards` JSON string, donations
-  // as a `data` JSON string. These previously silently no-op'd.
+  // Real relay wire shapes (per beta.py / notify_event.php): hyphenated keys, string-encoded numbers, redemptions as a `rewards` JSON string, donations as a `data` JSON string.
   describe('real relay wire shapes', () => {
     it('reads the hyphenated follow key', () => {
       const vs = new VariablesService(store());

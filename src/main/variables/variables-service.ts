@@ -20,8 +20,7 @@ const toInt = (v: unknown): number | null => {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
-// The relay sends some payloads as a JSON STRING (channel-points `rewards`,
-// donation `data`). Decode to an object; tolerate already-decoded or garbage.
+// Decode a relay payload sent as a JSON STRING (channel-points `rewards`, donation `data`) to an object; tolerate already-decoded or garbage.
 const decodeJson = (v: unknown): Record<string, unknown> => {
   if (v && typeof v === 'object') return v as Record<string, unknown>;
   if (typeof v === 'string') {
@@ -31,9 +30,7 @@ const decodeJson = (v: unknown): Record<string, unknown> => {
   return {};
 };
 
-// Extract donor + amount from a donation event's `data` JSON string. Each
-// platform wraps a different shape: Fourthwall nests under data.data, Ko-fi is
-// flat, Patreon is JSON:API with the amount in cents.
+// Extract donor + amount from a donation event's `data` JSON string (Fourthwall nests under data.data, Ko-fi is flat, Patreon is JSON:API with amount in cents).
 const decodeDonation = (type: string, data: Record<string, unknown>): { who: unknown; amount: number | null } => {
   const parsed = decodeJson(data.data);
   // Nothing decodable → fall back to any flat keys an older path might have sent.
@@ -111,33 +108,16 @@ export class VariablesService extends EventEmitter {
     return { values: { ...DISPLAY_DEFAULTS, ...this.values }, counters: { ...this.counters } };
   }
 
-  /**
-   * Reconcile `stream_status` against Twitch's authoritative live state.
-   *
-   * The bot's STREAM_ONLINE / STREAM_OFFLINE events normally drive this variable,
-   * but if the app isn't open when the stream ends (or the event is missed) it
-   * stays stuck on its last value — typically a stale "online". TwitchService
-   * calls this whenever it has a definitive answer (i.e. Twitch is reachable),
-   * so the Variables page always agrees with the dashboard's live indicator
-   * (which derives from the same Twitch source of truth). No-op when unchanged,
-   * so it doesn't churn the persisted config or spam `changed` listeners.
-   *
-   * We deliberately touch only `stream_status` — not stream_start_time /
-   * stream_end_time, since on a missed event we don't know the true transition
-   * time and "now" would be wrong.
-   */
+  /** Reconcile `stream_status` against Twitch's authoritative live state to recover from missed STREAM_ONLINE/OFFLINE events; no-op when unchanged, and only touches `stream_status` (not stream_start_time/stream_end_time, which would be wrong on a missed transition). */
   reconcileStreamStatus(online: boolean): void {
     const next = online ? 'online' : 'offline';
     if (this.values.stream_status === next) return;
     this.set('stream_status', next);
-    // Mirror STREAM_ONLINE's session reset when we discover the stream is live by
-    // reconciliation (e.g. the app wasn't open at go-live, so the event was missed).
-    // Deliberately not touching stream_start_time — we don't know the true go-live moment.
+    // Mirror STREAM_ONLINE's session reset when reconciliation discovers the stream is live; not touching stream_start_time since the true go-live moment is unknown.
     if (online) this.resetSession();
   }
 
-  /** Zero the per-stream session counters. Fired automatically on STREAM_ONLINE,
-   *  or manually (e.g. when the app wasn't open at go-live). Totals are untouched. */
+  /** Zero the per-stream session counters (fired on STREAM_ONLINE or manually); totals are untouched. */
   resetSession(): void {
     for (const c of ['session_followers', 'session_subs', 'session_bits', 'session_redemptions', 'session_deaths', 'session_donation_count']) this.reset(c);
     this.set('session_donations', 0);
@@ -147,10 +127,7 @@ export class VariablesService extends EventEmitter {
     const now = new Date().toISOString();
     this.set('last_specter_event', type);
     this.set('last_specter_event_date', now);
-    // Keep the stored payload as VALID JSON even when capped for display —
-    // slicing the raw JSON string produces invalid JSON that sanitizeStoredPayload
-    // can't re-parse on the next load, silently dropping it to '—'. Wrapping the
-    // truncated preview in an object keeps it decodable.
+    // Keep the stored payload as VALID JSON even when capped for display: wrap the truncated preview in an object so sanitizeStoredPayload can re-parse it on next load (raw slicing produces invalid JSON that gets dropped to '—').
     const full = JSON.stringify(redactSensitive(data));
     const payload = full.length > 400 ? JSON.stringify({ _truncated: full.slice(0, 380) + '…' }) : full;
     this.set('last_specter_payload', payload);
@@ -188,8 +165,7 @@ export class VariablesService extends EventEmitter {
         break;
       }
       case 'TWITCH_CHANNELPOINTS': {
-        // The relay sends a `rewards` JSON string (raw Twitch event_data); decode it.
-        // reward.title/cost live nested; user_name at top level. Fall back to flat keys.
+        // Decode the relay's `rewards` JSON string (raw Twitch event_data): reward.title/cost are nested, user_name is top-level, with flat-key fallbacks.
         const r = decodeJson(data.rewards);
         const reward = (r.reward as Record<string, unknown> | undefined) ?? {};
         const u = pick(r, 'user_name', 'username') ?? pick(data, 'username', 'user', 'user_name');

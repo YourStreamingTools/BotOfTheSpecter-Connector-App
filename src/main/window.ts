@@ -2,8 +2,7 @@ import { BrowserWindow, shell } from 'electron';
 import { join } from 'path';
 import iconPath from '../../resources/icon.png?asset';
 
-// Re-exported so the main entrypoint can hand the same path to app.dock.setIcon()
-// on macOS without depending on the asset import directly.
+// Re-exported so the main entrypoint can pass the same path to app.dock.setIcon() on macOS.
 export const APP_ICON_PATH = iconPath;
 
 export function createMainWindow(): BrowserWindow {
@@ -16,8 +15,7 @@ export function createMainWindow(): BrowserWindow {
     titleBarStyle: 'hidden',
     backgroundColor: '#0D0D0D',
     show: false,
-    // Sets the Windows + Linux taskbar entry icon and the OS window icon.
-    // On macOS the dock icon is set separately at app start (see main/index.ts).
+    // Sets the Windows + Linux taskbar/window icon; macOS dock icon is set separately in main/index.ts.
     icon: iconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

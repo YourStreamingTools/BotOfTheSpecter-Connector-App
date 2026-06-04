@@ -21,8 +21,7 @@ export function App({ initialConfig }: { initialConfig: AppConfig }) {
   const { account } = useAccount();
   const twitch = useTwitch();
   const obsState = status.state;
-  // Twitch is the source of truth when reachable; OBS streaming is the fallback
-  // when it isn't. The stale persisted `stream_status` variable is deliberately ignored.
+  // Twitch is the source of truth when reachable; OBS streaming is the fallback otherwise; the stale persisted `stream_status` variable is ignored.
   const streamLive = computeStreamLive({
     twitchReachable: twitch.reachable,
     twitchOnline: twitch.online,
@@ -39,9 +38,7 @@ export function App({ initialConfig }: { initialConfig: AppConfig }) {
         <Sidebar expanded={sidebarExpanded} active={screen} onSelect={setScreen} obsState={obsState} account={account} />
         <div className="content">
           <Topbar screen={screen} obsState={obsState} streamLive={streamLive} onObsPillClick={() => setScreen('obs')} />
-          {/* Keyed by screen so the boundary resets on navigation: a screen that
-              threw is retried fresh when the user navigates away and back, and
-              an error in one screen never blanks the shell/navigation. */}
+          {/* Keyed by screen so the boundary resets on navigation, retrying a throwing screen fresh and keeping one screen's error from blanking the shell/navigation. */}
           <ErrorBoundary key={screen}>
             <ScreenComponent />
           </ErrorBoundary>

@@ -1,7 +1,6 @@
 import type { Alert, AlertPlatform } from './ipc';
 
-// The relay event names the Alerts feed consumes. Keyed off the (stable) event
-// NAME, not payload shape, so the unified alerts/media migration can't break us.
+// Relay event names the Alerts feed consumes, keyed off the stable event NAME not payload shape.
 export const ALERT_EVENTS: ReadonlySet<string> = new Set([
   'TWITCH_FOLLOW', 'TWITCH_CHEER', 'TWITCH_SUB', 'TWITCH_RAID', 'TWITCH_CHANNELPOINTS',
   'FOURTHWALL', 'KOFI', 'PATREON', 'STREAM_ONLINE', 'STREAM_OFFLINE'
@@ -34,13 +33,7 @@ function parseJson(v: unknown): Record<string, unknown> | null {
   }
 }
 
-/**
- * Normalize a relay alert event into the app's Alert model, or null if the event
- * isn't an alert. Uses the VERIFIED wire keys (hyphenated for Twitch, a `rewards`
- * JSON string for channel points, a `data` JSON string for donations). The wire
- * carries no timestamp except channel-points' redeemed_at, so receivedAt is
- * stamped now() otherwise. Pure + shared so main and renderer agree.
- */
+/** Normalize a relay alert event into the Alert model (null if not an alert), using hyphenated Twitch keys, `rewards`/`data` JSON strings, and now() for receivedAt except channel-points' redeemed_at. */
 export function normalizeAlert(event: string, data: Record<string, unknown>): Alert | null {
   if (!ALERT_EVENTS.has(event)) return null;
   const base = { id: nextId(), receivedAt: Date.now() };

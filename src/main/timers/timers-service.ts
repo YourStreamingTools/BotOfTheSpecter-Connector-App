@@ -14,13 +14,7 @@ export interface TimersServiceDeps {
 
 const BASE = `${BOTOFTHESPECTER_API_BASE}/timers`;
 
-/**
- * Lists and edits the bot's timed messages via the BotOfTheSpecter API
- * (GET/POST/PUT/DELETE /timers). All routes take the api_key as a QUERY param
- * (non-/v2), so this lives in the main process and the key never crosses IPC.
- * Mutations are validated locally first (same rules as the API), then the list
- * is re-fetched so the renderer always reflects the server's authoritative state.
- */
+/** Lists/edits the bot's timed messages via GET/POST/PUT/DELETE /timers (api_key as a QUERY param, non-/v2, so main-process only and the key never crosses IPC); mutations are validated locally first then the list is re-fetched for authoritative server state. */
 export class TimersService extends EventEmitter {
   private fetch: typeof fetch;
   private getApiKey: () => string;

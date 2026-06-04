@@ -54,8 +54,7 @@ beforeEach(() => {
 
 describe('ObsService', () => {
   it('constructs against the real obs-websocket-js client when none is injected', () => {
-    // Guards the ESM-default interop fix: `new ObsService()` must resolve the
-    // real OBSWebSocket constructor (regression for "OBSWebSocket is not a constructor").
+    // Guards the ESM-default interop fix: `new ObsService()` must resolve the real OBSWebSocket constructor (regression for "OBSWebSocket is not a constructor").
     expect(() => new ObsService()).not.toThrow();
   });
 
@@ -242,8 +241,7 @@ describe('ObsService', () => {
       await service.pollOnce();
       expect(service.getSnapshot().outputs?.streamTimecode).toBe('00:00:00');
 
-      // Poll 4 — third sample reached, median ratio = 2.5, anchor set.
-      // outputDuration 35,462,465 / 2.5 = 14,184,986ms = 03:56:24.
+      // Poll 4 — third sample reached, median ratio = 2.5, anchor set: outputDuration 35,462,465 / 2.5 = 14,184,986ms = 03:56:24.
       vi.setSystemTime(new Date('2026-05-29T00:00:03Z'));
       stubObs({ outputActive: true, outputBytes: 0, outputDuration: 35_462_465, outputTimecode: 'noisy' });
       await service.pollOnce();
@@ -262,9 +260,7 @@ describe('ObsService', () => {
       await service.connect({ host: 'localhost', port: 4455, password: 'pw' });
       await service.pollOnce();
 
-      // 10 minutes later — OBS reports a wildly different outputDuration (user removed
-      // a multi-output destination at some point), but our counter only cares about
-      // wall-clock. Display = 00:10:00 regardless.
+      // 10 minutes later — OBS reports a wildly different outputDuration (user removed a multi-output destination), but the counter only cares about wall-clock; display = 00:10:00 regardless.
       vi.setSystemTime(new Date('2026-05-29T00:10:00Z'));
       stubObs({ outputActive: true, outputBytes: 0, outputDuration: 42, outputTimecode: 'whatever' });
       await service.pollOnce();
@@ -367,8 +363,7 @@ describe('ObsService', () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-05-29T00:00:00Z'));
-      // App launches mid-stream. Recording was started at the same time as streaming and
-      // is the reliable ground-truth elapsed clock. Stream's outputDuration is 2.5× drifted.
+      // App launches mid-stream; recording started at the same time as streaming and is the reliable ground-truth elapsed clock, while stream's outputDuration is 2.5× drifted.
       fake.call = vi.fn(async (type: string) => {
         if (type === 'GetSceneList')     return { currentProgramSceneName: 'X', scenes: [{ sceneName: 'X' }] };
         if (type === 'GetSceneItemList') return { sceneItems: [] };
@@ -393,8 +388,7 @@ describe('ObsService', () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-05-29T00:00:00Z'));
-      // Stream has been live for ages with multi-output drift. Recording just started ~10s ago.
-      // The implied ratio (35454965 / 10000 = ~3500) is wildly out of range → reject.
+      // Stream live for ages with multi-output drift, recording just started ~10s ago — implied ratio (35454965 / 10000 ≈ 3500) is out of range → reject.
       fake.call = vi.fn(async (type: string) => {
         if (type === 'GetSceneList')     return { currentProgramSceneName: 'X', scenes: [{ sceneName: 'X' }] };
         if (type === 'GetSceneItemList') return { sceneItems: [] };
@@ -458,8 +452,7 @@ describe('ObsService', () => {
       await service.connect({ host: 'localhost', port: 4455, password: 'pw' });
       await service.pollOnce(); // first poll: outputBytes = 0, lastPollAt = now
 
-      // 1 wall-clock second later, 5000 kbps actual = 625,000 bytes. OBS's outputDuration
-      // drifted (claims 5000ms elapsed instead of 1000ms) — bitrate must still read 5000.
+      // 1 wall-clock second later, 5000 kbps actual = 625,000 bytes; OBS's outputDuration drifted (claims 5000ms instead of 1000ms) — bitrate must still read 5000.
       vi.setSystemTime(new Date('2026-05-29T00:00:01Z'));
       fake.call = vi.fn(async (type: string) => {
         if (type === 'GetStreamStatus')  return { outputActive: true,  outputBytes: 625_000, outputDuration: 5000, outputTimecode: 'whatever', outputSkippedFrames: 0 };
@@ -530,8 +523,7 @@ describe('ObsService', () => {
       await service.pollOnce();
       expect(service.getSnapshot().outputs?.streamTimecode).toBe('00:02:00');
 
-      // The OBS websocket drops unexpectedly — no disconnect() is called, so the
-      // stream anchor from session 1 would survive without an explicit reset.
+      // The OBS websocket drops unexpectedly — no disconnect() is called, so the stream anchor from session 1 would survive without an explicit reset.
       fake.emit('ConnectionClosed');
       expect(service.getSnapshot().status.state).toBe('disconnected');
 
@@ -541,8 +533,7 @@ describe('ObsService', () => {
       await service.connect({ host: 'localhost', port: 4455, password: 'pw' });
       await service.pollOnce();
 
-      // The new stream just started, so the LIVE clock must read 00:00:00 — not
-      // 00:12:00, which is what a stale carried-over anchor would display.
+      // The new stream just started, so the LIVE clock must read 00:00:00 — not 00:12:00, which is what a stale carried-over anchor would display.
       expect(service.getSnapshot().outputs?.streamTimecode).toBe('00:00:00');
     } finally {
       vi.useRealTimers();
@@ -579,8 +570,7 @@ describe('ObsService', () => {
       fake.emit('ConnectionClosed');
       vi.setSystemTime(new Date('2026-05-29T00:01:00Z'));
       await service.connect({ host: 'localhost', port: 4455, password: 'pw' });
-      // OBS reports a large byte counter, but with no prior in-session sample the
-      // first poll must report 0, not a stale value derived from session 1.
+      // OBS reports a large byte counter, but with no prior in-session sample the first poll must report 0, not a stale value derived from session 1.
       stubObs({ outputActive: true, outputBytes: 5_000_000, outputDuration: 0, outputTimecode: '00:00:00.000' });
       await service.pollOnce();
       expect(service.getSnapshot().stats?.streamBitrateKbps).toBe(0);

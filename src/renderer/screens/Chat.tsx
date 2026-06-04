@@ -52,8 +52,7 @@ export function ScreenChat() {
 }
 
 function ChatLine({ m }: { m: ChatMessage }) {
-  // Twitch /me convention: render in italic, with "* name text" (no colon) and
-  // text in the user's name colour instead of the default text colour.
+  // Twitch /me actions render italic with no colon and text in the user's name colour.
   const nameColor = m.color || 'var(--text)';
   return (
     <div style={{ padding: '3px 4px', fontSize: 13, lineHeight: 1.45, wordBreak: 'break-word', fontStyle: m.isAction ? 'italic' : undefined }}>

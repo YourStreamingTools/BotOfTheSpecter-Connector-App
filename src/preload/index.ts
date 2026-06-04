@@ -1,8 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC, type AppConfig, type BridgeApi } from '@shared/ipc';
 
-// Every channel the main process can push on is one of the IPC constants.
-// Restricting on() to this set keeps the renderer from subscribing to arbitrary channels.
+// Known IPC channels; restricting on() to this set blocks renderer-supplied arbitrary channels.
 const ALLOWED_CHANNELS = new Set<string>(Object.values(IPC));
 
 const api: BridgeApi = {
@@ -99,6 +98,12 @@ const api: BridgeApi = {
     create: (input) => ipcRenderer.invoke(IPC.pollsCreate, input),
     end: (id, status) => ipcRenderer.invoke(IPC.pollsEnd, id, status)
   },
+  predictions: {
+    snapshot: () => ipcRenderer.invoke(IPC.predictionsSnapshot),
+    refresh: () => ipcRenderer.invoke(IPC.predictionsRefresh),
+    create: (input) => ipcRenderer.invoke(IPC.predictionsCreate, input),
+    end: (id, status, winningOutcomeId) => ipcRenderer.invoke(IPC.predictionsEnd, id, status, winningOutcomeId)
+  },
   alerts: {
     snapshot: () => ipcRenderer.invoke(IPC.alertsSnapshot)
   },
@@ -140,8 +145,7 @@ const api: BridgeApi = {
   },
   platform: process.platform,
   on: (channel, listener) => {
-    // Only allow subscribing to known IPC channels — never an arbitrary,
-    // renderer-supplied channel name.
+    // Only allow subscribing to known IPC channels, never an arbitrary renderer-supplied name.
     if (!ALLOWED_CHANNELS.has(channel)) return () => {};
     const sub = (_e: Electron.IpcRendererEvent, ...args: unknown[]) => listener(...args);
     ipcRenderer.on(channel, sub);

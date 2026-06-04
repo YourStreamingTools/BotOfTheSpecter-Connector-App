@@ -8,16 +8,7 @@ import {
   type ReorderDirection
 } from '@shared/ipc';
 
-/**
- * Subscribe to the AutomationsService — both folders and automations. Seeds from
- * window.api.folders.list() + window.api.automations.list() on mount and stays in
- * sync via the IPC.foldersChanged / IPC.automationsChanged push channels, which the
- * main process emits after every mutation (the full list goes out on every change).
- *
- * Mirrors the pattern in useActions/useCommands: the service is the source of truth,
- * so the mutator wrappers don't optimistically update local state — they await the
- * IPC round-trip and let the push refresh the list.
- */
+/** Subscribes to folders+automations: seeds from folders.list()/automations.list() on mount, stays in sync via IPC.foldersChanged/automationsChanged push channels; mutators await the IPC round-trip rather than updating local state optimistically. */
 export function useAutomations(): {
   folders: Folder[];
   automations: Automation[];

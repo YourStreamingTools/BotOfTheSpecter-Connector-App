@@ -1,13 +1,7 @@
 import React from 'react';
 import { IPC, type Action, type ActionInput } from '@shared/ipc';
 
-/**
- * Subscribe to the ActionsService list. Seeds from window.api.actions.list() on mount
- * and stays in sync via the IPC.actionsChanged push channel, which the main process
- * emits after every create/update/delete. Because the service is the source of truth,
- * the create/update/remove callbacks do not optimistically mutate local state — they
- * just await the IPC round-trip and let the push refresh the list.
- */
+/** Subscribe to the ActionsService list: seeds from window.api.actions.list() on mount, stays in sync via the IPC.actionsChanged push (no optimistic local mutation — callbacks await the IPC round-trip and let the push refresh). */
 export function useActions(): {
   actions: Action[];
   create: (input: ActionInput) => Promise<Action>;

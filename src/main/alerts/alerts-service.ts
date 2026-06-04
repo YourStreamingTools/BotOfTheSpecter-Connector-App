@@ -2,12 +2,7 @@ import { EventEmitter } from 'events';
 import type { Alert, AlertsSnapshot } from '@shared/ipc';
 import { normalizeAlert } from '@shared/alert-events';
 
-/**
- * Holds a rolling, newest-first buffer of alert events received on the relay
- * (follows, subs, cheers, raids, redemptions, donations, stream on/off). Pure
- * in-memory: the relay carries no history, so the feed only reflects what
- * arrived while connected, and it clears on restart.
- */
+/** Rolling newest-first in-memory buffer of relay alert events (follows, subs, cheers, raids, redemptions, donations, stream on/off); no history, clears on restart. */
 export class AlertsService extends EventEmitter {
   private buf: Alert[] = []; // newest-first
 

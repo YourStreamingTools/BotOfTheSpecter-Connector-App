@@ -2,11 +2,7 @@ import { EventEmitter } from 'events';
 import type { ChatMessage } from '@shared/ipc';
 import { normalizeChatMessage, normalizeModeration } from './chat-events';
 
-/**
- * Holds a rolling buffer of live chat and reflects observed moderation:
- * clear wipes the buffer, delete drops one message, ban/timeout drops the
- * target's messages — so a snapshot never replays moderated content.
- */
+/** Rolling chat buffer that reflects moderation: clear wipes all, delete drops one message, ban/timeout drops the target's messages, so snapshots never replay moderated content. */
 export class ChatService extends EventEmitter {
   private buf: ChatMessage[] = [];
 

@@ -2,7 +2,7 @@ import React from 'react';
 
 interface Props {
   children: React.ReactNode;
-  /** Optional custom fallback. Receives the caught error and a reset() to retry rendering. */
+  /** Optional custom fallback; receives the caught error and a reset() to retry rendering. */
   fallback?: (error: Error, reset: () => void) => React.ReactNode;
 }
 
@@ -10,12 +10,7 @@ interface State {
   error: Error | null;
 }
 
-/**
- * Catches render-time errors in its subtree and shows a fallback instead of
- * letting the whole window go blank (React unmounts the entire tree on an
- * uncaught render error). Wrap the per-screen content so a broken screen keeps
- * the shell usable, and the provider tree as a top-level backstop.
- */
+/** Catches render-time errors in its subtree and shows a fallback so a broken screen keeps the shell usable instead of blanking the window. */
 export class ErrorBoundary extends React.Component<Props, State> {
   state: State = { error: null };
 
@@ -24,8 +19,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    // Surface for diagnostics; the UI shows the fallback. (No secrets here —
-    // these are render errors, not data.)
+    // Surface for diagnostics; the UI shows the fallback. No secrets here — these are render errors, not data.
     console.error('Renderer error boundary caught:', error, info.componentStack);
   }
 

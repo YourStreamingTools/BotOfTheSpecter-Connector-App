@@ -19,8 +19,7 @@ export function ScreenDashboard() {
   const bot = useBotStatus();
   const twitch = useTwitch();
 
-  // Twitch wins when reachable; OBS streaming is the fallback when it isn't.
-  // The persisted `stream_status` variable can be stale across sessions, so it's ignored.
+  // Twitch wins when reachable, else OBS streaming is the fallback; persisted `stream_status` is ignored as it can be stale across sessions.
   const streamOnline = computeStreamLive({
     twitchReachable: twitch.reachable,
     twitchOnline: twitch.online,

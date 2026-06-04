@@ -1,14 +1,6 @@
 import type { RaffleInput } from './ipc';
 
-/**
- * Validate a raffle input against the same rules the API enforces
- * (api.py _raffle_config_params): name required, number_of_winners a whole number
- * >= 1, and every weight multiplier within [1.00, 999.99]. Returns an error string,
- * or null when valid.
- *
- * Lives in @shared so the main-process service and the renderer form gate Save with
- * the identical rules (and the renderer doesn't import main-process code).
- */
+/** Validate a raffle input per api.py _raffle_config_params (name required, number_of_winners whole int >= 1, each weight in [1.00, 999.99]); returns error string or null when valid; in @shared so main-process and renderer gate Save identically. */
 export function validateRaffleInput(input: RaffleInput): string | null {
   const name = (input?.name ?? '').trim();
   if (!name) return 'Name is required';

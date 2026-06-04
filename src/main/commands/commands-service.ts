@@ -12,22 +12,12 @@ const PUBLIC_BUILTIN = `${BOTOFTHESPECTER_API_BASE}/commands/info`;
 const CUSTOM_URL    = `${BOTOFTHESPECTER_API_BASE}/v2/custom-commands`;
 const USER_URL      = `${BOTOFTHESPECTER_API_BASE}/v2/user-commands/get/all`;
 
-/**
- * Aggregates the three command lists shown on the Commands screen:
- *  - built-in: GET /commands/info (public)
- *  - custom:   GET /v2/custom-commands (X-API-KEY)
- *  - user:     GET /v2/user-commands/get/all (X-API-KEY, grouped by owner)
- *
- * The renderer always reads from the latest snapshot — a refresh emits 'changed'
- * with the new snapshot so subscribers don't need to poll.
- */
+/** Aggregates built-in (GET /commands/info, public), custom (GET /v2/custom-commands, X-API-KEY) and user (GET /v2/user-commands/get/all, X-API-KEY, grouped by owner) command lists; refresh emits 'changed' with the latest snapshot. */
 export class CommandsService extends EventEmitter {
   private fetch: typeof fetch;
   private getApiKey: () => string;
   private snap: CommandsSnapshot = { builtin: [], custom: [], user: [], state: 'idle' };
-  // Per-streamer overrides applied via updateBuiltin. /commands/info does NOT
-  // return these, so we must remember them locally to survive a refresh.
-  // Cleared if/when the API exposes a GET endpoint for streamer-side built-in state.
+  // Per-streamer built-in overrides from updateBuiltin, remembered locally since /commands/info does not return them.
   private builtinOverrides = new Map<string, { enabled: boolean; forceLevel: string }>();
 
   constructor(deps: CommandsServiceDeps) {
@@ -40,12 +30,7 @@ export class CommandsService extends EventEmitter {
     return this.snap;
   }
 
-  /**
-   * Update the streamer's override for a built-in command (status + permission).
-   * The API accepts the change as query params on a PUT; success is signalled by
-   * `{ status: "success", ... }` in the JSON body. We mirror the change onto the
-   * in-memory snapshot on success so the UI reflects it without a re-fetch.
-   */
+  /** Update a built-in command's status + permission via PUT /v2/builtin-commands/update (query params); success is `{ status: "success" }` in the body and is mirrored onto the snapshot. */
   async updateBuiltin(name: string, patch: BuiltinCommandUpdate): Promise<boolean> {
     const key = (this.getApiKey() ?? '').trim();
     if (!key || !name) return false;
@@ -58,8 +43,7 @@ export class CommandsService extends EventEmitter {
       if (!res.ok) return false;
       const body = (await res.json()) as { status?: unknown };
       if (String(body?.status ?? '').toLowerCase() !== 'success') return false;
-      // Remember the override + mirror onto the snapshot so subsequent refreshes
-      // (which only see catalog defaults) don't undo it.
+      // Remember the override + mirror onto the snapshot so refreshes (which only see catalog defaults) don't undo it.
       const enabled = patch.status === 'Enabled';
       this.builtinOverrides.set(name, { enabled, forceLevel: patch.permission });
       const next = this.snap.builtin.map((c) => c.name === name
@@ -75,8 +59,7 @@ export class CommandsService extends EventEmitter {
 
   async refresh(): Promise<void> {
     this.snap = { ...this.snap, state: 'loading', error: undefined };
-    // Emit the loading transition so the renderer can show a spinner instead of
-    // jumping straight from stale data to the final result.
+    // Emit the loading transition so the renderer can show a spinner instead of jumping from stale data to the final result.
     this.emit('changed', this.snap);
     const key = (this.getApiKey() ?? '').trim();
 
@@ -91,8 +74,7 @@ export class CommandsService extends EventEmitter {
     if (!custom.ok)  errors.push(`custom commands: ${custom.error}`);
     if (!user.ok)    errors.push(`user commands: ${user.error}`);
 
-    // Layer remembered overrides over the freshly-fetched catalog so a saved
-    // Disabled/permission survives a refresh.
+    // Layer remembered overrides over the freshly-fetched catalog so a saved Disabled/permission survives a refresh.
     const mergedBuiltin = builtin.ok
       ? builtin.data.map((c) => {
           const o = this.builtinOverrides.get(c.name);
@@ -117,9 +99,7 @@ export class CommandsService extends EventEmitter {
     try {
       const res = await this.fetch(PUBLIC_BUILTIN, { headers: { accept: 'application/json' } });
       if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-      // Shape: { commands: { <name>: { description, syntax, aliases?, force_level? } } }.
-      // One of the entries IS literally named "commands" — don't descend twice or
-      // you end up iterating that single entry's sub-keys (description/aliases/syntax).
+      // Shape: { commands: { <name>: { description, syntax, aliases?, force_level? } } }; one entry is literally named "commands", so don't descend twice.
       const body = (await res.json()) as { commands?: Record<string, RawBuiltin> };
       const map = body?.commands ?? {};
       return { ok: true, data: Object.entries(map).map(([name, raw]) => normaliseBuiltin(name, raw)) };
@@ -159,7 +139,7 @@ export class CommandsService extends EventEmitter {
   }
 }
 
-// ---- normalisers — keep these free functions so they're trivially testable later ----
+// ---- normalisers — free functions so they're trivially testable ----
 
 interface RawBuiltin { description?: string; aliases?: unknown; syntax?: unknown; force_level?: unknown }
 interface RawCustom  { command?: unknown; response?: unknown; status?: unknown; cooldown?: unknown; permission?: unknown }

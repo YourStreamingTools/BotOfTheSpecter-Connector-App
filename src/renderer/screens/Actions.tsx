@@ -3,8 +3,7 @@ import { useActions } from '../state/useActions';
 import type { Action, ActionBody, ActionInput, ActionType } from '@shared/ipc';
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconSearch } from '../icons';
 
-// ---- Internal "router" — mirrors Commands.tsx pattern. Actions has a flat list →
-// new/edit form stack so the header can show a Back pill without coupling the body to its history.
+// Internal "router": flat list plus new/edit form stack so the header shows a Back pill without coupling the body to its history.
 
 type View =
   | { kind: 'list' }
@@ -203,9 +202,7 @@ function FormView({ mode, id, actions, back, create, update, remove }: FormViewP
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [feedback, setFeedback] = React.useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
-  // Re-seed when the edit target changes (e.g. push from a different row), or when an upstream
-  // update lands while we're on this screen. The body field is wholly user-owned during editing,
-  // so we only re-seed when the underlying id changes.
+  // Re-seed only when the edit target id changes; body is user-owned during editing.
   const seedKey = existing?.id ?? '__new__';
   React.useEffect(() => {
     setName(existing?.name ?? '');
@@ -226,8 +223,7 @@ function FormView({ mode, id, actions, back, create, update, remove }: FormViewP
       return;
     }
     const t = next as ActionType;
-    // Reset config to defaults when the type changes — the discriminated union forbids
-    // sharing configs across types, so a fresh shape is the only safe move.
+    // Reset config to defaults on type change; the discriminated union forbids sharing configs across types.
     setBody(defaultConfig(t));
   };
 
@@ -332,11 +328,7 @@ function FormView({ mode, id, actions, back, create, update, remove }: FormViewP
   );
 }
 
-// Parse a <input type="number"> value, keeping the previous value when the
-// field is cleared or otherwise non-numeric. Without this, a cleared field
-// writes Number('') === 0 (a bogus value, e.g. 0 channel points) and a stray
-// non-numeric value writes NaN (which serializes to null, corrupting the saved
-// config, and breaks the controlled input).
+// Parse a number input, keeping the previous value when cleared/non-numeric (avoids Number('')===0 and NaN-serializes-to-null corrupting the config).
 export function numOrKeep(raw: string, fallback: number): number {
   if (raw.trim() === '') return fallback;
   const n = Number(raw);
@@ -360,9 +352,7 @@ export function validate(name: string, body: ActionBody | null): boolean {
     case 'start_end_poll': {
       if (body.config.mode === 'end') return true;
       const validChoices = body.config.choices.filter((c) => c.trim().length > 0);
-      // Channel-points-per-vote only matters (and is only sent to Twitch) when
-      // voting is enabled — but when it is, it must be a valid integer in range,
-      // otherwise a NaN/0 would corrupt the saved config and the Twitch request.
+      // Channel-points-per-vote validated only when voting enabled; must be an integer in 1..1,000,000.
       const cpvOk =
         !body.config.channelPointsVotingEnabled ||
         (Number.isInteger(body.config.channelPointsPerVote) &&

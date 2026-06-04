@@ -8,19 +8,13 @@ export interface RewardGroupsStore {
 
 export interface RewardGroupsServiceDeps {
   store: RewardGroupsStore;
-  /** Enable/disable a single reward; resolves true only if it was actually toggled
-   *  (i.e. the reward is manageable). Wired to ChannelPointsService.updateReward. */
+  /** Enable/disable a single reward; resolves true only if actually toggled (reward is manageable). Wired to ChannelPointsService.updateReward. */
   toggleReward: (rewardId: string, enabled: boolean) => Promise<boolean>;
 }
 
 const ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
-/**
- * Desktop-side grouping of channel-point rewards (Twitch has no group concept).
- * CRUD persists to config; setEnabled applies is_enabled to every MANAGEABLE
- * member by delegating to toggleReward (non-manageable members are attempted but
- * reported as not-toggled, so the count reflects what actually changed).
- */
+/** Desktop-side grouping of channel-point rewards (Twitch has no group concept); CRUD persists to config and setEnabled toggles only manageable members so the returned count reflects what actually changed. */
 export class RewardGroupsService extends EventEmitter {
   private readonly store: RewardGroupsStore;
   private readonly toggleReward: (rewardId: string, enabled: boolean) => Promise<boolean>;

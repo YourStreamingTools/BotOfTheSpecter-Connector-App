@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type RaffleInput, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput } from '@shared/ipc';
+import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type RaffleInput, type PollInput, type PollEndStatus, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput } from '@shared/ipc';
 import { ConfigStore } from './config-store';
 import { legacyConfigPath, migrateLegacyConfig } from './config-migration';
 import { createMainWindow, APP_ICON_PATH } from './window';
@@ -19,6 +19,7 @@ import { CommandsService } from './commands/commands-service';
 import { SoundboardService } from './soundboard/soundboard-service';
 import { TimersService } from './timers/timers-service';
 import { RafflesService } from './raffles/raffles-service';
+import { PollsService } from './polls/polls-service';
 import { ActionsService } from './automation/actions-service';
 import { AutomationsService } from './automation/automations-service';
 
@@ -39,6 +40,7 @@ let commands: CommandsService;
 let soundboard: SoundboardService;
 let timers: TimersService;
 let raffles: RafflesService;
+let polls: PollsService;
 let actions: ActionsService;
 let automations: AutomationsService;
 
@@ -166,6 +168,8 @@ function registerRelay(): void {
     void timers.refresh();
     // New key → raffles are per-user, re-fetch.
     void raffles.refresh();
+    // New key → Twitch polls are per-broadcaster, re-fetch.
+    void polls.refresh();
   });
   ipcMain.handle(IPC.relayConnect, () => relay.connect());
   ipcMain.handle(IPC.relayDisconnect, () => relay.disconnect());
@@ -289,6 +293,18 @@ function registerRaffles(): void {
   ipcMain.handle(IPC.rafflesWinners, (_e, raffleId: number) => raffles.winners(raffleId));
 }
 
+function registerPolls(): void {
+  polls = new PollsService({
+    getCredentials: (key) => specterApi.getCredentials(key),
+    getApiKey: () => store.get('api_key') ?? ''
+  });
+  polls.on('changed', (snap) => broadcast(IPC.pollsChanged, snap));
+  ipcMain.handle(IPC.pollsSnapshot, () => polls.snapshot());
+  ipcMain.handle(IPC.pollsRefresh, () => polls.refresh());
+  ipcMain.handle(IPC.pollsCreate, (_e, input: PollInput) => polls.create(input));
+  ipcMain.handle(IPC.pollsEnd, (_e, id: string, status: PollEndStatus) => polls.end(id, status));
+}
+
 function registerActions(): void {
   actions = new ActionsService({ store });
   actions.on('changed', (list) => broadcast(IPC.actionsChanged, list));
@@ -345,6 +361,7 @@ async function bootstrap(): Promise<void> {
   registerSoundboard();
   registerTimers();
   registerRaffles();
+  registerPolls();
   registerActions();
   registerAutomations();
 
@@ -377,6 +394,8 @@ async function bootstrap(): Promise<void> {
   if (apiKey) void raffles.refresh();
   // Channel-point rewards are per-broadcaster; only fetch when there's a key.
   if (apiKey) void channelPoints.refresh();
+  // Twitch polls are per-broadcaster; only fetch when there's a key.
+  if (apiKey) void polls.refresh();
 
   createMainWindow();
 }

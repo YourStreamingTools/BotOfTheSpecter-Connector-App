@@ -93,6 +93,12 @@ const api: BridgeApi = {
     entries: (raffleId) => ipcRenderer.invoke(IPC.rafflesEntries, raffleId),
     winners: (raffleId) => ipcRenderer.invoke(IPC.rafflesWinners, raffleId)
   },
+  polls: {
+    snapshot: () => ipcRenderer.invoke(IPC.pollsSnapshot),
+    refresh: () => ipcRenderer.invoke(IPC.pollsRefresh),
+    create: (input) => ipcRenderer.invoke(IPC.pollsCreate, input),
+    end: (id, status) => ipcRenderer.invoke(IPC.pollsEnd, id, status)
+  },
   alerts: {
     snapshot: () => ipcRenderer.invoke(IPC.alertsSnapshot)
   },

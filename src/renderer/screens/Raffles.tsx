@@ -111,7 +111,7 @@ export function ScreenRaffles() {
   const remove = (r: Raffle) => void window.api.raffles.delete(r.id);
 
   return (
-    <div className="screen">
+    <div>
       <div className="row" style={{ marginBottom: 14, gap: 10, alignItems: 'center' }}>
         <h3 style={{ margin: 0 }}>Giveaways</h3>
         <span className="chip" style={{ marginLeft: 4 }}>{snap.raffles.length}</span>

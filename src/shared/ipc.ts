@@ -683,6 +683,51 @@ export interface RafflesSnapshot {
   fetchedAt?: string;
 }
 
+// ---- Polls (Phase 5 — Twitch polls) ----
+// The channel's Twitch polls via direct Helix (GET/POST/PATCH helix/polls). Only one
+// poll can be ACTIVE at a time. Viewers vote for free; optionally they can buy extra
+// votes with channel points. Bits voting was removed by Twitch (always 0). Lives in the
+// main process (broadcaster token). There's no live event feed, so an ACTIVE poll is
+// re-fetched on a short interval to surface live counts.
+export type PollStatus = 'ACTIVE' | 'COMPLETED' | 'TERMINATED' | 'ARCHIVED' | 'MODERATED' | 'INVALID';
+export type PollEndStatus = 'TERMINATED' | 'ARCHIVED';
+export type PollsLoadState = 'idle' | 'loading' | 'ok' | 'error';
+
+export interface PollChoice {
+  id: string;
+  title: string;
+  votes: number;
+  channelPointsVotes: number;
+}
+
+export interface Poll {
+  id: string;
+  title: string;
+  choices: PollChoice[];
+  status: PollStatus;
+  duration: number;                 // seconds
+  channelPointsVotingEnabled: boolean;
+  channelPointsPerVote: number;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+// Create payload from the renderer.
+export interface PollInput {
+  title: string;
+  choices: string[];                // 2–5 non-empty choice titles, each <= 25 chars
+  duration: number;                 // 15–1800 seconds
+  channelPointsVotingEnabled: boolean;
+  channelPointsPerVote: number;     // 1–1,000,000; used only when voting is enabled
+}
+
+export interface PollsSnapshot {
+  polls: Poll[];
+  state: PollsLoadState;
+  error?: string;
+  fetchedAt?: string;
+}
+
 // ---- Alerts (Phase 5 — live event feed) ----
 // A read-side feed of alert events received on the relay (follows, subs, cheers,
 // raids, channel-point redemptions, donations, stream on/off). The relay carries
@@ -900,6 +945,11 @@ export const IPC = {
   rafflesEntries: 'raffles:entries',
   rafflesWinners: 'raffles:winners',
   rafflesChanged: 'raffles:changed',
+  pollsSnapshot: 'polls:snapshot',
+  pollsRefresh: 'polls:refresh',
+  pollsCreate: 'polls:create',
+  pollsEnd: 'polls:end',
+  pollsChanged: 'polls:changed',
   alertsSnapshot: 'alerts:snapshot',
   alert: 'alerts:alert',
   channelPointsSnapshot: 'channelPoints:snapshot',
@@ -1023,6 +1073,12 @@ export interface BridgeApi {
     delete(id: number): Promise<boolean>;
     entries(raffleId: number): Promise<RaffleEntry[]>;
     winners(raffleId: number): Promise<RaffleWinner[]>;
+  };
+  polls: {
+    snapshot(): Promise<PollsSnapshot>;
+    refresh(): Promise<void>;
+    create(input: PollInput): Promise<boolean>;
+    end(id: string, status: PollEndStatus): Promise<boolean>;
   };
   alerts: {
     snapshot(): Promise<AlertsSnapshot>;

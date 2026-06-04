@@ -77,6 +77,12 @@ if (typeof window !== 'undefined') {
       entries: vi.fn().mockResolvedValue([]),
       winners: vi.fn().mockResolvedValue([])
     },
+    polls: {
+      snapshot: vi.fn().mockResolvedValue({ polls: [], state: 'idle' }),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(true),
+      end: vi.fn().mockResolvedValue(true)
+    },
     alerts: {
       snapshot: vi.fn().mockResolvedValue({ alerts: [] })
     },

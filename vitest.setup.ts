@@ -96,6 +96,7 @@ if (typeof window !== 'undefined') {
       snapshot: vi.fn().mockResolvedValue({ rewards: [], state: 'idle' }),
       refresh: vi.fn().mockResolvedValue(undefined),
       createReward: vi.fn().mockResolvedValue(true),
+      importReward: vi.fn().mockResolvedValue(true),
       updateReward: vi.fn().mockResolvedValue(true),
       listRedemptions: vi.fn().mockResolvedValue([]),
       setRedemption: vi.fn().mockResolvedValue(true)

@@ -936,6 +936,7 @@ export const IPC = {
   channelPointsSnapshot: 'channelPoints:snapshot',
   channelPointsRefresh: 'channelPoints:refresh',
   channelPointsCreateReward: 'channelPoints:createReward',
+  channelPointsImportReward: 'channelPoints:importReward',
   channelPointsUpdateReward: 'channelPoints:updateReward',
   channelPointsListRedemptions: 'channelPoints:listRedemptions',
   channelPointsSetRedemption: 'channelPoints:setRedemption',
@@ -1074,6 +1075,7 @@ export interface BridgeApi {
     snapshot(): Promise<ChannelPointsSnapshot>;
     refresh(): Promise<void>;
     createReward(input: ChannelRewardCreate): Promise<boolean>;
+    importReward(rewardId: string): Promise<boolean>;
     updateReward(id: string, patch: ChannelRewardUpdate): Promise<boolean>;
     listRedemptions(rewardId: string): Promise<RedemptionItem[]>;
     setRedemption(rewardId: string, redemptionId: string, status: 'FULFILLED' | 'CANCELED'): Promise<boolean>;

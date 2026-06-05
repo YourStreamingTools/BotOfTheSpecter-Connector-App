@@ -13,6 +13,11 @@ export interface ChannelPointsServiceDeps {
 
 const REWARDS_URL = `${TWITCH_API_BASE}/channel_points/custom_rewards`;
 const REDEMPTIONS_URL = `${TWITCH_API_BASE}/channel_points/custom_rewards/redemptions`;
+const IMPORT_TITLE_PREFIX = 'Specter-';
+const REWARD_TITLE_MAX = 45;
+
+// Imported-copy title: original prefixed with "Specter-" (sidesteps Twitch's unique-title rule), capped at 45 chars.
+const importedTitle = (original: string): string => `${IMPORT_TITLE_PREFIX}${original}`.slice(0, REWARD_TITLE_MAX);
 
 // Maps ChannelRewardUpdate (camelCase) keys to the Helix PATCH body (snake_case); only provided fields are sent.
 const UPDATE_KEY_MAP: Record<keyof ChannelRewardUpdate, string> = {
@@ -103,6 +108,27 @@ export class ChannelPointsService extends EventEmitter {
     const ok = await this.send('POST', url, creds, body);
     if (ok) await this.refresh();
     return ok;
+  }
+
+  /** Import a non-Specter reward: recreate it under Specter ownership with a "Specter-" prefixed title. The original stays on Twitch (the app can't delete another app's reward) for the user to remove manually; the image can't be copied via the API so the user re-uploads it. */
+  async importReward(rewardId: string): Promise<boolean> {
+    const src = this.snap.rewards.find((r) => r.id === rewardId);
+    if (!src) return false;
+    const input: ChannelRewardCreate = {
+      title: importedTitle(src.title),
+      cost: src.cost,
+      prompt: src.prompt || undefined,
+      backgroundColor: src.backgroundColor,
+      isEnabled: src.isEnabled,
+      isUserInputRequired: src.isUserInputRequired,
+      isGlobalCooldownEnabled: src.globalCooldownEnabled,
+      globalCooldownSeconds: src.globalCooldownEnabled ? src.globalCooldownSeconds : undefined,
+      isMaxPerStreamEnabled: src.maxPerStreamEnabled,
+      maxPerStream: src.maxPerStreamEnabled ? src.maxPerStream : undefined,
+      isMaxPerUserPerStreamEnabled: src.maxPerUserPerStreamEnabled,
+      maxPerUserPerStream: src.maxPerUserPerStreamEnabled ? src.maxPerUserPerStream : undefined
+    };
+    return this.createReward(input);
   }
 
   async updateReward(id: string, patch: ChannelRewardUpdate): Promise<boolean> {

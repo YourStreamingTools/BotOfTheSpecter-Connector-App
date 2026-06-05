@@ -2,7 +2,7 @@ import React from 'react';
 import { useChannelPoints } from '../state/useChannelPoints';
 import { useRewardGroups } from '../state/useRewardGroups';
 import type { ChannelReward, ChannelRewardCreate, ChannelRewardUpdate, RedemptionItem, RewardGroup } from '@shared/ipc';
-import { IconPoints, IconRefresh, IconEdit, IconExternal, IconPlus, IconTrash } from '../icons';
+import { IconPoints, IconRefresh, IconEdit, IconExternal, IconPlus, IconTrash, IconCopy } from '../icons';
 
 const WEBSITE_REWARDS_URL = 'https://dashboard.botofthespecter.com/channel_rewards.php';
 
@@ -13,6 +13,7 @@ export function ScreenChannelPoints() {
   const [editing, setEditing] = React.useState<ChannelReward | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [groupEditor, setGroupEditor] = React.useState<RewardGroup | null | 'new'>(null);
+  const [importDone, setImportDone] = React.useState<string | null>(null);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -52,7 +53,7 @@ export function ScreenChannelPoints() {
 
       {snap.rewards.length > 0 && (
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, alignContent: 'start' }}>
-          {snap.rewards.map((r) => <RewardCard key={r.id} reward={r} onEdit={() => setEditing(r)} />)}
+          {snap.rewards.map((r) => <RewardCard key={r.id} reward={r} onEdit={() => setEditing(r)} onImported={setImportDone} />)}
         </div>
       )}
 
@@ -61,6 +62,7 @@ export function ScreenChannelPoints() {
       {groupEditor !== null && (
         <GroupEditor group={groupEditor === 'new' ? null : groupEditor} rewards={snap.rewards} onClose={() => setGroupEditor(null)} />
       )}
+      {importDone && <ImportDoneModal original={importDone} onClose={() => setImportDone(null)} />}
     </div>
   );
 }
@@ -132,9 +134,19 @@ function GroupEditor({ group, rewards, onClose }: { group: RewardGroup | null; r
   );
 }
 
-function RewardCard({ reward, onEdit }: { reward: ChannelReward; onEdit: () => void }) {
+function RewardCard({ reward, onEdit, onImported }: { reward: ChannelReward; onEdit: () => void; onImported: (originalTitle: string) => void }) {
   const [showRedemptions, setShowRedemptions] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const [importError, setImportError] = React.useState(false);
   const toggle = (patch: ChannelRewardUpdate) => void window.api.channelPoints.updateReward(reward.id, patch);
+
+  const doImport = async () => {
+    setImporting(true); setImportError(false);
+    try {
+      const ok = await window.api.channelPoints.importReward(reward.id);
+      if (ok) onImported(reward.title); else setImportError(true);
+    } catch { setImportError(true); } finally { setImporting(false); }
+  };
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: reward.isEnabled ? 1 : 0.6 }}>
@@ -172,10 +184,16 @@ function RewardCard({ reward, onEdit }: { reward: ChannelReward; onEdit: () => v
           {showRedemptions && <RedemptionQueue rewardId={reward.id} />}
         </>
       ) : (
-        <a className="btn btn-sm btn-ghost" href={WEBSITE_REWARDS_URL} target="_blank" rel="noreferrer"
-           style={{ textDecoration: 'none', justifyContent: 'center' }}>
-          <IconExternal size={11} />Manage on the website
-        </a>
+        <div className="col" style={{ gap: 6 }}>
+          <button className="btn btn-sm btn-primary" disabled={importing} onClick={() => void doImport()} style={{ justifyContent: 'center' }}>
+            <IconCopy size={11} />{importing ? 'Importing…' : 'Import to Specter'}
+          </button>
+          {importError && <div style={{ fontSize: 11, color: 'var(--error)', textAlign: 'center' }}>Import failed — a “Specter-…” copy may already exist.</div>}
+          <a className="btn btn-sm btn-ghost" href={WEBSITE_REWARDS_URL} target="_blank" rel="noreferrer"
+             style={{ textDecoration: 'none', justifyContent: 'center' }}>
+            <IconExternal size={11} />Manage on the website
+          </a>
+        </div>
       )}
     </div>
   );
@@ -296,6 +314,30 @@ function RewardEditor({ reward, onClose }: { reward: ChannelReward | null; onClo
           <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
             <button className="btn" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary" disabled={!!error || busy} onClick={() => void save()}>{busy ? 'Saving…' : creating ? 'Create' : 'Save'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Shown after a successful import: the new Specter-owned name plus the two manual Twitch steps.
+function ImportDoneModal({ original, onClose }: { original: string; onClose: () => void }) {
+  const copy = `Specter-${original}`.slice(0, 45);
+  return (
+    <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 50 }} onClick={onClose}>
+      <div className="card" style={{ width: 'min(460px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="card-head"><h3>Imported as “{copy}”</h3></div>
+        <div className="col" style={{ gap: 12 }}>
+          <p className="dim" style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+            “{copy}” is now managed by Specter and fully editable here. Two steps remain on Twitch:
+          </p>
+          <ol style={{ fontSize: 13, lineHeight: 1.6, margin: 0, paddingLeft: 18 }}>
+            <li><strong>Delete the original</strong> “{original}” on Twitch — Specter can’t remove a reward it didn’t create.</li>
+            <li><strong>Upload the reward image</strong> to the new reward on Twitch — the Twitch API can’t copy images.</li>
+          </ol>
+          <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn btn-primary" onClick={onClose}>Done</button>
           </div>
         </div>
       </div>

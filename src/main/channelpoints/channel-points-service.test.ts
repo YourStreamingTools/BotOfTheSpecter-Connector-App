@@ -144,6 +144,66 @@ describe('ChannelPointsService.updateReward', () => {
   });
 });
 
+describe('ChannelPointsService.importReward', () => {
+  // Seed the snapshot with one non-manageable reward, then discard the refresh traffic.
+  const importReady = async (over: Record<string, unknown> = {}) => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null });
+      if (String(url).includes('only_manageable_rewards=true')) return json({ data: [] }); // none manageable
+      return json({ data: [reward('a', over)] });
+    });
+    const svc = makeService(fetchMock);
+    await svc.refresh();
+    calls.length = 0;
+    return { svc, calls };
+  };
+
+  it('recreates the reward with a "Specter-" prefixed title and copied fields, then refreshes', async () => {
+    const { svc, calls } = await importReady({
+      title: 'Coffee', cost: 250, prompt: 'gimme', is_user_input_required: true, background_color: '#112233',
+      global_cooldown_setting: { is_enabled: true, global_cooldown_seconds: 30 }
+    });
+    expect(await svc.importReward('a')).toBe(true);
+    const post = calls.find((c) => c.method === 'POST')!;
+    expect(post.url).toContain('/channel_points/custom_rewards');
+    expect(post.url).toContain('broadcaster_id=274637212');
+    expect(post.url).not.toContain('&id=');
+    expect(post.body).toMatchObject({
+      title: 'Specter-Coffee', cost: 250, prompt: 'gimme', is_user_input_required: true,
+      background_color: '#112233', is_global_cooldown_enabled: true, global_cooldown_seconds: 30
+    });
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false); // Twitch always 403s a non-owned reward
+    expect(calls.some((c) => c.method === 'GET')).toBe(true);     // re-lists after import
+  });
+
+  it('caps the prefixed title at 45 characters', async () => {
+    const { svc, calls } = await importReady({ title: 'C'.repeat(45) });
+    expect(await svc.importReward('a')).toBe(true);
+    const title = (calls.find((c) => c.method === 'POST')!.body as { title: string }).title;
+    expect(title.startsWith('Specter-')).toBe(true);
+    expect(title.length).toBe(45);
+  });
+
+  it('returns false for a reward id not in the snapshot, without POSTing', async () => {
+    const { svc, calls } = await importReady();
+    expect(await svc.importReward('zzz')).toBe(false);
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('returns false when Twitch rejects the create (e.g. duplicate name)', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (method === 'POST') return json({ error: 'Bad Request' }, 400);
+      if (String(url).includes('only_manageable_rewards=true')) return json({ data: [] });
+      return json({ data: [reward('a', { title: 'Coffee' })] });
+    });
+    const svc = makeService(fetchMock);
+    await svc.refresh();
+    expect(await svc.importReward('a')).toBe(false);
+  });
+});
+
 describe('ChannelPointsService redemptions', () => {
   it('lists UNFULFILLED redemptions for a reward, mapped', async () => {
     const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => json({ data: [

@@ -17,6 +17,7 @@ const setSnapshot = (snap: ChannelPointsSnapshot) => {
     snapshot: vi.fn().mockResolvedValue(snap),
     refresh: vi.fn().mockResolvedValue(undefined),
     createReward: vi.fn().mockResolvedValue(true),
+    importReward: vi.fn().mockResolvedValue(true),
     updateReward: vi.fn().mockResolvedValue(true),
     listRedemptions: vi.fn().mockResolvedValue([]),
     setRedemption: vi.fn().mockResolvedValue(true)
@@ -51,6 +52,17 @@ describe('ScreenChannelPoints', () => {
     await screen.findByText('Mine');
     expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /manage on the website/i })).toBeInTheDocument();
+  });
+
+  it('imports a non-manageable reward and shows the manual follow-up steps', async () => {
+    setSnapshot({ state: 'ok', rewards: [reward({ id: 'b', title: 'Theirs', manageable: false })] });
+    render(<ScreenChannelPoints />);
+    await screen.findByText('Theirs');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /import to specter/i })); });
+    expect(window.api.channelPoints.importReward).toHaveBeenCalledWith('b');
+    // Follow-up modal tells the user to delete the original + re-upload the image on Twitch.
+    expect(await screen.findByText(/delete the original/i)).toBeInTheDocument();
+    expect(screen.getByText(/upload the reward image/i)).toBeInTheDocument();
   });
 
   it('toggles enabled on a manageable reward', async () => {

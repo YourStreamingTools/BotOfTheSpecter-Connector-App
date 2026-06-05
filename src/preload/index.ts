@@ -111,6 +111,7 @@ const api: BridgeApi = {
     snapshot: () => ipcRenderer.invoke(IPC.channelPointsSnapshot),
     refresh: () => ipcRenderer.invoke(IPC.channelPointsRefresh),
     createReward: (input) => ipcRenderer.invoke(IPC.channelPointsCreateReward, input),
+    importReward: (rewardId) => ipcRenderer.invoke(IPC.channelPointsImportReward, rewardId),
     updateReward: (id, patch) => ipcRenderer.invoke(IPC.channelPointsUpdateReward, id, patch),
     listRedemptions: (rewardId) => ipcRenderer.invoke(IPC.channelPointsListRedemptions, rewardId),
     setRedemption: (rewardId, redemptionId, status) => ipcRenderer.invoke(IPC.channelPointsSetRedemption, rewardId, redemptionId, status)

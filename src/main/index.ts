@@ -230,6 +230,7 @@ function registerChannelPoints(): void {
   ipcMain.handle(IPC.channelPointsSnapshot, () => channelPoints.snapshot());
   ipcMain.handle(IPC.channelPointsRefresh, () => channelPoints.refresh());
   ipcMain.handle(IPC.channelPointsCreateReward, (_e, input: ChannelRewardCreate) => channelPoints.createReward(input));
+  ipcMain.handle(IPC.channelPointsImportReward, (_e, rewardId: string) => channelPoints.importReward(rewardId));
   ipcMain.handle(IPC.channelPointsUpdateReward, (_e, id: string, patch: ChannelRewardUpdate) => channelPoints.updateReward(id, patch));
   ipcMain.handle(IPC.channelPointsListRedemptions, (_e, rewardId: string) => channelPoints.listRedemptions(rewardId));
   ipcMain.handle(IPC.channelPointsSetRedemption, (_e, rewardId: string, redemptionId: string, status: 'FULFILLED' | 'CANCELED') => channelPoints.setRedemption(rewardId, redemptionId, status));

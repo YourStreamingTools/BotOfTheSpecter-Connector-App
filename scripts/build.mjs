@@ -10,7 +10,7 @@
 //   Windows  botofthespecter-desktop-<v>-setup.exe, botofthespecter-desktop-<v>-portable.exe
 //   Linux    botofthespecter-desktop-<v>-linux-x64.tar.gz (any host), botofthespecter-desktop-<v>.AppImage (Linux host)
 //
-// Windows installers need Windows, or Wine on macOS/Linux. The Linux tar.gz is packed here (not by
+// Windows installers build on Windows and macOS (electron-builder has native tools there); Linux needs Wine. The Linux tar.gz is packed here (not by
 // electron-builder) so executables keep their +x bit even when built on Windows. macOS builds are
 // separate: see build.sh --mac.
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -83,7 +83,7 @@ async function packLinuxTarGz(unpackedDir, outFile) {
 
 const wantWin = only !== 'linux';
 const wantLinux = only !== 'win';
-const winPossible = isWin || hasWine();
+const winPossible = isWin || process.platform === 'darwin' || hasWine();
 
 run('node', ['scripts/ensure-deps.mjs']);
 
@@ -112,7 +112,7 @@ if (wantWin) {
     run(npx, ['electron-builder', '--win', '--x64', '--publish', 'never']);
     built.push('Windows');
   } else {
-    console.warn('\n[build] Skipping Windows: building Windows installers on macOS/Linux needs Wine '
+    console.warn('\n[build] Skipping Windows: building Windows installers on Linux needs Wine '
       + '(https://www.winehq.org). Install it, or run build.bat on a Windows PC.');
   }
 }

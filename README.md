@@ -116,8 +116,8 @@ This runs the typecheck and tests, then builds the Windows and Linux packages in
 - Linux: `*-linux-x64.tar.gz`, plus an `*.AppImage` when built on Linux
 
 Add `--win` or `--linux` to build just one, or `--skip-checks` to skip the typecheck and tests.
-Building the Windows packages on macOS/Linux needs [Wine](https://www.winehq.org); without it,
-that step is skipped.
+Building the Windows packages on Linux needs [Wine](https://www.winehq.org); without it, that
+step is skipped. Windows and macOS need nothing extra.
 
 The macOS app is built separately, on a Mac: `./build.sh --mac` makes signed and notarized DMGs
 (x64 and arm64) when a Developer ID certificate and notarization credentials are set up (see the

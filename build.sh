@@ -3,9 +3,9 @@
 #  BotOfTheSpecter Desktop - release build (macOS / Linux)
 #
 #  ./build.sh            Windows + Linux packages -> dist/
-#                        (Windows installers need Wine on macOS/Linux; skipped without it)
+#                        (Windows installers need Wine on Linux; skipped without it)
 #  ./build.sh --linux    Linux only (tar.gz, plus AppImage when run on Linux)
-#  ./build.sh --win      Windows only (setup + portable, needs Wine)
+#  ./build.sh --win      Windows only (setup + portable; needs Wine on Linux)
 #  ./build.sh --mac      macOS DMGs (Intel + Apple Silicon); run on a Mac.
 #                        Signs with your "Developer ID Application" certificate if it is
 #                        in the keychain, and notarizes if APPLE_API_KEY / APPLE_API_KEY_ID /

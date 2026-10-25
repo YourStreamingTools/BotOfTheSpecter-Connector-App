@@ -99,8 +99,30 @@ npm run fetch:mediamtx   # one-time: download the local camera server for your p
 npm run dev        # launch with hot reload
 ```
 
-On Windows you can instead double-click **`run.bat`** — it checks your Node version, installs
-dependencies and the camera server on first run, and starts the app.
+Or use the launcher for your OS: double-click **`run.bat`** on Windows, or run **`./run.sh`** on
+macOS/Linux. It checks your Node version, installs dependencies and the camera server on first
+run, and starts the app.
+
+### Build release packages
+
+```bash
+build.bat               # Windows
+./build.sh              # macOS / Linux
+```
+
+This runs the typecheck and tests, then builds the Windows and Linux packages into `dist/`:
+
+- Windows: `*-setup.exe` and `*-portable.exe`
+- Linux: `*-linux-x64.tar.gz`, plus an `*.AppImage` when built on Linux or macOS
+
+Add `--win` or `--linux` to build just one, or `--skip-checks` to skip the typecheck and tests.
+Building the Windows packages on macOS/Linux needs [Wine](https://www.winehq.org); without it,
+that step is skipped.
+
+The macOS app is built separately, on a Mac: `./build.sh --mac` makes signed and notarized DMGs
+(x64 and arm64) when a Developer ID certificate and notarization credentials are set up (see the
+comments at the top of `build.sh`). `CSC_IDENTITY_AUTO_DISCOVERY=false ./build.sh --mac` makes an
+unsigned build for local testing.
 
 ## Development
 

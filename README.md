@@ -120,8 +120,8 @@ Building the Windows packages on Linux needs [Wine](https://www.winehq.org); wit
 step is skipped. Windows and macOS need nothing extra.
 
 The macOS app is built separately, on a Mac: `./build.sh --mac` makes signed and notarized DMGs
-(x64 and arm64) when a Developer ID certificate and notarization credentials are set up (see the
-comments at the top of `build.sh`). `CSC_IDENTITY_AUTO_DISCOVERY=false ./build.sh --mac` makes an
+(x64 and arm64) when a Developer ID certificate and notarization credentials are set up: copy
+`.env.mac.example` to `.env.mac` (git ignores it) and fill it in. `CSC_IDENTITY_AUTO_DISCOVERY=false ./build.sh --mac` makes an
 unsigned build for local testing.
 
 ## Development

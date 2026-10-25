@@ -16,6 +16,7 @@ build_output.txt
 .env
 .env.*
 !.env.example
+!.env.mac.example
 *.local
 
 # Test coverage

@@ -8,9 +8,8 @@
 #  ./build.sh --win      Windows only (setup + portable; needs Wine on Linux)
 #  ./build.sh --mac      macOS DMGs (Intel + Apple Silicon); run on a Mac.
 #                        Signs with your "Developer ID Application" certificate if it is
-#                        in the keychain, and notarizes if APPLE_API_KEY / APPLE_API_KEY_ID /
-#                        APPLE_API_ISSUER (or APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
-#                        APPLE_TEAM_ID) are set.
+#                        in the keychain, and notarizes with the APPLE_* settings in .env.mac
+#                        (copy .env.mac.example; git ignores .env.mac).
 #  Add --skip-checks to skip the typecheck and tests.
 # ============================================================
 set -euo pipefail
@@ -32,6 +31,15 @@ if [ "${1:-}" = "--mac" ]; then
     exit 1
   fi
   shift
+  # Signing/notarization settings live in .env.mac (git-ignored); see .env.mac.example.
+  if [ -f .env.mac ]; then
+    echo "Loading signing settings from .env.mac"
+    set -a
+    . ./.env.mac
+    set +a
+  else
+    echo "[WARN] No .env.mac - the app will not be notarized. See .env.mac.example."
+  fi
   node scripts/ensure-deps.mjs
   if [ "${1:-}" != "--skip-checks" ]; then
     npm run typecheck

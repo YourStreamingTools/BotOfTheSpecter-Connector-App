@@ -43,9 +43,17 @@ describe('decideAuth', () => {
 
   it('refuses public IPs, other protocols, other paths and bad keys', () => {
     expect(decideAuth({ ...publish, ip: '8.8.8.8' }, ctx()).allow).toBe(false);
-    expect(decideAuth({ ...publish, protocol: 'srt' }, ctx()).allow).toBe(false);
+    expect(decideAuth({ ...publish, protocol: 'rtsp' }, ctx()).allow).toBe(false);
     expect(decideAuth({ ...publish, path: 'live/main' }, ctx()).allow).toBe(false);
     expect(decideAuth({ ...publish, query: 'key=wrong' }, ctx())).toEqual({ allow: false, reason: 'bad_key' });
+  });
+
+  it('takes SRT credentials from the stream ID user/pass', () => {
+    const srt = { action: 'publish', protocol: 'srt', path: 'camera/main', ip: '192.168.1.41', user: 'd9', password: KEY, query: 'name=Pixel' };
+    expect(decideAuth(srt, ctx())).toEqual({ allow: true });
+    expect(decideAuth({ ...srt, password: 'wrong' }, ctx())).toEqual({ allow: false, reason: 'bad_key' });
+    expect(decideAuth(srt, ctx({ existing: { device: 'd1' } }))).toEqual({ allow: false, reason: 'in_use' });
+    expect(decideAuth(srt, ctx({ existing: { device: 'd9' } }))).toEqual({ allow: true });
   });
 
   it('allows WebRTC reads from this PC always and from the LAN only when enabled', () => {

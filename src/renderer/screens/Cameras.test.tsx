@@ -7,7 +7,7 @@ let listeners: Record<string, (...a: unknown[]) => void>;
 
 const base: CamerasSnapshot = {
   enabled: false, state: 'off', lanView: true, rtmpPort: 1935, webPort: 47830,
-  hosts: [], host: null, rtmpUrl: null, pairUri: null, pairQr: null, cameras: []
+  hosts: [], host: null, rtmpUrl: null, srtUrl: null, pairUri: null, pairQr: null, cameras: []
 };
 
 const cam = (over: Partial<CameraInfo> = {}): CameraInfo => ({

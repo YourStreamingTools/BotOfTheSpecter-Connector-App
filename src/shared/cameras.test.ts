@@ -32,6 +32,8 @@ describe('pairing URI', () => {
     const uri = buildPairUri({ host: '192.168.1.20', rtmpPort: 1935, webPort: 47830, key: 'abc_DEF-123', name: 'desk' });
     expect(uri).toBe('specter-cam://local?v=1&host=192.168.1.20&port=1935&web=47830&key=abc_DEF-123&name=desk');
     expect(buildPairUri({ host: '10.0.0.2', rtmpPort: 1, webPort: 2, key: 'k', name: 'Bad Name' })).not.toContain('name=');
+    expect(buildPairUri({ host: '10.0.0.2', rtmpPort: 1935, webPort: 47830, srtPort: 8890, key: 'k' }))
+      .toBe('specter-cam://local?v=1&host=10.0.0.2&port=1935&web=47830&srt=8890&key=k');
   });
 
   it('builds view URLs', () => {

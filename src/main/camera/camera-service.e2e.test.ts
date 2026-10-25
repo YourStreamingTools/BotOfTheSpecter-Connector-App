@@ -68,7 +68,7 @@ describe.skipIf(!binary || !hasFfmpeg)('local camera route end to end', () => {
     await waitFor(() => svc!.snapshot().state === 'running');
     const key = store.get('camera_local_key')!;
     expect(key.length).toBeGreaterThanOrEqual(16);
-    expect(svc.snapshot().pairUri).toBe(`specter-cam://local?v=1&host=192.168.50.10&port=${RTMP_PORT}&web=${WEB_PORT}&key=${key}`);
+    expect(svc.snapshot().pairUri).toBe(`specter-cam://local?v=1&host=192.168.50.10&port=${RTMP_PORT}&web=${WEB_PORT}&srt=8890&key=${key}`);
 
     const check = (q: string) => fetch(`http://127.0.0.1:${WEB_PORT}/camera/check?${q}`).then((r) => r.status);
     expect(await check(`cam=main&key=wrong&device=d1`)).toBe(401);
@@ -101,6 +101,19 @@ describe.skipIf(!binary || !hasFfmpeg)('local camera route end to end', () => {
     const whep = await fetch('http://127.0.0.1:8889/camera/main/whep', { method: 'POST', headers: { 'Content-Type': 'application/sdp' }, body: '' });
     expect(whep.status).toBeGreaterThanOrEqual(400);
     expect(whep.status).toBeLessThan(500);
+
+    // Android path: SRT + Opus, credentials in the stream ID (publish:camera/<slug>:<device>:<key>:name=..).
+    children.push(spawn('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-re',
+      '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-g', '60',
+      '-c:a', 'libopus', '-ac', '2', '-t', '30', '-f', 'mpegts',
+      `srt://127.0.0.1:8890?pkt_size=1316&streamid=publish:camera/phone2:d2:${key}:name=Pixel`
+    ], { stdio: 'ignore' }));
+    const srtCam = await waitFor(() => svc!.snapshot().cameras.find((c) => c.id === 'phone2' && c.audio));
+    expect(srtCam).toMatchObject({ name: 'Pixel', audio: { codec: 'Opus' }, audioPlayable: true });
+    expect(await check(`cam=phone2&key=${key}&device=d1`)).toBe(409);
 
     expect(await svc.addToObs('main')).toEqual({ ok: true, sourceName: 'Specter Cam - main', sceneName: 'Scene' });
   }, 60000);

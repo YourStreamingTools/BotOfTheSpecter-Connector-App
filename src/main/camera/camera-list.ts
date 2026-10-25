@@ -17,19 +17,22 @@ export interface MtxPath {
   tracks?: string[];
 }
 
-/** Subset of GET /v3/rtmp/conns/list items. */
-export interface MtxRtmpConn {
+/** Subset of GET /v3/rtmp/conns/list and /v3/srt/conns/list items (same fields). */
+export interface MtxConn {
   id: string;
   path?: string;
   query?: string;
   remoteAddr?: string;
   state?: string;
+  /** SRT stream ID user = device id. */
+  user?: string;
 }
 
 export interface LiveCamera {
   info: CameraInfo;
-  /** RTMP connection id, used to kick the publisher. */
+  /** Publisher connection id + kind, used to kick it. */
   connId: string | null;
+  connKind: 'rtmp' | 'srt' | null;
   device: string;
   bytes: number;
 }
@@ -39,7 +42,7 @@ const WEBRTC_AUDIO = new Set(['Opus', 'G722', 'G711']);
 
 export function buildCameraList(
   paths: MtxPath[],
-  conns: MtxRtmpConn[],
+  conns: MtxConn[],
   opts: { host: string | null; webPort: number; prevBytes: Map<string, { bytes: number; at: number }>; now: number }
 ): LiveCamera[] {
   const byId = new Map(conns.map((c) => [c.id, c]));
@@ -49,6 +52,7 @@ export function buildCameraList(
     if (!id) continue;
     if (!(p.online ?? p.ready) || !p.source) continue;
     const conn = p.source.id ? byId.get(p.source.id) : undefined;
+    const connKind = p.source.type === 'srtConn' ? 'srt' : p.source.type === 'rtmpConn' ? 'rtmp' : null;
     const q = parsePublishQuery(conn?.query);
     const tracks = p.tracks2 ?? (p.tracks ?? []).map((codec) => ({ codec, codecProps: null }));
     const v = tracks.find((t) => t.codec && VIDEO_CODECS.has(t.codec));
@@ -60,7 +64,8 @@ export function buildCameraList(
       : null;
     out.push({
       connId: conn?.id ?? null,
-      device: q.device,
+      connKind,
+      device: q.device || conn?.user || '',
       bytes,
       info: {
         id,

@@ -35,7 +35,8 @@ you'd otherwise juggle across OBS, Twitch, and the bot dashboard.
 - **Cameras** — stream the Specter Camera phone app to this PC over your local network (no internet
   round trip). Pair a phone by scanning a QR code, then add each camera to OBS as a Browser Source at
   `http://<this PC>:47830/view/<camera>` (or one click with **Add to OBS**). Runs a bundled
-  [MediaMTX](https://github.com/bluenviron/mediamtx) server that is off until you turn it on.
+  [MediaMTX](https://github.com/bluenviron/mediamtx) server that is off until you turn it on. Phones
+  publish RTMP (port 1935) or SRT (8890/udp); send Opus or G711 audio to hear it in OBS.
 - **Channel Points** — view your Twitch reward redemptions and wire them into actions.
 
 ### Engagement & automation

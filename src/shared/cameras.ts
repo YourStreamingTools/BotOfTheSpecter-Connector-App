@@ -1,16 +1,21 @@
-// Local phone-camera route: Specter Camera app → RTMP on the LAN → bundled MediaMTX → /view/{id} for OBS.
+// Local phone-camera route: Specter Camera app → RTMP or SRT on the LAN → bundled MediaMTX → /view/{id} for OBS.
 
 /** Same slug rule as the cloud multi-camera paths (camera/<user>/<slug>). */
 export const CAMERA_SLUG_RE = /^[a-z0-9_-]{1,32}$/;
 export const DEFAULT_CAMERA_SLUG = 'main';
 
 export const CAMERA_RTMP_PORT = 1935;
+/** SRT ingest (UDP) for phones that can only send Opus over SRT (Android/RootEncoder). */
+export const CAMERA_SRT_PORT = 8890;
 export const CAMERA_WEB_PORT = 47830;
 export const CAMERA_WEBRTC_PORT = 8889;
 export const CAMERA_WEBRTC_UDP_PORT = 8189;
 export const CAMERA_API_PORT = 9997;
 
-/** RTMP application the phone publishes into: rtmp://<host>:<port>/camera/<slug>?key=<local key>&device=<id>. */
+/**
+ * Path prefix phones publish into. RTMP: rtmp://<host>:<port>/camera/<slug>?key=<local key>&device=<id>&name=<name>.
+ * SRT: srt://<host>:<srt> with streamid publish:camera/<slug>:<device id>:<local key>[:name=<name>].
+ */
 export const CAMERA_RTMP_APP = 'camera';
 export const PAIR_URI_VERSION = 1;
 export const LOCAL_KEY_MIN_LENGTH = 16;
@@ -38,17 +43,19 @@ export interface PairUriParams {
   host: string;
   rtmpPort: number;
   webPort: number;
+  srtPort?: number;
   key: string;
   name?: string;
 }
 
-/** QR payload the phone scans: specter-cam://local?v=1&host=<ipv4>&port=<rtmp>&web=<http>&key=<local key>[&name=<slug>]. */
+/** QR payload the phone scans: specter-cam://local?v=1&host=<ipv4>&port=<rtmp>&web=<http>&srt=<srt>&key=<local key>[&name=<slug>]. */
 export function buildPairUri(p: PairUriParams): string {
   const q = new URLSearchParams({
     v: String(PAIR_URI_VERSION),
     host: p.host,
     port: String(p.rtmpPort),
     web: String(p.webPort),
+    ...(p.srtPort ? { srt: String(p.srtPort) } : {}),
     key: p.key
   });
   if (p.name && isValidCameraSlug(p.name)) q.set('name', p.name);
@@ -61,6 +68,10 @@ export function cameraViewUrl(host: string, webPort: number, slug: string): stri
 
 export function cameraRtmpUrl(host: string, rtmpPort: number): string {
   return `rtmp://${host}:${rtmpPort}/${CAMERA_RTMP_APP}`;
+}
+
+export function cameraSrtUrl(host: string, srtPort: number): string {
+  return `srt://${host}:${srtPort}`;
 }
 
 /** Path `camera/<slug>` → slug, or null for anything else. */

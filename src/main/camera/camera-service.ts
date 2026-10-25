@@ -7,14 +7,14 @@ import type {
   AppConfig, CameraAddToObsResult, CameraInfo, CameraPortsInput, CameraServerState, CamerasSnapshot
 } from '@shared/ipc';
 import {
-  CAMERA_API_PORT, CAMERA_RTMP_PORT, CAMERA_WEBRTC_PORT, CAMERA_WEBRTC_UDP_PORT, CAMERA_WEB_PORT,
-  LOCAL_KEY_MIN_LENGTH, buildPairUri, cameraRtmpUrl, isLoopbackIp, isValidCameraSlug, isValidPort
+  CAMERA_API_PORT, CAMERA_RTMP_PORT, CAMERA_SRT_PORT, CAMERA_WEBRTC_PORT, CAMERA_WEBRTC_UDP_PORT, CAMERA_WEB_PORT,
+  LOCAL_KEY_MIN_LENGTH, buildPairUri, cameraRtmpUrl, cameraSrtUrl, isLoopbackIp, isValidCameraSlug, isValidPort
 } from '@shared/cameras';
 import { buildMediamtxConfig } from './mediamtx-config';
 import { MediamtxProcess, type MediamtxState } from './mediamtx-process';
 import { checkPublish, decideAuth, type AuthDecision, type MediamtxAuthRequest } from './camera-auth';
 import { startCameraServer, type CameraServer } from './camera-server';
-import { buildCameraList, type LiveCamera, type MtxPath, type MtxRtmpConn } from './camera-list';
+import { buildCameraList, type LiveCamera, type MtxConn, type MtxPath } from './camera-list';
 import type { CameraCheckResult } from '@shared/cameras';
 
 type CameraConfigKey = 'camera_enabled' | 'camera_local_key' | 'camera_host' | 'camera_lan_view' | 'camera_rtmp_port' | 'camera_web_port';
@@ -211,7 +211,7 @@ export class CameraService extends EventEmitter {
     if (!m) return;
     const [, lvl, msg] = m;
     if (lvl === 'DEB') return;
-    if (lvl === 'INF' && !/\[RTMP\] \[conn|\[path camera\/|started with listener|listener opened|\[WebRTC\] \[session/.test(msg)) return;
+    if (lvl === 'INF' && !/\[RTMP\] \[conn|\[SRT\] \[conn|\[path camera\/|started with listener|listener opened|\[WebRTC\] \[session/.test(msg)) return;
     this.deps.log(lvl === 'ERR' ? 'err' : lvl === 'WAR' ? 'warn' : 'info', msg);
   }
 
@@ -231,12 +231,13 @@ export class CameraService extends EventEmitter {
   }
 
   private async fetchLive(): Promise<LiveCamera[] | null> {
-    const [paths, conns] = await Promise.all([
+    const [paths, rtmp, srt] = await Promise.all([
       this.fetchJson<{ items?: MtxPath[] }>('/v3/paths/list?itemsPerPage=1000'),
-      this.fetchJson<{ items?: MtxRtmpConn[] }>('/v3/rtmp/conns/list?itemsPerPage=1000')
+      this.fetchJson<{ items?: MtxConn[] }>('/v3/rtmp/conns/list?itemsPerPage=1000'),
+      this.fetchJson<{ items?: MtxConn[] }>('/v3/srt/conns/list?itemsPerPage=1000')
     ]);
     if (!paths) return null;
-    return buildCameraList(paths.items ?? [], conns?.items ?? [], {
+    return buildCameraList(paths.items ?? [], [...(rtmp?.items ?? []), ...(srt?.items ?? [])], {
       host: this.host(), webPort: this.webPort, prevBytes: this.prevBytes, now: Date.now()
     });
   }
@@ -299,7 +300,7 @@ export class CameraService extends EventEmitter {
 
   async setPorts(p: CameraPortsInput): Promise<void> {
     if (!isValidPort(p?.rtmpPort) || !isValidPort(p?.webPort)) throw new Error('Ports must be whole numbers from 1 to 65535');
-    const reserved = [CAMERA_WEBRTC_PORT, CAMERA_WEBRTC_UDP_PORT, CAMERA_API_PORT];
+    const reserved = [CAMERA_WEBRTC_PORT, CAMERA_WEBRTC_UDP_PORT, CAMERA_API_PORT, CAMERA_SRT_PORT];
     if (p.rtmpPort === p.webPort || reserved.includes(p.rtmpPort) || reserved.includes(p.webPort)) {
       throw new Error(`Ports must differ from each other and from ${reserved.join(', ')}`);
     }
@@ -313,8 +314,8 @@ export class CameraService extends EventEmitter {
     await this.deps.store.set('camera_local_key', '');
     await this.ensureKey();
     // Cut every phone that paired with the old key; they must scan the new QR.
-    await Promise.all(this.live.filter((c) => c.connId).map((c) =>
-      this.fetchFn(this.apiUrl(`/v3/rtmp/conns/kick/${c.connId}`), { method: 'POST' }).catch(() => undefined)
+    await Promise.all(this.live.filter((c) => c.connId && c.connKind).map((c) =>
+      this.fetchFn(this.apiUrl(`/v3/${c.connKind}/conns/kick/${c.connId}`), { method: 'POST' }).catch(() => undefined)
     ));
     this.deps.log('info', 'Camera pairing key regenerated; phones must scan the new QR');
     this.emitChanged();
@@ -360,7 +361,7 @@ export class CameraService extends EventEmitter {
     const key = this.localKey;
     const st = this.state();
     const pairUri = host && key && st.state !== 'off'
-      ? buildPairUri({ host, rtmpPort: this.rtmpPort, webPort: this.webPort, key })
+      ? buildPairUri({ host, rtmpPort: this.rtmpPort, webPort: this.webPort, srtPort: CAMERA_SRT_PORT, key })
       : null;
     return {
       enabled: this.enabled,
@@ -371,6 +372,7 @@ export class CameraService extends EventEmitter {
       hosts,
       host,
       rtmpUrl: host ? cameraRtmpUrl(host, this.rtmpPort) : null,
+      srtUrl: host ? cameraSrtUrl(host, CAMERA_SRT_PORT) : null,
       pairUri,
       pairQr: pairUri && pairUri === this.pairQrFor ? this.pairQr : null,
       cameras: this.live.map((c): CameraInfo => ({ ...c.info }))

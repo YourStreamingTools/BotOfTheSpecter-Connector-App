@@ -44,10 +44,13 @@ describe('buildCameraList', () => {
 
   it('marks Opus audio as playable and copes with a missing LAN host', () => {
     const [cam] = buildCameraList(
-      [path({ tracks2: [{ codec: 'H264' }, { codec: 'Opus' }] })], [],
+      [path({ source: { id: 's1', type: 'srtConn' }, tracks2: [{ codec: 'H264' }, { codec: 'Opus' }] })],
+      [{ id: 's1', user: 'd7', query: '' }],
       { host: null, webPort: 47830, prevBytes: new Map(), now: 0 }
     );
     expect(cam.info.audioPlayable).toBe(true);
+    expect(cam.device).toBe('d7');
+    expect(cam.connKind).toBe('srt');
     expect(cam.info.name).toBe('main');
     expect(cam.info.viewUrl).toBeNull();
     expect(cam.info.bitrateKbps).toBeNull();

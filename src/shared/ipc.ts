@@ -353,6 +353,7 @@ export interface CamerasSnapshot {
   hosts: string[];
   host: string | null;
   rtmpUrl: string | null;
+  srtUrl: string | null;
   pairUri: string | null;
   /** PNG data URL of the pairing QR. */
   pairQr: string | null;

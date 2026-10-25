@@ -62,10 +62,12 @@ export function decideAuth(req: MediamtxAuthRequest, ctx: AuthContext): AuthDeci
   const slug = slugFromPath(req.path ?? '');
   if (req.action === 'publish') {
     if (!isLocalNetworkIp(ip)) return { allow: false, reason: 'publisher is not on the local network' };
-    if (req.protocol !== 'rtmp') return { allow: false, reason: 'only RTMP publishing is enabled' };
+    if (req.protocol !== 'rtmp' && req.protocol !== 'srt') return { allow: false, reason: 'only RTMP and SRT publishing are enabled' };
     if (!slug) return { allow: false, reason: 'invalid camera path' };
+    // SRT phones send credentials in the stream ID (publish:camera/<slug>:<device>:<key>[:name=..]);
+    // RTMP phones send them in the query (?key=..&device=..&name=..).
     const q = parsePublishQuery(req.query);
-    const res = checkPublish(slug, q.key, q.device, ctx);
+    const res = checkPublish(slug, q.key || req.password || '', q.device || req.user || '', ctx);
     return res.ok ? { allow: true } : { allow: false, reason: res.error };
   }
   if (req.action === 'read') {

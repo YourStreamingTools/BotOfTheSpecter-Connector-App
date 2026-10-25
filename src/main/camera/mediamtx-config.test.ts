@@ -3,14 +3,16 @@ import { describe, it, expect } from 'vitest';
 import { buildMediamtxConfig } from './mediamtx-config';
 
 describe('buildMediamtxConfig', () => {
-  it('enables only RTMP ingest, WebRTC playback and the loopback API, with auth on the Connector', () => {
+  it('enables only RTMP + SRT ingest, WebRTC playback and the loopback API, with auth on the Connector', () => {
     const yml = buildMediamtxConfig({ rtmpPort: 1935, webPort: 47830, lanView: true });
     expect(yml).toContain('authMethod: http');
     expect(yml).toContain('authHTTPAddress: http://127.0.0.1:47830/internal/mediamtx/auth');
     expect(yml).toContain('rtmpAddress: :1935');
     expect(yml).toContain('apiAddress: 127.0.0.1:9997');
     expect(yml).toContain('webrtcAddress: :8889');
-    for (const off of ['rtsp: false', 'hls: false', 'srt: false', 'moq: false', 'record: false']) expect(yml).toContain(off);
+    expect(yml).toContain('srt: true');
+    expect(yml).toContain('srtAddress: :8890');
+    for (const off of ['rtsp: false', 'hls: false', 'moq: false', 'record: false']) expect(yml).toContain(off);
     expect(yml).toContain('"~^camera/[a-z0-9_-]{1,32}$":');
   });
 

@@ -131,6 +131,7 @@ export function ScreenCameras() {
             {snap.rtmpUrl && (
               <p className="camera-hint" style={{ marginTop: 10 }}>
                 Phone address: <span className="mono">{snap.rtmpUrl}</span>
+                {snap.srtUrl && <> or <span className="mono">{snap.srtUrl}</span></>}
               </p>
             )}
             <button

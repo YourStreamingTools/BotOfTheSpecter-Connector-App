@@ -8,7 +8,7 @@
 //
 // Output in dist/:
 //   Windows  botofthespecter-desktop-<v>-setup.exe, botofthespecter-desktop-<v>-portable.exe
-//   Linux    botofthespecter-desktop-<v>-linux-x64.tar.gz (any host), botofthespecter-desktop-<v>.AppImage (Linux/macOS host)
+//   Linux    botofthespecter-desktop-<v>-linux-x64.tar.gz (any host), botofthespecter-desktop-<v>.AppImage (Linux host)
 //
 // Windows installers need Windows, or Wine on macOS/Linux. The Linux tar.gz is packed here (not by
 // electron-builder) so executables keep their +x bit even when built on Windows. macOS builds are
@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
 const isWin = process.platform === 'win32';
+const isLinux = process.platform === 'linux';
 const npm = isWin ? 'npm.cmd' : 'npm';
 const npx = isWin ? 'npx.cmd' : 'npx';
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
@@ -117,13 +118,14 @@ if (wantWin) {
 }
 
 if (wantLinux) {
-  const linuxTargets = isWin ? ['dir'] : ['dir', 'AppImage'];
-  step(`Linux: ${isWin ? 'tar.gz' : 'AppImage + tar.gz'}`);
+  // electron-builder's macOS AppImage tools are Intel-only and fail on Apple Silicon, so only Linux builds it.
+  const linuxTargets = isLinux ? ['dir', 'AppImage'] : ['dir'];
+  step(`Linux: ${isLinux ? 'AppImage + tar.gz' : 'tar.gz'}`);
   run(npx, ['electron-builder', '--linux', ...linuxTargets, '--x64', '--publish', 'never']);
   const tarFile = join(DIST, `${pkg.name}-${pkg.version}-linux-x64.tar.gz`);
   console.log(`> pack ${tarFile}`);
   await packLinuxTarGz(join(DIST, 'linux-unpacked'), tarFile);
-  if (isWin) console.log('[build] AppImage needs a Linux or macOS host; built the tar.gz only.');
+  if (!isLinux) console.log('[build] AppImage needs a Linux host; built the tar.gz only.');
   built.push('Linux');
 }
 

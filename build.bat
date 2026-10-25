@@ -4,7 +4,7 @@ REM  BotOfTheSpecter Desktop - release build (Windows)
 REM
 REM  build.bat                Windows + Linux packages -> dist\
 REM                           Windows: setup .exe + portable .exe
-REM                           Linux:   .tar.gz (AppImage needs a Linux/macOS host - use build.sh there)
+REM                           Linux:   .tar.gz (AppImage needs a Linux host - use build.sh there)
 REM  build.bat --win          Windows only
 REM  build.bat --linux        Linux only
 REM  build.bat --skip-checks  skip the typecheck and tests

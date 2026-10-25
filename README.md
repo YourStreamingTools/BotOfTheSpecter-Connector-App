@@ -113,7 +113,7 @@ build.bat               # Windows
 This runs the typecheck and tests, then builds the Windows and Linux packages into `dist/`:
 
 - Windows: `*-setup.exe` and `*-portable.exe`
-- Linux: `*-linux-x64.tar.gz`, plus an `*.AppImage` when built on Linux or macOS
+- Linux: `*-linux-x64.tar.gz`, plus an `*.AppImage` when built on Linux
 
 Add `--win` or `--linux` to build just one, or `--skip-checks` to skip the typecheck and tests.
 Building the Windows packages on macOS/Linux needs [Wine](https://www.winehq.org); without it,

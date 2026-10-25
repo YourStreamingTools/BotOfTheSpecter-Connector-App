@@ -39,17 +39,10 @@ if %NODE_MAJOR% LSS 18 (
   exit /b 1
 )
 
-if not exist "node_modules\" (
-  echo node_modules not found - installing dependencies ^(one-time, may take a minute^)...
-  echo.
-  call npm install
-  if errorlevel 1 (
-    echo.
-    echo [ERROR] npm install failed - see the messages above.
-    pause
-    exit /b 1
-  )
-  echo.
+node scripts\ensure-deps.mjs
+if errorlevel 1 (
+  pause
+  exit /b 1
 )
 
 if not exist "resources\mediamtx\win32-x64\mediamtx.exe" (

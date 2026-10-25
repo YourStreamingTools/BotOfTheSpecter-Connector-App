@@ -17,7 +17,6 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { create as tarCreate } from 'tar';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -61,6 +60,8 @@ function isLinuxExecutable(rel) {
 }
 
 async function packLinuxTarGz(unpackedDir, outFile) {
+  // Imported here, not at the top, so a missing tar package is installed by ensure-deps first.
+  const { create: tarCreate } = await import('tar');
   const prefix = `${pkg.name}-${pkg.version}`;
   await tarCreate({
     file: outFile,
@@ -83,10 +84,7 @@ const wantWin = only !== 'linux';
 const wantLinux = only !== 'win';
 const winPossible = isWin || hasWine();
 
-if (!existsSync(join(ROOT, 'node_modules'))) {
-  step('Installing dependencies');
-  run(npm, ['install']);
-}
+run('node', ['scripts/ensure-deps.mjs']);
 
 if (!skipChecks) {
   step('Typecheck');

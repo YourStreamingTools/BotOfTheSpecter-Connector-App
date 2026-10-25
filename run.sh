@@ -24,11 +24,7 @@ if [ "$NODE_MAJOR" -lt 18 ]; then
   exit 1
 fi
 
-if [ ! -d node_modules ]; then
-  echo "node_modules not found - installing dependencies (one-time, may take a minute)..."
-  npm install
-  echo
-fi
+node scripts/ensure-deps.mjs
 
 TARGET="$(node -p 'process.platform + "-" + process.arch')"
 if [ ! -x "resources/mediamtx/$TARGET/mediamtx" ]; then

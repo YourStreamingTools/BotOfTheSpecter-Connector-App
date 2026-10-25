@@ -32,7 +32,7 @@ if [ "${1:-}" = "--mac" ]; then
     exit 1
   fi
   shift
-  [ -d node_modules ] || npm install
+  node scripts/ensure-deps.mjs
   if [ "${1:-}" != "--skip-checks" ]; then
     npm run typecheck
     npm test

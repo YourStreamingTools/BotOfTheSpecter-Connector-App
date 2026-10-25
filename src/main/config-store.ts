@@ -42,6 +42,11 @@ export class ConfigStore {
     await this.persist();
   }
 
+  /** Resolves once every queued write has finished (successfully or not). */
+  whenIdle(): Promise<void> {
+    return this.writeChain.then(() => undefined);
+  }
+
   getPath(): string {
     return this.filePath;
   }

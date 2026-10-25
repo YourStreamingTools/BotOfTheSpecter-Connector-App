@@ -7,11 +7,20 @@ import { ConfigStore } from '../config-store';
 import { VariablesService } from './variables-service';
 
 let dir: string;
+let stores: ConfigStore[] = [];
 const store = () => {
   dir = mkdtempSync(join(tmpdir(), 'bots-vars-'));
-  return new ConfigStore(join(dir, 'config.json'));
+  const s = new ConfigStore(join(dir, 'config.json'));
+  stores.push(s);
+  return s;
 };
-afterEach(() => { if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true }); });
+afterEach(async () => {
+  // VariablesService writes fire-and-forget; let them land first, or rmSync races a write still
+  // creating files in the folder (ENOTEMPTY on macOS) and the write recreates the folder after.
+  await Promise.all(stores.map((s) => s.whenIdle()));
+  stores = [];
+  if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+});
 
 describe('VariablesService', () => {
   it('maps a follow event into last_follower + session/total counters', () => {

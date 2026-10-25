@@ -234,6 +234,27 @@ export class ObsService extends EventEmitter {
     await this.obs.call('SetSourceFilterEnabled', { sourceName, filterName, filterEnabled });
   }
 
+  /**
+   * Put a Browser Source pointing at `url` into the current program scene. An input with the same name is
+   * re-pointed at the URL and reused (added to the scene again only if it isn't there yet).
+   */
+  async addBrowserSource(inputName: string, url: string, width: number, height: number): Promise<{ sceneName: string }> {
+    if (this.status.state !== 'connected') throw new Error('OBS is not connected');
+    const { currentProgramSceneName: sceneName } = await this.obs.call('GetCurrentProgramScene') as { currentProgramSceneName: string };
+    const inputSettings = { url, width, height, shutdown: false, restart_when_active: false, reroute_audio: true };
+    const { inputs } = await this.obs.call('GetInputList') as { inputs: Array<{ inputName: string }> };
+    if (inputs.some((i) => i.inputName === inputName)) {
+      await this.obs.call('SetInputSettings', { inputName, inputSettings, overlay: true });
+      const { sceneItems } = await this.obs.call('GetSceneItemList', { sceneName }) as { sceneItems: Array<{ sourceName: string }> };
+      if (!sceneItems.some((i) => i.sourceName === inputName)) {
+        await this.obs.call('CreateSceneItem', { sceneName, sourceName: inputName });
+      }
+    } else {
+      await this.obs.call('CreateInput', { sceneName, inputName, inputKind: 'browser_source', inputSettings, sceneItemEnabled: true });
+    }
+    return { sceneName };
+  }
+
   /** One status poll: emits outputs + stats. Driven on a 1s interval by the main process. */
   async pollOnce(): Promise<void> {
     if (this.status.state !== 'connected') return;

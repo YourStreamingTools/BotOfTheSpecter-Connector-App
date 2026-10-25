@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'path';
-import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type RaffleInput, type PollInput, type PollEndStatus, type PredictionInput, type PredictionEndStatus, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput, type WheelInput } from '@shared/ipc';
+import { IPC, type AppConfig, type ObsConnectParams, type BuiltinCommandUpdate, type ActionInput, type FolderInput, type AutomationInput, type ReorderDirection, type TwitchStatus, type TimerInput, type RaffleInput, type PollInput, type PollEndStatus, type PredictionInput, type PredictionEndStatus, type ChannelRewardCreate, type ChannelRewardUpdate, type RewardGroupInput, type WheelInput, type CameraPortsInput } from '@shared/ipc';
 import { parseMutedEvents } from '@shared/activity-filter';
 import { ConfigStore } from './config-store';
 import { legacyConfigPath, migrateLegacyConfig } from './config-migration';
@@ -26,6 +26,9 @@ import { ActionsService } from './automation/actions-service';
 import { AutomationsService } from './automation/automations-service';
 import { WheelsService } from './wheels/wheels-service';
 import { startWheelOverlay, type WheelOverlay } from './wheels/overlay-server';
+import QRCode from 'qrcode';
+import { CameraService } from './camera/camera-service';
+import { resolveMediamtxPath } from './camera/mediamtx-process';
 
 let store: ConfigStore;
 let obs: ObsService;
@@ -50,6 +53,7 @@ let actions: ActionsService;
 let automations: AutomationsService;
 let wheels: WheelsService | undefined;
 let wheelOverlay: WheelOverlay | undefined;
+let cameras: CameraService | undefined;
 
 // Allow-list of persistable config keys for config:set, blocking arbitrary keys from a compromised renderer.
 // Service-owned collections (variables/actions/folders/automations/wheels) are written only via their IPC services
@@ -378,6 +382,39 @@ function registerWheels(): WheelsService {
   return svc;
 }
 
+function registerCameras(): CameraService {
+  const binaryPath = resolveMediamtxPath({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath()
+  });
+  const svc = new CameraService({
+    store,
+    dataDir: join(app.getPath('userData'), 'mediamtx'),
+    binaryPath,
+    addBrowserSource: (name, url, w, h) => obs.addBrowserSource(name, url, w, h),
+    obsHost: () => store.get('obs_host'),
+    log: (level, message) => logs.add('CAM', level, message),
+    registerSecret: (secret) => logs.registerSecret(secret),
+    qrDataUrl: (text) => QRCode.toDataURL(text, { margin: 1, width: 320, errorCorrectionLevel: 'M' })
+  });
+  cameras = svc;
+  svc.on('changed', (snap) => broadcast(IPC.camerasChanged, snap));
+  ipcMain.handle(IPC.camerasSnapshot, () => svc.snapshot());
+  ipcMain.handle(IPC.camerasSetEnabled, (_e, on: boolean) => svc.setEnabled(on === true));
+  ipcMain.handle(IPC.camerasSetLanView, (_e, on: boolean) => svc.setLanView(on === true));
+  ipcMain.handle(IPC.camerasSetHost, (_e, host: string) => svc.setHost(String(host)));
+  ipcMain.handle(IPC.camerasSetPorts, (_e, ports: CameraPortsInput) => svc.setPorts(ports));
+  ipcMain.handle(IPC.camerasRegenerateKey, () => svc.regenerateKey());
+  ipcMain.handle(IPC.camerasAddToObs, (_e, id: string) => svc.addToObs(String(id)));
+  ipcMain.handle(IPC.camerasOpenView, (_e, id: string) => {
+    const url = svc.viewUrlFor(String(id));
+    if (url && isSafeExternalUrl(url)) void shell.openExternal(url);
+    return url;
+  });
+  return svc;
+}
+
 async function bootstrap(): Promise<void> {
   // macOS dock icon (Windows/Linux taskbar use BrowserWindow.icon); in dev this avoids the generic Electron mascot.
   if (process.platform === 'darwin' && app.dock) {
@@ -410,6 +447,11 @@ async function bootstrap(): Promise<void> {
   } catch (err) {
     logs.add('APP', 'warn', `Wheel overlay not started: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  const camerasSvc = registerCameras();
+  void camerasSvc.init().catch((err) => {
+    logs.add('CAM', 'err', `Camera server not started: ${err instanceof Error ? err.message : String(err)}`);
+  });
 
   const host = store.get('obs_host');
   const port = store.get('obs_port');
@@ -448,9 +490,17 @@ async function bootstrap(): Promise<void> {
 
 app.whenReady().then(bootstrap);
 
-app.on('before-quit', () => {
+let quitting = false;
+app.on('before-quit', (e) => {
+  if (quitting) return;
+  quitting = true;
   wheels?.dispose();
   wheelOverlay?.close();
+  // Stop MediaMTX before exiting so it never outlives the app and keeps port 1935 bound.
+  if (cameras) {
+    e.preventDefault();
+    void cameras.dispose().finally(() => app.quit());
+  }
 });
 
 app.on('window-all-closed', () => {

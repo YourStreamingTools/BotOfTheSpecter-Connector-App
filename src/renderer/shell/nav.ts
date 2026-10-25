@@ -2,7 +2,7 @@ import React from 'react';
 import {
   IconDashboard, IconOBS, IconChat, IconAlerts, IconCommands, IconSoundboard,
   IconMusic, IconTimers, IconGiveaway, IconPoints, IconLogs, IconSettings,
-  IconBolt, IconWheel,
+  IconBolt, IconWheel, IconCam,
   type IconProps
 } from '../icons';
 import { Placeholder } from '../screens/Placeholder';
@@ -21,9 +21,10 @@ import { ScreenTimers } from '../screens/Timers';
 import { ScreenGiveaways } from '../screens/Giveaways';
 import { ScreenAlerts } from '../screens/Alerts';
 import { ScreenWheels } from '../screens/Wheels';
+import { ScreenCameras } from '../screens/Cameras';
 
 export type ScreenId =
-  | 'dashboard' | 'obs' | 'chat' | 'alerts'
+  | 'dashboard' | 'obs' | 'cameras' | 'chat' | 'alerts'
   | 'commands' | 'sound' | 'music' | 'timers' | 'giveaways' | 'wheels' | 'points'
   | 'automation' | 'actions'
   | 'variables' | 'logs' | 'settings';
@@ -43,6 +44,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: IconDashboard },
       { id: 'obs', label: 'OBS Control', icon: IconOBS, badge: 'obs' },
+      { id: 'cameras', label: 'Cameras', icon: IconCam },
       { id: 'chat', label: 'Chat & Mod', icon: IconChat },
       { id: 'alerts', label: 'Alerts', icon: IconAlerts }
     ]
@@ -79,6 +81,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 export const SCREEN_TITLES: Record<ScreenId, { t: string; s: string }> = {
   dashboard: { t: 'Dashboard', s: 'Bot, stream and channel at a glance' },
   obs: { t: 'OBS Control', s: 'WebSocket bridge to OBS Studio' },
+  cameras: { t: 'Cameras', s: 'Phone cameras over your local network' },
   chat: { t: 'Chat & Mod', s: 'Live Twitch chat and moderation' },
   alerts: { t: 'Alerts', s: 'Follows, subs, bits and raids' },
   commands: { t: 'Commands', s: 'Built-in, custom and viewer commands' },
@@ -98,6 +101,7 @@ export const SCREEN_TITLES: Record<ScreenId, { t: string; s: string }> = {
 export const SCREENS: Record<ScreenId, { component: React.ComponentType }> = {
   dashboard: { component: ScreenDashboard },
   obs: { component: ScreenObs },
+  cameras: { component: ScreenCameras },
   logs: { component: ScreenLogs },
   settings: { component: ScreenSettings },
   variables: { component: ScreenVariables },

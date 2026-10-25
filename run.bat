@@ -52,6 +52,15 @@ if not exist "node_modules\" (
   echo.
 )
 
+if not exist "resources\mediamtx\win32-x64\mediamtx.exe" (
+  echo Downloading the local camera server ^(MediaMTX, one-time^)...
+  call npm run fetch:mediamtx -- win32-x64
+  if errorlevel 1 (
+    echo [WARN] MediaMTX download failed - the Cameras screen will say the camera server is not bundled.
+  )
+  echo.
+)
+
 echo Starting the app...
 echo   - Close the app window, or press Ctrl+C here, to stop.
 echo   - Errors and logs from the main process appear in this window.

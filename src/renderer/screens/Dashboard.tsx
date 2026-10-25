@@ -12,7 +12,7 @@ import {
   collectActivityEvents, isActivityVisible, parseMutedEvents, DEFAULT_MUTED_EVENTS
 } from '@shared/activity-filter';
 
-const LOG_SOURCES: LogSource[] = ['OBS', 'TWITCH', 'WS', 'BOT', 'APP'];
+const LOG_SOURCES: LogSource[] = ['OBS', 'TWITCH', 'WS', 'BOT', 'APP', 'CAM'];
 
 export function ScreenDashboard() {
   const obs = useObs();

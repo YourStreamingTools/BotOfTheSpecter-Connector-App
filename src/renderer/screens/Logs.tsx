@@ -3,12 +3,12 @@ import { useLogs } from '../state/useLogs';
 import type { LogEntry, LogSource } from '@shared/ipc';
 import { IconCopy } from '../icons';
 
-type Filter = 'all' | 'OBS' | 'TWITCH' | 'WS' | 'BOT' | 'err';
+type Filter = 'all' | 'OBS' | 'TWITCH' | 'WS' | 'BOT' | 'CAM' | 'err';
 const FILTERS: [Filter, string][] = [
-  ['all', 'All'], ['OBS', 'OBS'], ['TWITCH', 'Twitch'], ['WS', 'WebSocket'], ['BOT', 'Bot'], ['err', 'Errors']
+  ['all', 'All'], ['OBS', 'OBS'], ['TWITCH', 'Twitch'], ['WS', 'WebSocket'], ['BOT', 'Bot'], ['CAM', 'Cameras'], ['err', 'Errors']
 ];
 const srcColor: Record<LogSource, string> = {
-  OBS: 'var(--primary)', WS: 'var(--secondary)', TWITCH: '#9146ff', BOT: 'var(--info)', APP: 'var(--text-mute)'
+  OBS: 'var(--primary)', WS: 'var(--secondary)', TWITCH: '#9146ff', BOT: 'var(--info)', APP: 'var(--text-mute)', CAM: 'var(--success)'
 };
 const lvlColor: Record<string, string> = {
   ok: 'var(--success)', err: 'var(--error)', warn: 'var(--warning)', info: 'var(--info)', evt: 'var(--primary)'

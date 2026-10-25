@@ -32,6 +32,10 @@ you'd otherwise juggle across OBS, Twitch, and the bot dashboard.
   virtual camera. Accurate LIVE timecode plus bitrate, CPU, FPS and dropped-frame stats, and a raw
   event log.
 - **Chat & Mod** — live Twitch chat with moderation events (bans, timeouts, deletes, clears).
+- **Cameras** — stream the Specter Camera phone app to this PC over your local network (no internet
+  round trip). Pair a phone by scanning a QR code, then add each camera to OBS as a Browser Source at
+  `http://<this PC>:47830/view/<camera>` (or one click with **Add to OBS**). Runs a bundled
+  [MediaMTX](https://github.com/bluenviron/mediamtx) server that is off until you turn it on.
 - **Channel Points** — view your Twitch reward redemptions and wire them into actions.
 
 ### Engagement & automation
@@ -90,11 +94,12 @@ Requires **Node.js 18 or newer**.
 git clone https://github.com/YourStreamingTools/BotOfTheSpecter-Connector-App.git
 cd BotOfTheSpecter-Connector-App
 npm install
+npm run fetch:mediamtx   # one-time: download the local camera server for your platform
 npm run dev        # launch with hot reload
 ```
 
 On Windows you can instead double-click **`run.bat`** — it checks your Node version, installs
-dependencies on first run, and starts the app.
+dependencies and the camera server on first run, and starts the app.
 
 ## Development
 
@@ -103,7 +108,11 @@ npm run dev        # launch the app with hot reload
 npm test           # run unit + component tests (Vitest)
 npm run typecheck  # strict TypeScript check (renderer + node projects)
 npm run build      # production build → out/
+npm run fetch:mediamtx -- --all   # MediaMTX for every platform → resources/mediamtx/ (the dist:* scripts do this)
 ```
+
+The local camera end-to-end test runs only when MediaMTX and ffmpeg are available:
+`SPECTER_MEDIAMTX_PATH=resources/mediamtx/<platform>-<arch>/mediamtx npx vitest run src/main/camera`.
 
 ### Project layout
 

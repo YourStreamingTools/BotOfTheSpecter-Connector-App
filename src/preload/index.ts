@@ -153,6 +153,16 @@ const api: BridgeApi = {
     spin:        (id) => ipcRenderer.invoke(IPC.wheelsSpin, id),
     openOverlay: () => ipcRenderer.invoke(IPC.wheelsOpenOverlay)
   },
+  cameras: {
+    snapshot:      () => ipcRenderer.invoke(IPC.camerasSnapshot),
+    setEnabled:    (enabled) => ipcRenderer.invoke(IPC.camerasSetEnabled, enabled),
+    setLanView:    (enabled) => ipcRenderer.invoke(IPC.camerasSetLanView, enabled),
+    setHost:       (host) => ipcRenderer.invoke(IPC.camerasSetHost, host),
+    setPorts:      (ports) => ipcRenderer.invoke(IPC.camerasSetPorts, ports),
+    regenerateKey: () => ipcRenderer.invoke(IPC.camerasRegenerateKey),
+    addToObs:      (id) => ipcRenderer.invoke(IPC.camerasAddToObs, id),
+    openView:      (id) => ipcRenderer.invoke(IPC.camerasOpenView, id)
+  },
   platform: process.platform,
   on: (channel, listener) => {
     // Only allow subscribing to known IPC channels, never an arbitrary renderer-supplied name.

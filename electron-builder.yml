@@ -37,12 +37,20 @@ files:
 # optionalDependencies, which are devDeps and not packaged). Skip the rebuild.
 npmRebuild: false
 
+# Local camera server: the MediaMTX binary + licence fetched by `npm run fetch:mediamtx`
+# into resources/mediamtx/<platform>-<arch>/ (gitignored) ships as <resources>/mediamtx/.
+# The per-OS dist:* scripts fetch the right targets first.
+
 # ---- Windows ----
 win:
   target:
     - nsis
     - portable
   executableName: botofthespecter-desktop
+  extraResources:
+    - from: resources/mediamtx/win32-${arch}
+      to: mediamtx
+      filter: ['mediamtx.exe', 'LICENSE']
   # icon omitted on purpose - auto-derived from resources/icon.png
 
 nsis:
@@ -69,6 +77,10 @@ mac:
         - x64
         - arm64
   category: public.app-category.utilities
+  extraResources:
+    - from: resources/mediamtx/darwin-${arch}
+      to: mediamtx
+      filter: ['mediamtx', 'LICENSE']
   hardenedRuntime: true
   # Unsigned local builds: skip notarization. Set CSC_IDENTITY_AUTO_DISCOVERY=false
   # if macOS probes the keychain for a signing identity that isn't there.
@@ -83,6 +95,10 @@ linux:
     - AppImage
   category: Utility
   maintainer: YourStreamingTools
+  extraResources:
+    - from: resources/mediamtx/linux-${arch}
+      to: mediamtx
+      filter: ['mediamtx', 'LICENSE']
 
 appImage:
   artifactName: ${name}-${version}.${ext}

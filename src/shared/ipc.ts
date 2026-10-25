@@ -320,6 +320,57 @@ export interface WheelsSnapshot {
 }
 
 // Persisted config shape; api_key/obs_*/log_expanded/variables stay compatible with the legacy PyQt config.json.
+// ---- Local phone cameras (Specter Camera app → bundled MediaMTX → /view/{id}) ----
+export type CameraServerState = 'off' | 'starting' | 'running' | 'error' | 'missing';
+
+export interface CameraInfo {
+  /** Camera slug, [a-z0-9_-]{1,32}; also the {ID} in /view/{ID}. */
+  id: string;
+  /** Display name the phone sent (falls back to the slug). */
+  name: string;
+  remoteAddr: string | null;
+  since: string | null;
+  video: { codec: string; width: number | null; height: number | null } | null;
+  audio: { codec: string } | null;
+  /** WebRTC can't carry AAC; false means the view page will be silent. */
+  audioPlayable: boolean;
+  bitrateKbps: number | null;
+  viewers: number;
+  /** URL for OBS on another PC (LAN address). */
+  viewUrl: string | null;
+  /** URL for OBS on this PC. */
+  localViewUrl: string;
+}
+
+export interface CamerasSnapshot {
+  enabled: boolean;
+  state: CameraServerState;
+  error?: string;
+  lanView: boolean;
+  rtmpPort: number;
+  webPort: number;
+  /** LAN IPv4 addresses of this PC; `host` is the one put in the pairing QR. */
+  hosts: string[];
+  host: string | null;
+  rtmpUrl: string | null;
+  pairUri: string | null;
+  /** PNG data URL of the pairing QR. */
+  pairQr: string | null;
+  cameras: CameraInfo[];
+}
+
+export interface CameraPortsInput {
+  rtmpPort: number;
+  webPort: number;
+}
+
+export interface CameraAddToObsResult {
+  ok: boolean;
+  sourceName?: string;
+  sceneName?: string;
+  error?: string;
+}
+
 export interface AppConfig {
   api_key?: string;
   obs_host?: string;
@@ -343,6 +394,16 @@ export interface AppConfig {
   streamOutputCount?: number;
   /** Event names hidden in Live Activity (and not written to the log). Default: CLOSED_CAPTION. */
   activityMutedEvents?: string[];
+  /** Local camera server (MediaMTX) on/off. Off by default so the firewall prompt only appears for users who opt in. */
+  camera_enabled?: boolean;
+  /** Random pairing secret phones publish with; never the BotOfTheSpecter API key. */
+  camera_local_key?: string;
+  /** LAN IPv4 put in the pairing QR and LAN view URLs. Empty = first detected. */
+  camera_host?: string;
+  /** Let other PCs on the LAN load /view/{id}. Default true. */
+  camera_lan_view?: boolean;
+  camera_rtmp_port?: number;
+  camera_web_port?: number;
 }
 
 // ---- OBS integration ----
@@ -461,7 +522,7 @@ export interface VariablesSnapshot {
   counters: Record<string, number>;
 }
 
-export type LogSource = 'OBS' | 'TWITCH' | 'WS' | 'BOT' | 'APP';
+export type LogSource = 'OBS' | 'TWITCH' | 'WS' | 'BOT' | 'APP' | 'CAM';
 export type LogLevel = 'info' | 'ok' | 'warn' | 'err' | 'evt';
 
 export interface LogEntry {
@@ -1030,7 +1091,16 @@ export const IPC = {
   wheelsSetActive:        'wheels:setActive',
   wheelsSpin:             'wheels:spin',
   wheelsOpenOverlay:      'wheels:openOverlay',
-  wheelsChanged:          'wheels:changed'
+  wheelsChanged:          'wheels:changed',
+  camerasSnapshot:        'cameras:snapshot',
+  camerasSetEnabled:      'cameras:setEnabled',
+  camerasSetLanView:      'cameras:setLanView',
+  camerasSetHost:         'cameras:setHost',
+  camerasSetPorts:        'cameras:setPorts',
+  camerasRegenerateKey:   'cameras:regenerateKey',
+  camerasAddToObs:        'cameras:addToObs',
+  camerasOpenView:        'cameras:openView',
+  camerasChanged:         'cameras:changed'
 } as const;
 
 // The exact surface exposed on window.api by the preload bridge.
@@ -1183,6 +1253,17 @@ export interface BridgeApi {
     setActive(id: string): Promise<boolean>;
     spin(id?: string): Promise<WheelSpin | null>;
     openOverlay(): Promise<string | null>;
+  };
+  cameras: {
+    snapshot(): Promise<CamerasSnapshot>;
+    setEnabled(enabled: boolean): Promise<void>;
+    setLanView(enabled: boolean): Promise<void>;
+    setHost(host: string): Promise<void>;
+    setPorts(ports: CameraPortsInput): Promise<void>;
+    /** New pairing key; every paired phone must scan the QR again. */
+    regenerateKey(): Promise<void>;
+    addToObs(id: string): Promise<CameraAddToObsResult>;
+    openView(id: string): Promise<string | null>;
   };
   /** Host platform from process.platform, e.g. 'win32' | 'darwin' | 'linux'. */
   platform: NodeJS.Platform;

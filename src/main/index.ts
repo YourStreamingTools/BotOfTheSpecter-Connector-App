@@ -27,6 +27,7 @@ import { AutomationsService } from './automation/automations-service';
 import { WheelsService } from './wheels/wheels-service';
 import { startWheelOverlay, type WheelOverlay } from './wheels/overlay-server';
 import QRCode from 'qrcode';
+import { macAppBundle } from './camera/firewall';
 import { CameraService } from './camera/camera-service';
 import { resolveMediamtxPath } from './camera/mediamtx-process';
 
@@ -396,7 +397,11 @@ function registerCameras(): CameraService {
     obsHost: () => store.get('obs_host'),
     log: (level, message) => logs.add('CAM', level, message),
     registerSecret: (secret) => logs.registerSecret(secret),
-    qrDataUrl: (text) => QRCode.toDataURL(text, { margin: 1, width: 320, errorCorrectionLevel: 'M' })
+    qrDataUrl: (text) => QRCode.toDataURL(text, { margin: 1, width: 320, errorCorrectionLevel: 'M' }),
+    firewallTargets: [
+      { label: 'app', path: process.platform === 'darwin' ? macAppBundle(process.execPath) : process.execPath },
+      ...(binaryPath ? [{ label: 'camera server', path: binaryPath }] : [])
+    ]
   });
   cameras = svc;
   svc.on('changed', (snap) => broadcast(IPC.camerasChanged, snap));
@@ -406,6 +411,7 @@ function registerCameras(): CameraService {
   ipcMain.handle(IPC.camerasSetHost, (_e, host: string) => svc.setHost(String(host)));
   ipcMain.handle(IPC.camerasSetPorts, (_e, ports: CameraPortsInput) => svc.setPorts(ports));
   ipcMain.handle(IPC.camerasRegenerateKey, () => svc.regenerateKey());
+  ipcMain.handle(IPC.camerasAllowFirewall, () => svc.allowFirewall());
   ipcMain.handle(IPC.camerasAddToObs, (_e, id: string) => svc.addToObs(String(id)));
   ipcMain.handle(IPC.camerasOpenView, (_e, id: string) => {
     const url = svc.viewUrlFor(String(id));

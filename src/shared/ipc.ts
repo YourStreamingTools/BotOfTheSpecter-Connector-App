@@ -342,6 +342,12 @@ export interface CameraInfo {
   localViewUrl: string;
 }
 
+/** Whether the OS firewall lets phones reach the camera server. 'unknown' = not checked or not supported (Linux). */
+export interface CameraFirewall {
+  state: 'ok' | 'blocked' | 'unknown';
+  message?: string;
+}
+
 export interface CamerasSnapshot {
   enabled: boolean;
   state: CameraServerState;
@@ -358,6 +364,7 @@ export interface CamerasSnapshot {
   /** PNG data URL of the pairing QR. */
   pairQr: string | null;
   cameras: CameraInfo[];
+  firewall: CameraFirewall;
 }
 
 export interface CameraPortsInput {
@@ -1101,6 +1108,7 @@ export const IPC = {
   camerasRegenerateKey:   'cameras:regenerateKey',
   camerasAddToObs:        'cameras:addToObs',
   camerasOpenView:        'cameras:openView',
+  camerasAllowFirewall:   'cameras:allowFirewall',
   camerasChanged:         'cameras:changed'
 } as const;
 
@@ -1265,6 +1273,8 @@ export interface BridgeApi {
     regenerateKey(): Promise<void>;
     addToObs(id: string): Promise<CameraAddToObsResult>;
     openView(id: string): Promise<string | null>;
+    /** Shows the system admin prompt and lets the app + camera server through the firewall. */
+    allowFirewall(): Promise<void>;
   };
   /** Host platform from process.platform, e.g. 'win32' | 'darwin' | 'linux'. */
   platform: NodeJS.Platform;

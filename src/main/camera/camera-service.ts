@@ -4,7 +4,7 @@ import { promises as fsp } from 'fs';
 import { join } from 'path';
 import { networkInterfaces as osNetworkInterfaces } from 'os';
 import type {
-  AppConfig, CameraAddToObsResult, CameraInfo, CameraPortsInput, CameraServerState, CamerasSnapshot
+  AppConfig, CameraAddToObsResult, CameraFirewall, CameraInfo, CameraPortsInput, CameraServerState, CamerasSnapshot
 } from '@shared/ipc';
 import {
   CAMERA_API_PORT, CAMERA_RTMP_PORT, CAMERA_SRT_PORT, CAMERA_WEBRTC_PORT, CAMERA_WEBRTC_UDP_PORT, CAMERA_WEB_PORT,
@@ -16,6 +16,7 @@ import { checkPublish, decideAuth, type AuthDecision, type MediamtxAuthRequest }
 import { startCameraServer, type CameraServer } from './camera-server';
 import { buildCameraList, type LiveCamera, type MtxConn, type MtxPath } from './camera-list';
 import type { CameraCheckResult } from '@shared/cameras';
+import { allowThroughFirewall, checkFirewall, type FirewallTarget } from './firewall';
 
 type CameraConfigKey = 'camera_enabled' | 'camera_local_key' | 'camera_host' | 'camera_lan_view' | 'camera_rtmp_port' | 'camera_web_port';
 
@@ -49,22 +50,37 @@ export interface CameraServiceDeps {
   createRunner?: (binaryPath: string, configPath: string) => MediamtxRunner;
   startServer?: typeof startCameraServer;
   pollMs?: number;
+  /** Programs that must be let through the OS firewall (the app and MediaMTX). Omit to skip firewall checks. */
+  firewallTargets?: FirewallTarget[];
+  platform?: NodeJS.Platform;
+  checkFirewall?: (platform: NodeJS.Platform, targets: FirewallTarget[]) => Promise<CameraFirewall>;
+  allowFirewall?: (platform: NodeJS.Platform, targets: FirewallTarget[]) => Promise<void>;
 }
 
 const POLL_MS = 2000;
 
-/** Private IPv4s of this PC, home-router ranges first. */
+// Adapters made by VMs, Docker, VPNs and Internet Sharing: phones on the Wi-Fi can't reach these, so they go last.
+const VIRTUAL_IFACE = /^(bridge|vnic|vmnet|vboxnet|utun|tun|tap|docker|br-|veth|virbr|tailscale|zt|wg|awdl|llw|anpi|ap\d)|vethernet|virtual|vmware|hyper-v|loopback|bluetooth|tailscale|zerotier|vpn/i;
+// Built-in Wi-Fi/Ethernet names: en0/en1 (macOS), Wi-Fi/Ethernet (Windows), wlan/wlp/eth/enp (Linux).
+const PHYSICAL_IFACE = /^(en\d|wi-?fi|wlan|wlp|wl|eth|enp|eno|ens|ethernet|local area connection|wireless)/i;
+
+/** Private IPv4s of this PC: real Wi-Fi/Ethernet adapters first, virtual ones last, then home-router ranges first. */
 export function lanIpv4s(ifaces: ReturnType<typeof osNetworkInterfaces>): string[] {
-  const out: string[] = [];
-  for (const list of Object.values(ifaces)) {
+  const found: { ip: string; name: string }[] = [];
+  for (const [name, list] of Object.entries(ifaces)) {
     for (const a of list ?? []) {
       const fam = a.family as string | number;
       if ((fam !== 'IPv4' && fam !== 4) || a.internal) continue;
-      if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address) && !out.includes(a.address)) out.push(a.address);
+      if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address) && !found.some((f) => f.ip === a.address)) {
+        found.push({ ip: a.address, name });
+      }
     }
   }
-  const rank = (ip: string) => ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : 2;
-  return out.sort((x, y) => rank(x) - rank(y));
+  const ifaceRank = (name: string) => VIRTUAL_IFACE.test(name) ? 2 : PHYSICAL_IFACE.test(name) ? 0 : 1;
+  const ipRank = (ip: string) => ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : 2;
+  return found
+    .sort((x, y) => ifaceRank(x.name) - ifaceRank(y.name) || ipRank(x.ip) - ipRank(y.ip))
+    .map((f) => f.ip);
 }
 
 /** Local camera route: owns the MediaMTX child, the camera web server, pairing key and the live camera list. */
@@ -80,6 +96,8 @@ export class CameraService extends EventEmitter {
   private pairQrPending: string | null = null;
   private lastJson = '';
   private transition: Promise<void> = Promise.resolve();
+  private firewall: CameraFirewall = { state: 'unknown' };
+  private firewallChecking = false;
   private readonly fetchFn: typeof fetch;
   private readonly ifaces: typeof osNetworkInterfaces;
 
@@ -182,7 +200,10 @@ export class CameraService extends EventEmitter {
       ? this.deps.createRunner(this.deps.binaryPath, configPath)
       : new MediamtxProcess({ binaryPath: this.deps.binaryPath, configPath });
     runner.on('state', (s) => {
-      if (s.state === 'running') this.deps.log('ok', `Camera server listening: RTMP :${this.rtmpPort}, view http://<this PC>:${this.webPort}/view/{id}`);
+      if (s.state === 'running') {
+        this.deps.log('ok', `Camera server listening: RTMP :${this.rtmpPort}, view http://<this PC>:${this.webPort}/view/{id}`);
+        void this.refreshFirewall();
+      }
       if (s.state === 'error' && s.error) this.deps.log('err', `MediaMTX: ${s.error}`);
       this.emitChanged();
     });
@@ -280,6 +301,32 @@ export class CameraService extends EventEmitter {
     return decision;
   }
 
+  // ---- firewall ----
+  private get platform(): NodeJS.Platform { return this.deps.platform ?? process.platform; }
+
+  /** Checks whether the OS firewall lets phones in; the Cameras screen offers a one-click fix when it doesn't. */
+  async refreshFirewall(): Promise<void> {
+    const targets = this.deps.firewallTargets;
+    if (!targets?.length || this.firewallChecking) return;
+    this.firewallChecking = true;
+    try {
+      const fw = await (this.deps.checkFirewall ?? checkFirewall)(this.platform, targets);
+      if (fw.state === 'blocked' && this.firewall.state !== 'blocked') this.deps.log('warn', fw.message ?? 'The firewall is blocking phone cameras');
+      this.firewall = fw;
+    } finally {
+      this.firewallChecking = false;
+    }
+    this.emitChanged();
+  }
+
+  async allowFirewall(): Promise<void> {
+    const targets = this.deps.firewallTargets;
+    if (!targets?.length) throw new Error('Nothing to allow through the firewall');
+    await (this.deps.allowFirewall ?? allowThroughFirewall)(this.platform, targets);
+    this.deps.log('ok', 'Allowed phone cameras through the firewall');
+    await this.refreshFirewall();
+  }
+
   // ---- renderer actions ----
   async setEnabled(on: boolean): Promise<void> {
     await this.deps.store.set('camera_enabled', !!on);
@@ -375,7 +422,9 @@ export class CameraService extends EventEmitter {
       srtUrl: host ? cameraSrtUrl(host, CAMERA_SRT_PORT) : null,
       pairUri,
       pairQr: pairUri && pairUri === this.pairQrFor ? this.pairQr : null,
-      cameras: this.live.map((c): CameraInfo => ({ ...c.info }))
+      cameras: this.live.map((c): CameraInfo => ({ ...c.info })),
+      // Only meaningful while the server runs.
+      firewall: st.state === 'running' ? this.firewall : { state: 'unknown' }
     };
   }
 

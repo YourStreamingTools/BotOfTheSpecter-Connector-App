@@ -4,7 +4,7 @@ import { CAMERA_RTMP_PORT, CAMERA_WEB_PORT } from '@shared/cameras';
 
 export const EMPTY_CAMERAS: CamerasSnapshot = {
   enabled: false, state: 'off', lanView: true, rtmpPort: CAMERA_RTMP_PORT, webPort: CAMERA_WEB_PORT,
-  hosts: [], host: null, rtmpUrl: null, srtUrl: null, pairUri: null, pairQr: null, cameras: []
+  hosts: [], host: null, rtmpUrl: null, srtUrl: null, pairUri: null, pairQr: null, cameras: [], firewall: { state: 'unknown' }
 };
 
 export function useCameras() {

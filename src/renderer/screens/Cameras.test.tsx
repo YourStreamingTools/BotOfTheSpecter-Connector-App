@@ -7,7 +7,7 @@ let listeners: Record<string, (...a: unknown[]) => void>;
 
 const base: CamerasSnapshot = {
   enabled: false, state: 'off', lanView: true, rtmpPort: 1935, webPort: 47830,
-  hosts: [], host: null, rtmpUrl: null, srtUrl: null, pairUri: null, pairQr: null, cameras: []
+  hosts: [], host: null, rtmpUrl: null, srtUrl: null, pairUri: null, pairQr: null, cameras: [], firewall: { state: 'unknown' }
 };
 
 const cam = (over: Partial<CameraInfo> = {}): CameraInfo => ({
@@ -53,6 +53,15 @@ describe('ScreenCameras', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /add to obs/i })); });
     expect(window.api.cameras.addToObs).toHaveBeenCalledWith('main');
     expect(screen.getByText(/added "specter cam - main" to the obs scene "scene"/i)).toBeInTheDocument();
+  });
+
+  it('offers a one-click firewall fix when the firewall blocks phones', async () => {
+    window.api.cameras.allowFirewall = vi.fn().mockResolvedValue(undefined);
+    render(<ScreenCameras />);
+    push({ ...base, enabled: true, state: 'running', firewall: { state: 'blocked', message: 'Your Mac\'s firewall is blocking the camera server' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('firewall is blocking the camera server');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /allow phone cameras/i })); });
+    expect(window.api.cameras.allowFirewall).toHaveBeenCalled();
   });
 
   it('surfaces server errors', async () => {

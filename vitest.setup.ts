@@ -145,7 +145,7 @@ if (typeof window !== 'undefined') {
     cameras: {
       snapshot: vi.fn().mockResolvedValue({
         enabled: false, state: 'off', lanView: true, rtmpPort: 1935, webPort: 47830,
-        hosts: [], host: null, rtmpUrl: null, srtUrl: null, pairUri: null, pairQr: null, cameras: []
+        hosts: [], host: null, rtmpUrl: null, srtUrl: null, pairUri: null, pairQr: null, cameras: [], firewall: { state: 'unknown' }
       }),
       setEnabled: vi.fn().mockResolvedValue(undefined),
       setLanView: vi.fn().mockResolvedValue(undefined),
@@ -153,7 +153,8 @@ if (typeof window !== 'undefined') {
       setPorts: vi.fn().mockResolvedValue(undefined),
       regenerateKey: vi.fn().mockResolvedValue(undefined),
       addToObs: vi.fn().mockResolvedValue({ ok: true, sourceName: 'Specter Cam - main', sceneName: 'Scene' }),
-      openView: vi.fn().mockResolvedValue(null)
+      openView: vi.fn().mockResolvedValue(null),
+      allowFirewall: vi.fn().mockResolvedValue(undefined)
     },
     platform: 'win32',
     on: vi.fn().mockReturnValue(() => {})

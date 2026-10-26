@@ -161,7 +161,8 @@ const api: BridgeApi = {
     setPorts:      (ports) => ipcRenderer.invoke(IPC.camerasSetPorts, ports),
     regenerateKey: () => ipcRenderer.invoke(IPC.camerasRegenerateKey),
     addToObs:      (id) => ipcRenderer.invoke(IPC.camerasAddToObs, id),
-    openView:      (id) => ipcRenderer.invoke(IPC.camerasOpenView, id)
+    openView:      (id) => ipcRenderer.invoke(IPC.camerasOpenView, id),
+    allowFirewall: () => ipcRenderer.invoke(IPC.camerasAllowFirewall)
   },
   platform: process.platform,
   on: (channel, listener) => {

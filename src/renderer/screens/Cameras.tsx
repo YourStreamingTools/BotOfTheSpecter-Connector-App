@@ -73,6 +73,14 @@ export function ScreenCameras() {
       {snap.error && <div className="card camera-error" role="alert" style={{ marginBottom: 12 }}>{snap.error}</div>}
       {error && <div className="camera-error" role="alert" style={{ marginBottom: 12 }}>{error}</div>}
       {notice && <div className="chip good" style={{ marginBottom: 12 }}>{notice}</div>}
+      {snap.firewall.state === 'blocked' && (
+        <div className="card camera-error" role="alert" style={{ marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ flex: 1 }}>{snap.firewall.message ?? 'The firewall is blocking phone cameras.'}</span>
+          <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run(() => window.api.cameras.allowFirewall())}>
+            Allow phone cameras
+          </button>
+        </div>
+      )}
 
       {!snap.enabled ? (
         <div className="card" style={{ textAlign: 'center', padding: 48 }}>

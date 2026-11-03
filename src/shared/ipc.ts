@@ -412,6 +412,8 @@ export interface AppConfig {
   camera_lan_view?: boolean;
   camera_rtmp_port?: number;
   camera_web_port?: number;
+  /** Camera ports last opened in the Linux firewall (ufw rules can't be read without root). */
+  camera_fw_applied?: string;
 }
 
 // ---- OBS integration ----

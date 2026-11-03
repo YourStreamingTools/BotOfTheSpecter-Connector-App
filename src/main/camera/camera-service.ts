@@ -16,9 +16,9 @@ import { checkPublish, decideAuth, type AuthDecision, type MediamtxAuthRequest }
 import { startCameraServer, type CameraServer } from './camera-server';
 import { buildCameraList, type LiveCamera, type MtxConn, type MtxPath } from './camera-list';
 import type { CameraCheckResult } from '@shared/cameras';
-import { allowThroughFirewall, checkFirewall, type FirewallTarget } from './firewall';
+import { allowThroughFirewall, checkFirewall, portsKey, type FirewallOptions, type FirewallTarget } from './firewall';
 
-type CameraConfigKey = 'camera_enabled' | 'camera_local_key' | 'camera_host' | 'camera_lan_view' | 'camera_rtmp_port' | 'camera_web_port';
+type CameraConfigKey = 'camera_enabled' | 'camera_local_key' | 'camera_host' | 'camera_lan_view' | 'camera_rtmp_port' | 'camera_web_port' | 'camera_fw_applied';
 
 export interface CameraStore {
   get<K extends CameraConfigKey>(key: K): AppConfig[K] | undefined;
@@ -53,8 +53,8 @@ export interface CameraServiceDeps {
   /** Programs that must be let through the OS firewall (the app and MediaMTX). Omit to skip firewall checks. */
   firewallTargets?: FirewallTarget[];
   platform?: NodeJS.Platform;
-  checkFirewall?: (platform: NodeJS.Platform, targets: FirewallTarget[]) => Promise<CameraFirewall>;
-  allowFirewall?: (platform: NodeJS.Platform, targets: FirewallTarget[]) => Promise<void>;
+  checkFirewall?: (platform: NodeJS.Platform, opts: FirewallOptions) => Promise<CameraFirewall>;
+  allowFirewall?: (platform: NodeJS.Platform, opts: FirewallOptions) => Promise<void>;
 }
 
 const POLL_MS = 2000;
@@ -304,13 +304,23 @@ export class CameraService extends EventEmitter {
   // ---- firewall ----
   private get platform(): NodeJS.Platform { return this.deps.platform ?? process.platform; }
 
+  private firewallOptions(): FirewallOptions | null {
+    const targets = this.deps.firewallTargets;
+    if (!targets?.length) return null;
+    return {
+      targets,
+      ports: { tcp: [this.rtmpPort, this.webPort, CAMERA_WEBRTC_PORT], udp: [CAMERA_WEBRTC_UDP_PORT, CAMERA_SRT_PORT] },
+      linuxApplied: this.deps.store.get('camera_fw_applied')
+    };
+  }
+
   /** Checks whether the OS firewall lets phones in; the Cameras screen offers a one-click fix when it doesn't. */
   async refreshFirewall(): Promise<void> {
-    const targets = this.deps.firewallTargets;
-    if (!targets?.length || this.firewallChecking) return;
+    const opts = this.firewallOptions();
+    if (!opts || this.firewallChecking) return;
     this.firewallChecking = true;
     try {
-      const fw = await (this.deps.checkFirewall ?? checkFirewall)(this.platform, targets);
+      const fw = await (this.deps.checkFirewall ?? checkFirewall)(this.platform, opts);
       if (fw.state === 'blocked' && this.firewall.state !== 'blocked') this.deps.log('warn', fw.message ?? 'The firewall is blocking phone cameras');
       this.firewall = fw;
     } finally {
@@ -320,9 +330,11 @@ export class CameraService extends EventEmitter {
   }
 
   async allowFirewall(): Promise<void> {
-    const targets = this.deps.firewallTargets;
-    if (!targets?.length) throw new Error('Nothing to allow through the firewall');
-    await (this.deps.allowFirewall ?? allowThroughFirewall)(this.platform, targets);
+    const opts = this.firewallOptions();
+    if (!opts) throw new Error('Nothing to allow through the firewall');
+    await (this.deps.allowFirewall ?? allowThroughFirewall)(this.platform, opts);
+    // Linux (ufw) rules can't be read back without root, so remember which ports were opened.
+    if (this.platform === 'linux') await this.deps.store.set('camera_fw_applied', portsKey(opts.ports));
     this.deps.log('ok', 'Allowed phone cameras through the firewall');
     await this.refreshFirewall();
   }

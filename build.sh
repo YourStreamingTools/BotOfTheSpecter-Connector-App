@@ -5,7 +5,7 @@
 #  ./build.sh            Windows + Linux packages -> dist/
 #                        (Windows installers need Wine on Linux; skipped without it)
 #  ./build.sh --linux    Linux only (tar.gz, plus AppImage when run on Linux)
-#  ./build.sh --win      Windows only (setup + portable; needs Wine on Linux)
+#  ./build.sh --win      Windows only (setup + portable; needs Wine on Linux, Rosetta on Apple Silicon)
 #  ./build.sh --mac      macOS DMGs (Intel + Apple Silicon); run on a Mac.
 #                        Signs with your "Developer ID Application" certificate if it is
 #                        in the keychain, and notarizes with the APPLE_* settings in .env.mac
@@ -25,12 +25,27 @@ if [ "$NODE_MAJOR" -lt 18 ]; then
   exit 1
 fi
 
-if [ "${1:-}" = "--mac" ]; then
+# --mac and --skip-checks can come in any order.
+MAC=0
+SKIP_CHECKS=0
+for arg in "$@"; do
+  case "$arg" in
+    --mac) MAC=1 ;;
+    --skip-checks) SKIP_CHECKS=1 ;;
+  esac
+done
+
+if [ "$MAC" = 1 ]; then
   if [ "$(uname -s)" != "Darwin" ]; then
     echo "[ERROR] macOS builds must run on a Mac." >&2
     exit 1
   fi
-  shift
+  for arg in "$@"; do
+    if [ "$arg" != "--mac" ] && [ "$arg" != "--skip-checks" ]; then
+      echo "[ERROR] --mac builds only the macOS DMGs; it can't be combined with $arg." >&2
+      exit 1
+    fi
+  done
   # Signing/notarization settings live in .env.mac (git-ignored); see .env.mac.example.
   if [ -f .env.mac ]; then
     echo "Loading signing settings from .env.mac"
@@ -41,7 +56,7 @@ if [ "${1:-}" = "--mac" ]; then
     echo "[WARN] No .env.mac - the app will not be notarized. See .env.mac.example."
   fi
   node scripts/ensure-deps.mjs
-  if [ "${1:-}" != "--skip-checks" ]; then
+  if [ "$SKIP_CHECKS" = 0 ]; then
     npm run typecheck
     npm test
   fi

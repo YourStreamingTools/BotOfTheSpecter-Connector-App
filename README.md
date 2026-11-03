@@ -117,7 +117,8 @@ This runs the typecheck and tests, then builds the Windows and Linux packages in
 
 Add `--win` or `--linux` to build just one, or `--skip-checks` to skip the typecheck and tests.
 Building the Windows packages on Linux needs [Wine](https://www.winehq.org); without it, that
-step is skipped. Windows and macOS need nothing extra.
+step is skipped. On an Apple Silicon Mac it needs Rosetta
+(`softwareupdate --install-rosetta`), because some of electron-builder's Windows tools are Intel-only.
 
 The macOS app is built separately, on a Mac: `./build.sh --mac` makes signed and notarized DMGs
 (x64 and arm64) when a Developer ID certificate and notarization credentials are set up: copy

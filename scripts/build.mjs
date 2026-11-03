@@ -10,7 +10,8 @@
 //   Windows  botofthespecter-desktop-<v>-setup.exe, botofthespecter-desktop-<v>-portable.exe
 //   Linux    botofthespecter-desktop-<v>-linux-x64.tar.gz (any host), botofthespecter-desktop-<v>.AppImage (Linux host)
 //
-// Windows installers build on Windows and macOS (electron-builder has native tools there); Linux needs Wine. The Linux tar.gz is packed here (not by
+// Windows installers build on Windows and macOS (Apple Silicon Macs need Rosetta for electron-builder's Intel-only
+// tools); Linux needs Wine. The Linux tar.gz is packed here (not by
 // electron-builder) so executables keep their +x bit even when built on Windows. macOS builds are
 // separate: see build.sh --mac.
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -27,6 +28,13 @@ const npx = isWin ? 'npx.cmd' : 'npx';
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
 
 const args = process.argv.slice(2);
+const KNOWN = ['--win', '--linux', '--skip-checks'];
+const unknown = args.filter((a) => !KNOWN.includes(a));
+if (unknown.length) {
+  // Stop rather than quietly building the wrong thing (e.g. --mac, which build.sh handles).
+  console.error(`[build] Unknown option ${unknown.join(' ')}. Use ${KNOWN.join(', ')}${isWin ? '' : ', or ./build.sh --mac'}.`);
+  process.exit(1);
+}
 const only = args.includes('--win') ? 'win' : args.includes('--linux') ? 'linux' : 'both';
 const skipChecks = args.includes('--skip-checks');
 
